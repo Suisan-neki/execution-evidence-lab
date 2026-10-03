@@ -3,3 +3,8 @@
 .env.*
 !.env.example
 .DS_Store
+
+
+# Added by cargo
+
+/target
