@@ -3,18 +3,23 @@ struct Date {
     age: u16,
 }
 
+fn is_valid(data: &Date) -> bool {
+    if data.name.is_empty(){
+        return false;
+    }
+    else if data.age <= 150{
+        return true;
+    }
+    else{
+        return false;
+    }
+}
+
 fn main(){
 let data = Date {
     name: String::from(""),
     age: 150,
 };
 
-if data.name.is_empty(){
-    println!("名前が空です。");
-}
-else if data.age <= 150{
-    println!("Name: {}, Age: {}", data.name, data.age);
-}else{
-    println!("エラーです。年齢が150を超えています。");
-}
+println!("入力は有効？ {}", is_valid(&data));
 }
