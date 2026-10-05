@@ -15,3 +15,13 @@ let data = Date {
 
 println!("入力は有効？ {}", is_valid(&data));
 }
+
+#[test]
+fn rejects_empty_name() {
+    let data = Date {
+        name: String::from(""),
+        age: 30,
+    };
+
+    assert!(!is_valid(&data));
+}
