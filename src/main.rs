@@ -4,15 +4,7 @@ struct Date {
 }
 
 fn is_valid(data: &Date) -> bool {
-    if data.name.is_empty(){
-        return false;
-    }
-    else if data.age <= 150{
-        return true;
-    }
-    else{
-        return false;
-    }
+    !data.name.is_empty() && data.age <= 150
 }
 
 fn main(){
