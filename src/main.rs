@@ -25,3 +25,13 @@ fn rejects_empty_name() {
 
     assert!(!is_valid(&data));
 }
+
+#[test]
+fn accepts_age_150() {
+    let data = Date {
+        name: String::from("テスト"),
+        age: 150,
+    };
+
+    assert!(is_valid(&data));
+}
