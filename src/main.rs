@@ -35,3 +35,13 @@ fn accepts_age_150() {
 
     assert!(is_valid(&data));
 }
+
+#[test]
+fn rejects_age_151() {
+    let data = Date {
+        name: String::from("テスト"),
+        age: 151,
+    };
+
+    assert!(!is_valid(&data));
+}
