@@ -1,9 +1,12 @@
 pub mod assessment;
 pub mod capture;
+pub mod evaluation;
 pub mod experiment;
 pub mod model;
 pub mod protocol;
 pub mod recording;
+pub mod review;
+pub mod workspace;
 
 #[cfg(test)]
 mod tests {

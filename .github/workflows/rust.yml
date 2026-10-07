@@ -17,3 +17,7 @@ jobs:
       - run: cargo check --locked
       - run: cargo test --locked
       - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo build --locked
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:ui

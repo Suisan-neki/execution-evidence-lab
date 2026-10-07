@@ -6,18 +6,11 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
-const revision = '218329b7a1409539c6c581990bbbb4ed9dd4175c';
-const expectedBlobs = {
-  'src/handler.mjs': 'fe1fe1f6a6f9c4070af114563672969d2408a715',
-  'src/archiveUploadContract.mjs': 'f6014bbab990202e2ee0b4602ec07f718ede4d0b',
-  'src/archiveIndex.mjs': '2c89a40ad198223ef6c70d74fba30e04f8e5e456',
-  'src/participantIdentity.mjs': '3df5d527c1f04989eded7bb5b8fe8c1c42581b5b',
-  'package.json': 'b89ac3f410be3350f3f90fed0b1d88586b6f2e7e',
-  'package-lock.json': '4c31610206b2043ab84356a716aa9686775de244',
-};
-const [backendArgument, fault = 'normal', ...extra] = process.argv.slice(2);
-if (!backendArgument || extra.length || !['normal', 'index-failure', 'missing-observation'].includes(fault)) {
-  throw new Error('usage: node vitalsensing-local.mjs /absolute/path/to/backend [normal|index-failure|missing-observation]');
+const targets = JSON.parse(await readFile(new URL('./vitalsensing-targets.json', import.meta.url), 'utf8'));
+const [backendArgument, fault = 'normal', revision = '218329b7a1409539c6c581990bbbb4ed9dd4175c', ...extra] = process.argv.slice(2);
+const expectedBlobs = targets[revision];
+if (!backendArgument || !expectedBlobs || extra.length || !['normal', 'index-failure', 'missing-observation'].includes(fault)) {
+  throw new Error('usage: node vitalsensing-local.mjs /absolute/path/to/backend [normal|index-failure|missing-observation] [pinned-revision]');
 }
 const backend = resolve(backendArgument);
 for (const [path, expected] of Object.entries(expectedBlobs)) {
@@ -50,7 +43,7 @@ const record = (kind, detail) => events.push({ sequence: events.length + 1, corr
 const localState = new Map();
 const putIndexItem = async item => {
   if (fault === 'index-failure' && item.uploadStatus === 'uploaded') {
-    record('index_failed', 'uploadedへの更新開始前に人工的に失敗させた');
+    record('index_failed', { key: item.s3Key, reason: 'uploadedへの更新開始前に人工的に失敗させた' });
     throw new Error('injected local index failure');
   }
   // 模擬索引。実DynamoDBの永続性・整合性の保証ではない。

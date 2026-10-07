@@ -1,9 +1,12 @@
 use execution_evidence_lab::{
     assessment::{assess, compare_runs},
     capture::{CaptureConfig, capture},
+    evaluation,
     experiment::{run_trial, verify_storage},
     model::*,
     recording::{load_events, load_manifest},
+    review,
+    workspace::{self, Change, ChangeRequest},
 };
 use std::{collections::BTreeMap, io, path::PathBuf};
 
@@ -15,6 +18,13 @@ const HELP: &str = "execution-evidence-lab
   retest RUN_DIR [--fault CONDITION] [--output DIR]
   compare BEFORE_DIR AFTER_DIR
   capture --condition TEXT [--timeout-ms 5000] [--output DIR] -- PROGRAM [ARGS...]
+  case init CASE_DIR [--file SPEC_JSON] [--actor TEXT] [--reason TEXT]
+  case show CASE_DIR
+  case apply CASE_DIR CHANGE_JSON
+  case import CASE_DIR RUN_DIR --condition CHECK_ID --actor TEXT --reason TEXT [--use-run-context true|false]
+  case run CASE_DIR --actor TEXT --reason TEXT [--condition save] [--fault CONDITION]
+  case export CASE_DIR --output NEW_DIR
+  review CASE_DIR [--port 8765]
 
 外部コマンドのcaptureは隔離環境ではありません。業務条件は終了コードだけで判定しません。";
 
@@ -69,6 +79,16 @@ fn run(args: &[String]) -> io::Result<()> {
     };
     match command.as_str() {
         "help" | "--help" | "-h" if args.len() == 1 => println!("{HELP}"),
+        "case" => case_command(&args[1..])?,
+        "review" if args.len() >= 2 => {
+            let opts = options(&args[2..], &["--port"])?;
+            let port = opts.get("--port").map_or(Ok(8765), |value| {
+                value
+                    .parse::<u16>()
+                    .map_err(|_| invalid("ポートは0〜65535です"))
+            })?;
+            review::serve(PathBuf::from(&args[1]), port)?;
+        }
         "demo" => {
             let opts = options(&args[1..], &["--fault", "--name", "--age", "--output"])?;
             let age = opts.get("--age").map_or(Ok(30), |value| {
@@ -197,6 +217,95 @@ fn run(args: &[String]) -> io::Result<()> {
         _ => return Err(invalid(format!("引数を確認してください\n{HELP}"))),
     }
     Ok(())
+}
+fn case_command(args: &[String]) -> io::Result<()> {
+    let (Some(command), Some(directory)) = (args.first(), args.get(1)) else {
+        return Err(invalid(HELP));
+    };
+    let directory = PathBuf::from(directory);
+    let print_view = |view: workspace::WorkspaceView| -> io::Result<()> {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&view).map_err(io::Error::other)?
+        );
+        Ok(())
+    };
+    let required = |opts: &BTreeMap<String, String>, name: &str| {
+        opts.get(name)
+            .cloned()
+            .ok_or_else(|| invalid(format!("{name}が必要です")))
+    };
+    match command.as_str() {
+        "init" => {
+            let opts = options(&args[2..], &["--file", "--actor", "--reason"])?;
+            let case = match opts.get("--file") {
+                Some(file) => execution_evidence_lab::recording::read_json(&PathBuf::from(file))?,
+                None => workspace::demo_workspace(),
+            };
+            print_view(workspace::initialize(
+                &directory,
+                case,
+                opts.get("--actor").map(String::as_str).unwrap_or("Codex"),
+                opts.get("--reason")
+                    .map(String::as_str)
+                    .unwrap_or("合成データで確認する練習用事例を作る。実際の発言・要件ではない"),
+            )?)
+        }
+        "show" if args.len() == 2 => print_view(workspace::view(workspace::load(&directory)?)),
+        "apply" if args.len() == 3 => {
+            let request: ChangeRequest =
+                execution_evidence_lab::recording::read_json(&PathBuf::from(&args[2]))?;
+            print_view(workspace::change(&directory, request)?)
+        }
+        "import" if args.len() >= 3 => {
+            let opts = options(
+                &args[3..],
+                &["--condition", "--actor", "--reason", "--use-run-context"],
+            )?;
+            let use_run_context = opts.get("--use-run-context").map_or(Ok(false), |value| {
+                value
+                    .parse::<bool>()
+                    .map_err(|_| invalid("--use-run-contextにはtrueかfalseを指定します"))
+            })?;
+            print_view(workspace::change(
+                &directory,
+                ChangeRequest {
+                    expected_revision: workspace::load(&directory)?.revision,
+                    actor: required(&opts, "--actor")?,
+                    reason: required(&opts, "--reason")?,
+                    action: Change::Import {
+                        check_id: required(&opts, "--condition")?,
+                        run_directory: args[2].clone(),
+                        use_run_context,
+                    },
+                },
+            )?)
+        }
+        "run" => {
+            let opts = options(
+                &args[2..],
+                &["--actor", "--reason", "--condition", "--fault"],
+            )?;
+            print_view(workspace::run_demo(
+                &directory,
+                workspace::load(&directory)?.revision,
+                required(&opts, "--actor")?,
+                required(&opts, "--reason")?,
+                opts.get("--condition")
+                    .cloned()
+                    .unwrap_or_else(|| "save".into()),
+                fault(&opts, Fault::Normal)?,
+            )?)
+        }
+        "export" => {
+            let opts = options(&args[2..], &["--output"])?;
+            let output = PathBuf::from(required(&opts, "--output")?);
+            evaluation::export(&directory, &output)?;
+            println!("比較資料: {}（利用者評価は未実施）", output.display());
+            Ok(())
+        }
+        _ => Err(invalid(HELP)),
+    }
 }
 fn main() {
     if let Err(error) = run(&std::env::args().skip(1).collect::<Vec<_>>()) {

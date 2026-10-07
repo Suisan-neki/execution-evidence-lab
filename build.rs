@@ -4,7 +4,9 @@ fn collect(path: &Path, files: &mut Vec<std::path::PathBuf>) {
         for entry in fs::read_dir(path).expect("read source directory") {
             collect(&entry.expect("source entry").path(), files);
         }
-    } else if path.extension().is_some_and(|ext| ext == "rs") {
+    } else if path.extension().is_some_and(|ext| {
+        ext == "rs" || ext == "html" || ext == "json" || ext == "mjs" || ext == "js" || ext == "css"
+    }) {
         files.push(path.to_owned());
     }
 }
@@ -19,6 +21,8 @@ fn main() {
     println!("cargo:rerun-if-changed=src");
     println!("cargo:rerun-if-changed=.git/index");
     collect(&root.join("src"), &mut files);
+    collect(&root.join("ui"), &mut files);
+    collect(&root.join("adapters"), &mut files);
     files.sort();
     // 変更検知用。暗号学的な署名や改ざん検知ではない。
     let mut hash = 0xcbf29ce484222325_u64;

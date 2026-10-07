@@ -11,3 +11,7 @@
 
 # 試行の入力・ログ・保存物
 /runs/
+/cases/
+/evaluations/
+/node_modules/
+/test-results/
