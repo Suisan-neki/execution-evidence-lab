@@ -2,9 +2,11 @@
 
 実装期間では動作がつながる範囲まで進める。理解期間では、実行した結果から必要なコードへ戻る。全行を最初から順番に読む必要はない。ここで挙げる試し方は説明用で、実装を止める通過試験ではない。
 
+製品として提供する「理解する」と、本人が実装を読むこの3日間は別のもの。今回の製品の入口は[理解とテストの入口](repository-understanding.md)。公開GitHubを読む場合は`cargo run -- explore`で起動し、ui/explorer.html → ui/explorer.js → ui/scanner.js → src/review.rsの順で、構成・コード・出所の対応を確認する。以下は既存のテスト基盤を読む手順。
+
 ## 1日目：操作から保存・表示まで
 
-今回追加した画面は`cargo run -- case init cases/review`、`cargo run -- review cases/review`で開ける。まず画面から正常と観測欠落を試し、確認事項と根拠の行を開く。画面のHTML・表示・操作は`ui/review.html`、`review.css`、`review.js`、HTTP入口は`src/review.rs`、保存処理の呼び出しは`workspace::run_demo`にある。Nodeは画面の実行には不要で、自動試験に使う。
+今回追加したテスト画面は`cargo run -- case init cases/review`、`cargo run -- review cases/review`で起動し、表示されたURLの`/review`で開ける。事例作成済みなら初期化は省く。まず画面から正常と観測欠落を試し、確認事項と根拠の行を開く。画面のHTML・表示・操作は`ui/review.html`、`review.css`、`review.js`、HTTP入口は`src/review.rs`、保存処理の呼び出しは`workspace::run_demo`にある。Nodeは画面の実行には不要で、自動試験に使う。
 
 まず`cargo run -- demo`を実行する。保存結果と試行ディレクトリを確認し、`src/main.rs`のdemoから`src/experiment.rs`のrun_trial、serveをたどる。データと識別子の形は`src/model.rs`、TCPの読み書きは`src/protocol.rs`にある。
 
