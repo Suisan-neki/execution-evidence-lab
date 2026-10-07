@@ -1,8 +1,24 @@
 # execution-evidence-lab
 
-医療機関の運用担当と開発者が、業務上の条件、実行記録、根拠、未確認事項を共有するための研究用の検証基盤。条件の具体化から試行、改修、再検証までを支える手法を検討する。
+「技術者と非技術者で目線の高さを合わせる」「技術者が安心して世に出せる」を目指す研究用の検証基盤。初期の対象は医療機関の運用担当と開発者。期待する動作、確かめた範囲、まだ分からないことを同じ記録で確認し、公開・導入の判断理由を残す。条件の具体化から試行、改修、再検証までを支える手法を検討する。
 
-現在の試作は、架空データ1件の操作からTCP送信・受信・ファイル保存・結果表示までを動かす。正常、受信前の遮断、受信後の保存失敗、保存ログの欠落を同じ形式で記録する。固定版のVitalSensingバックエンドをローカルの代替依存先で動かすアダプターもある。研究の新規性や医療機関での有効性は、今後の比較評価で確かめる。
+現在の試作は、確認事項・出所・未回答、試行と根拠、条件変更による再確認、人による判断をローカルのレビュー画面でつなぐ。画面から架空データ1件のTCP送信・保存を4条件で試せる。固定版のVitalSensingバックエンドをローカルの代替依存先で動かすアダプターもある。研究の新規性、他者の理解や安心感への効果、医療機関での有効性は未検証。
+
+## 共同レビューを動かす
+
+```bash
+cargo run -- case init cases/review
+cargo run -- review cases/review
+```
+
+表示されたlocalhostのURLを開く。記入者と理由を入力し、正常・保存前の人工失敗・観測の欠落・遮断を試す。「保存処理の成功」と「必要な担当者による後の閲覧」は別の条件として表示する。認識・出所、未回答への回答、人が決めた行動を記録し、条件・依存先の変更後に再試行できる。
+
+```bash
+cargo run -- case show cases/review
+cargo run -- case export cases/review --output evaluations/review-1
+```
+
+練習用の条件・質問はCodexの未採用の案。本人や医療機関の発言ではない。画面は同じ端末でのレビュー用で、外部共有や実際の公開は行わない。[共同レビューの仕様と限界](docs/shared-review.md)、[水木の実装記録](docs/sprint-2026-10-07.md)に手順と詰まった箇所を記載した。
 
 ## 実行する
 
@@ -62,6 +78,11 @@ cargo fmt --check
 cargo check
 cargo test
 cargo clippy --all-targets -- -D warnings
+# 画面の自動確認。Node.js 24以上とブラウザが必要。
+cargo build --locked
+npm ci --ignore-scripts
+npx playwright install --with-deps chromium
+npm run test:ui
 ```
 
 実行結果は[検証記録](docs/validation.md)、試作用の選択は[判断理由](docs/implementation-decisions.md)に残す。[3日間の理解計画](docs/understanding-plan.md)に沿って、送受信、記録と判定、実アプリへの適用の順で読める。

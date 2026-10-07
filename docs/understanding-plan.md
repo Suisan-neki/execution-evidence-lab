@@ -4,6 +4,8 @@
 
 ## 1日目：操作から保存・表示まで
 
+今回追加した画面は`cargo run -- case init cases/review`、`cargo run -- review cases/review`で開ける。まず画面から正常と観測欠落を試し、確認事項と根拠の行を開く。画面のHTML・表示・操作は`ui/review.html`、`review.css`、`review.js`、HTTP入口は`src/review.rs`、保存処理の呼び出しは`workspace::run_demo`にある。Nodeは画面の実行には不要で、自動試験に使う。
+
 まず`cargo run -- demo`を実行する。保存結果と試行ディレクトリを確認し、`src/main.rs`のdemoから`src/experiment.rs`のrun_trial、serveをたどる。データと識別子の形は`src/model.rs`、TCPの読み書きは`src/protocol.rs`にある。
 
 ```rust
@@ -22,6 +24,8 @@ let reply: Reply = read_frame(&mut stream)?;
 
 ## 2日目：根拠と答え合わせを分ける
 
+共同レビューでは`src/workspace.rs`の`Check`、`Evidence`、`observed`、`view`の順に読む。条件の版、観測時の結果、現在の条件に使えるかを区別する。質問を追加した場合とコードの宣言を変更した場合を試し、理由と再確認の提案を見る。`tests/workspace.rs`は最新の不足を古い成功で埋める誤り、別キーの索引更新、条件変更後の回答の流用を防ぐ例になっている。
+
 `cargo run -- suite`で4条件を動かす。missing-observationの試行を`show`で読み、続けて`verify`で保存物を読む。「判定できない」と「実際には入力と一致する保存物がある」が同時に成立する理由を、src/assessment.rsから確認する。
 
 ```rust
@@ -36,6 +40,8 @@ let truth = verify_storage(&directory, &input);
 tests/system.rsのmissing_save_observation、another_run_record_or_attempt、conflicting_observationsのテストを読む。どの誤判定を防いでいるかを、実行記録と対応させる。
 
 ## 3日目：再検証と実アプリへの接続
+
+画面から人の判断を記録し、依存先の宣言を変えて再試行する。`workspace::change`と`save_revision`で、以前の版と判断当時の根拠が残る位置を見る。`src/evaluation.rs`と`case export`で3種類の比較資料を確認する。同じ入力情報であることと、他者評価を実施したことは別。操作を通す自動確認は`tools/review-smoke.mjs`、実ハンドラーへの接続は`tools/adapter-smoke.mjs`にある。
 
 保存失敗の試行を`retest <run-dir> --fault normal`で再実行する。previous_runとcompareの変更一覧を読み、古い試行が残ることを確かめる。コードや条件が変わった場合、前の成功結果だけでは新しい条件を保証できない。
 
