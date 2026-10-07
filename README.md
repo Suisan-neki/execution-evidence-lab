@@ -78,7 +78,7 @@ cargo fmt --check
 cargo check
 cargo test
 cargo clippy --all-targets -- -D warnings
-# 画面の自動確認。Node.js 24以上とブラウザが必要。
+# 画面の自動確認。Node.js 22以上とブラウザが必要。
 cargo build --locked
 npm ci --ignore-scripts
 npx playwright install --with-deps chromium
