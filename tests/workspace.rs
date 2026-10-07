@@ -503,15 +503,38 @@ fn comparison_variants_have_identical_raw_information_and_no_answer_key() {
     fs::write(run.directory.join("truth.json"), "SECRET ANSWER KEY").unwrap();
     fs::write(run.directory.join("stored.json"), "SECRET SAVED CONTENT").unwrap();
     import(&case, &run, "save");
+    apply(
+        &case,
+        Change::Decide {
+            role: Role::Developer,
+            action: DecisionKind::Hold,
+            check_ids: vec!["save".into()],
+            change_reference: None,
+            confidence: None,
+            elapsed_ms: None,
+        },
+    );
     let output = s.0.join("comparison");
     evaluation::export(&case, &output).unwrap();
     let sources: serde_json::Value = read_json(&output.join("input.json")).unwrap();
     let marker = serde_json::to_string_pretty(&sources).unwrap();
-    for name in ["baseline.md", "linked.md", "without-links.md"] {
+    for name in [
+        "baseline.md",
+        "checklist.md",
+        "linked.md",
+        "without-links.md",
+    ] {
         let text = fs::read_to_string(output.join(name)).unwrap();
         assert!(text.contains(&marker));
         assert!(!text.contains("SECRET"));
     }
+    assert!(sources["decisions"][0].get("basis").is_none());
+    assert_eq!(sources["decisions"][0]["action"], "hold");
+    assert!(
+        fs::read_to_string(output.join("without-links.md"))
+            .unwrap()
+            .contains("共通の入力情報")
+    );
     let result: serde_json::Value = read_json(&output.join("export.json")).unwrap();
     assert_eq!(result["human_evaluation"], "not_conducted");
     assert_eq!(
@@ -519,6 +542,77 @@ fn comparison_variants_have_identical_raw_information_and_no_answer_key() {
         serde_json::Value::Null
     );
     assert!(evaluation::export(&case, &output).is_err());
+}
+
+#[test]
+fn adapter_out_of_order_success_and_unkeyed_failure_are_unknown() {
+    let s = Sandbox::new();
+    let case = s.case();
+    add_local_check(&case);
+    let current = "2bc818b2a8e7002154ab5c29524bb03315f00b42";
+    let issued = (
+        "upload_target_issued",
+        serde_json::json!({"key":"expected-key", "statusCode":200}),
+    );
+    let positive = (
+        "index_updated",
+        serde_json::json!({"key":"expected-key", "status":"uploaded"}),
+    );
+    for kinds in [
+        vec![positive.clone(), issued.clone()],
+        vec![
+            issued.clone(),
+            positive.clone(),
+            ("index_failed", serde_json::json!("target unknown")),
+        ],
+        vec![
+            issued,
+            positive,
+            (
+                "index_failed",
+                serde_json::json!({"key":"", "reason":"target unknown"}),
+            ),
+        ],
+    ] {
+        let v = import(&case, &adapter_fixture(&s, current, &kinds), "local-index");
+        assert_eq!(v.checks[2].verdict, Verdict::Unknown);
+        assert!(matches!(v.checks[2].next.kind, ActionKind::InspectConflict));
+    }
+}
+
+#[test]
+fn general_case_starts_without_generated_domain_requirements() {
+    let s = Sandbox::new();
+    let case = s.0.join("general");
+    let v = initialize(
+        &case,
+        empty_workspace("generic-001".into(), "通知を確認する".into()),
+        "作成者",
+        "汎用の事例を開始する",
+    )
+    .unwrap();
+    assert!(v.checks.is_empty());
+    assert!(v.workspace.statements.is_empty());
+    assert!(v.workspace.context.is_empty());
+    let v = apply(
+        &case,
+        Change::AddCheck {
+            check: Check {
+                id: "notification".into(),
+                version: 1,
+                text: "通知が届く".into(),
+                origin: "合成の利用条件".into(),
+                rule: Rule::ManualOnly,
+                dependencies: vec![],
+                questions: vec![],
+            },
+        },
+    );
+    assert_eq!(v.checks[0].verdict, Verdict::Unknown);
+    assert!(matches!(
+        v.checks[0].next.kind,
+        ActionKind::DefineObservation
+    ));
 }
 
 fn http(

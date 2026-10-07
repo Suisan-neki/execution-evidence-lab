@@ -38,7 +38,11 @@ pub fn common_inputs(view: &WorkspaceView) -> serde_json::Value {
         "statements": case.statements, "checks": case.checks, "context": case.context,
         "runs": case.evidence.iter().map(|e| serde_json::json!({"id": e.id, "manifest": e.manifest, "events": e.events, "adapter": e.adapter})).collect::<Vec<_>>(),
         "declared_mapping": case.evidence.iter().map(|e| serde_json::json!({"evidence_id":e.id,"check_id":e.check_id,"check_version":e.check_version,"dependencies":e.dependencies,"dependency_origins":e.dependency_origins})).collect::<Vec<_>>(),
-        "decisions": case.decisions, "history": case.history})
+        "decisions": case.decisions.iter().map(|d| serde_json::json!({
+            "id":d.id,"based_on_revision":d.based_on_revision,"actor":d.actor,"role":d.role,
+            "action":d.action,"reason":d.reason,"check_ids":d.check_ids,
+            "change_reference":d.change_reference,"confidence":d.confidence,"elapsed_ms":d.elapsed_ms
+        })).collect::<Vec<_>>(), "history": case.history})
 }
 
 pub fn export(directory: &Path, output: &Path) -> io::Result<()> {
@@ -52,12 +56,18 @@ pub fn export(directory: &Path, output: &Path) -> io::Result<()> {
     fs::create_dir(output)?;
     write_json_new(&output.join("input.json"), &inputs)?;
     let common = format!(
-        "# 共通の入力情報\n\n事例: {}、版: {}\n\n同一情報の識別値: {}（変更確認用で、暗号学的な署名ではない）\n\n次の情報は3条件で同一。保存物・truth.json・adapter-truth.json・独立した答え合わせは含まない。\n\n```json\n{}\n```\n",
+        "# 共通の入力情報\n\n事例: {}、版: {}\n\n同一情報の識別値: {}（変更確認用で、暗号学的な署名ではない）\n\n次の情報は4条件で同一。保存物・truth.json・adapter-truth.json・独立した答え合わせは含まない。\n\n```json\n{}\n```\n",
         view.workspace.id,
         view.workspace.revision,
         hash,
         String::from_utf8(bytes).map_err(io::Error::other)?
     );
+    write_new(
+        &output.join("checklist.md"),
+        &format!(
+            "# 通常の対話・コード確認・試験を組み合わせる手順\n\n共通入力だけを使い、条件ごとに手作業で次を記録する。生成済みの判定理由・判断当時の自動説明は入力に含めない。\n\n1. 条件文と出所を読み、未回答の利用条件を列挙する。\n2. 最後に取り込んだ試行を選び、宣言された対応と条件版を照合する。\n3. コード・入力・環境等の宣言値を照合する。未宣言の依存先は確認できない。\n4. 同じ試行・データ・送信の識別子、記録の出所と順序を照合する。\n5. 成功・失敗・不足・食い違いを分け、条件文が保証する範囲だけを回答する。\n6. 次の質問・試験・観測追加と理由を記入する。\n\nこの手順は比較候補。有力さや人の作業時間は未評価。`tools/reproduce-methods.mjs`の参照実装は、この手順の限定した保存条件を機械的に再現する。外部研究手法の再現ではない。\n\n{common}"
+        ),
+    )?;
     write_new(
         &output.join("baseline.md"),
         &format!(
@@ -86,7 +96,7 @@ pub fn export(directory: &Path, output: &Path) -> io::Result<()> {
             case_id: &view.workspace.id,
             revision: view.workspace.revision,
             common_input_fingerprint: hash,
-            methods: vec!["baseline", "linked", "without_links"],
+            methods: vec!["baseline", "checklist", "linked", "without_links"],
             human_evaluation: "not_conducted",
         },
     )?;

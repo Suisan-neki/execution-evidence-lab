@@ -19,6 +19,7 @@ const HELP: &str = "execution-evidence-lab
   compare BEFORE_DIR AFTER_DIR
   capture --condition TEXT [--timeout-ms 5000] [--output DIR] -- PROGRAM [ARGS...]
   case init CASE_DIR [--file SPEC_JSON] [--actor TEXT] [--reason TEXT]
+  case init CASE_DIR --template general --id CASE_ID --title TEXT [--actor TEXT] [--reason TEXT]
   case show CASE_DIR
   case apply CASE_DIR CHANGE_JSON
   case import CASE_DIR RUN_DIR --condition CHECK_ID --actor TEXT --reason TEXT [--use-run-context true|false]
@@ -237,10 +238,42 @@ fn case_command(args: &[String]) -> io::Result<()> {
     };
     match command.as_str() {
         "init" => {
-            let opts = options(&args[2..], &["--file", "--actor", "--reason"])?;
+            let opts = options(
+                &args[2..],
+                &[
+                    "--file",
+                    "--actor",
+                    "--reason",
+                    "--template",
+                    "--id",
+                    "--title",
+                ],
+            )?;
+            if opts.contains_key("--file")
+                && ["--template", "--id", "--title"]
+                    .iter()
+                    .any(|k| opts.contains_key(*k))
+            {
+                return Err(invalid(
+                    "--fileと--template・--id・--titleは同時に指定できません",
+                ));
+            }
             let case = match opts.get("--file") {
                 Some(file) => execution_evidence_lab::recording::read_json(&PathBuf::from(file))?,
-                None => workspace::demo_workspace(),
+                None => match opts.get("--template").map(String::as_str).unwrap_or("demo") {
+                    "general" => workspace::empty_workspace(
+                        required(&opts, "--id")?,
+                        required(&opts, "--title")?,
+                    ),
+                    "demo" if !opts.contains_key("--id") && !opts.contains_key("--title") => {
+                        workspace::demo_workspace()
+                    }
+                    _ => {
+                        return Err(invalid(
+                            "--template generalには--idと--titleが必要です。demoでは指定できません",
+                        ));
+                    }
+                },
             };
             print_view(workspace::initialize(
                 &directory,
@@ -248,7 +281,7 @@ fn case_command(args: &[String]) -> io::Result<()> {
                 opts.get("--actor").map(String::as_str).unwrap_or("Codex"),
                 opts.get("--reason")
                     .map(String::as_str)
-                    .unwrap_or("合成データで確認する練習用事例を作る。実際の発言・要件ではない"),
+                    .unwrap_or("事例を初期化する。条件・発言・根拠は入力された範囲だけを扱う"),
             )?)
         }
         "show" if args.len() == 2 => print_view(workspace::view(workspace::load(&directory)?)),

@@ -66,6 +66,8 @@ try {
   await page.locator("#check-save").waitFor();
   await page.locator("#actor").fill("合成・開発者役");
   await page.locator("#reason").fill("ブラウザ試験：現在の保存範囲を確認する");
+  await page.locator('#decision-checks input[value="later-view"]').uncheck();
+  await page.locator("#answer-later-view-viewer").fill("未保存の回答の下書き");
   const state = async () =>
     (await context.request.get(url + "/api/case")).json();
   const submit = async (selector) => {
@@ -95,6 +97,24 @@ try {
     assert.equal((await state()).checks[1].verdict, "unknown");
   }
   await submit('.demo[data-fault="normal"]');
+  assert.equal(
+    await page.locator("#answer-later-view-viewer").inputValue(),
+    "未保存の回答の下書き",
+  );
+  assert.equal(
+    await page
+      .locator('#decision-checks input[value="later-view"]')
+      .isChecked(),
+    false,
+  );
+  assert.ok(
+    (await page.locator("#overview").innerText()).includes("条件を満たす 1件"),
+  );
+  assert.ok(
+    (await page.locator("#check-save .unconfirmed").innerText()).includes(
+      "後の時点での閲覧可能性",
+    ),
+  );
   await page.locator('#check-save a[href*="-events-"]').first().click();
   assert.ok(
     await page.locator("#evidence").isVisible(),
@@ -131,6 +151,7 @@ try {
   await stale.close();
 
   await page.locator("#role").selectOption("operator");
+  await page.locator('#decision-checks input[value="later-view"]').check();
   await page.locator("#actor").fill("合成・運用担当役");
   await page
     .locator("#reason")
@@ -174,6 +195,11 @@ try {
   await submit("#context-update");
   assert.equal((await state()).checks[0].verdict, "unknown");
   assert.ok(
+    (await page.locator("#check-save .evidence-scope").innerText()).includes(
+      "現在の判定には使えません",
+    ),
+  );
+  assert.ok(
     (await state()).checks[0].evidence
       .at(-1)
       .invalidated_by.some((v) => v.includes("engine")),
@@ -208,6 +234,9 @@ try {
       browser: await browser.version(),
       checks: [
         "four faults",
+        "draft and condition selection preservation",
+        "current summary and observed limits",
+        "historical evidence scope",
         "same source event links",
         "escaped statements",
         "stale writes",

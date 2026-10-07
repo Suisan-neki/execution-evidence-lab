@@ -368,6 +368,22 @@ pub fn validate(workspace: &Workspace) -> io::Result<()> {
     Ok(())
 }
 
+/// 条件・発言・回答を補わずに、汎用の事例を始める。
+pub fn empty_workspace(id: String, title: String) -> Workspace {
+    Workspace {
+        schema_version: 1,
+        revision: 1,
+        id,
+        title,
+        statements: vec![],
+        context: BTreeMap::new(),
+        checks: vec![],
+        evidence: vec![],
+        decisions: vec![],
+        history: vec![],
+    }
+}
+
 /// 合成データだけを使う練習用。実際の担当者の発言や採用要件は含めない。
 pub fn demo_workspace() -> Workspace {
     Workspace {
@@ -707,7 +723,7 @@ fn observed(evidence: &Evidence) -> Assessment {
                     .events
                     .iter()
                     .filter(|e| e.kind == "upload_target_issued" && e.detail["statusCode"] == 200)
-                    .filter_map(|e| e.detail["key"].as_str().filter(|key| !key.is_empty()))
+                    .filter(|e| e.detail["key"].as_str().is_some_and(|key| !key.is_empty()))
                     .collect();
                 if issued.len() != 1 {
                     result.reason = "この試行の対象キーを一件に特定できない".into();
@@ -719,23 +735,38 @@ fn observed(evidence: &Evidence) -> Assessment {
                     .filter(|e| {
                         e.kind == "index_updated"
                             && e.detail["status"] == "uploaded"
-                            && e.detail["key"] == issued[0]
+                            && e.detail["key"] == issued[0].detail["key"]
                     })
                     .collect();
                 let negative: Vec<_> = trace
                     .events
                     .iter()
                     .filter(|e| {
-                        e.kind == "index_failed"
-                            && (e.detail.is_string() || e.detail["key"] == issued[0])
+                        e.kind == "index_failed" && e.detail["key"] == issued[0].detail["key"]
                     })
                     .collect();
-                result.evidence = positive
+                let mut referenced = vec![issued[0]];
+                referenced.extend(positive.iter().chain(&negative).copied());
+                referenced.extend(trace.events.iter().filter(|e| {
+                    e.kind == "index_failed" && e.detail["key"].as_str().is_none_or(str::is_empty)
+                }));
+                referenced.sort_by_key(|e| e.sequence);
+                result.evidence = referenced
                     .iter()
-                    .chain(&negative)
                     .map(|e| format!("adapter-events.jsonl#{}", e.sequence))
                     .collect();
-                if !positive.is_empty() && !negative.is_empty() {
+                let ambiguous_failure = trace.events.iter().any(|e| {
+                    e.kind == "index_failed" && e.detail["key"].as_str().is_none_or(str::is_empty)
+                });
+                let invalid_order = positive
+                    .iter()
+                    .chain(&negative)
+                    .any(|e| e.sequence <= issued[0].sequence);
+                if invalid_order || ambiguous_failure {
+                    result.reason =
+                        "対象の発行と更新記録の順序が食い違うか、失敗記録の対象キーを特定できない"
+                            .into();
+                } else if !positive.is_empty() && !negative.is_empty() {
                     result.reason = "同じ試行の索引更新の成功・失敗記録が食い違う".into();
                 } else if !positive.is_empty() {
                     result.verdict = Verdict::Satisfied;

@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:ui": "node tools/review-smoke.mjs"
+    "test:ui": "node tools/review-smoke.mjs",
+    "test:methods": "node tools/reproduce-methods.mjs"
   },
   "devDependencies": {
     "playwright": "1.62.1"

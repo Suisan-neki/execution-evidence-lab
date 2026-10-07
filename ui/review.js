@@ -1,6 +1,7 @@
 "use strict";
 const token = "__REVIEW_TOKEN__";
 let state;
+let renderedChecks = [];
 const $ = (id) => document.getElementById(id);
 const esc = (value) =>
   String(value ?? "").replace(
@@ -90,13 +91,56 @@ function evidenceLinks(evidence) {
 }
 function render() {
   const w = state.workspace;
+  // 再描画で、未保存の回答や選択した条件を消さない。
+  const drafts = [
+    ...$("checks").querySelectorAll("input[id],textarea[id],select[id]"),
+  ]
+    .filter((el) => {
+      const c = renderedChecks.find((c) =>
+        ["text-", "rule-", "deps-", "check-origin-"].some(
+          (prefix) => el.id === prefix + c.id,
+        ),
+      );
+      if (!c) return true;
+      const old =
+        el.id === "text-" + c.id
+          ? c.text
+          : el.id === "rule-" + c.id
+            ? c.rule
+            : el.id === "deps-" + c.id
+              ? c.dependencies.join(",")
+              : c.origin;
+      return el.value !== old;
+    })
+    .map((el) => [el.id, el.value]);
+  const choices = ["statement-checks", "decision-checks"].map((id) => [
+    id,
+    new Map(
+      [...$(id).querySelectorAll("input")].map((el) => [el.value, el.checked]),
+    ),
+  ]);
+  const details = [...$("checks").querySelectorAll("details")].map((el) => [
+    el.closest("section").id,
+    el.querySelector("summary").textContent,
+    el.open,
+  ]);
   $("case-title").textContent = w.title;
   $("revision").textContent = "事例 " + w.id + "・版 " + w.revision;
+  $("overview").innerHTML =
+    ["satisfied", "not_satisfied", "unknown"]
+      .map(
+        (kind) =>
+          `<span class="badge ${kind}">${esc(labels[kind])} ${state.checks.filter((v) => v.verdict === kind).length}件</span>`,
+      )
+      .join(" ") +
+    (w.checks.length
+      ? `<p>未回答 ${state.checks.reduce((n, v) => n + v.unanswered.length, 0)}件／以前の根拠の再確認 ${state.checks.filter((v) => v.evidence.at(-1)?.applicable === false).length}件</p>`
+      : "<p>確認事項はまだありません。「条件・実行環境を更新する」から、確かめたい条件と出所を追加してください。</p>");
   $("checks").innerHTML = state.checks
     .map((v) => {
       const c = w.checks.find((c) => c.id === v.check_id);
       const latest = v.evidence.at(-1);
-      return `<section class="check" id="check-${esc(c.id)}"><div class="row"><h2>${esc(c.text)}</h2><span class="badge ${esc(v.verdict)}">${esc(labels[v.verdict])}</span></div><p class="muted">条件 ${esc(c.id)}・版 ${c.version}／出所：${esc(c.origin)}</p><p class="reason">${esc(v.reason)}</p><p><strong>次の確認の提案</strong><br>${esc(v.next.text)}<br><span class="muted">理由：${esc(v.next.reason)}。この提案から自動実行しません。</span></p>${latest ? `<p><a href="#evidence-${esc(latest.id)}">根拠と実行記録を見る</a><br>${evidenceLinks(latest)}</p>` : ""}${c.questions.map((q) => `<div><p><strong>${esc(q.text)}</strong>${q.answer ? `<br>${esc(q.answer)}<br><span class="muted">出所：${esc(q.origin)}</span>` : "<br>未回答"}</p><label for="answer-${esc(c.id)}-${esc(q.id)}">回答・修正する内容</label><input id="answer-${esc(c.id)}-${esc(q.id)}"><label for="origin-${esc(c.id)}-${esc(q.id)}">回答の出所</label><input id="origin-${esc(c.id)}-${esc(q.id)}"><button class="secondary answer" data-check="${esc(c.id)}" data-question="${esc(q.id)}">回答と出所を保存</button></div>`).join("")}${
+      return `<section class="check" id="check-${esc(c.id)}"><div class="row"><h2>${esc(c.text)}</h2><span class="badge ${esc(v.verdict)}">${esc(labels[v.verdict])}</span></div><p class="muted">条件 ${esc(c.id)}・版 ${c.version}／出所：${esc(c.origin)}</p><p class="reason">${esc(v.reason)}</p><p><strong>次の確認の提案</strong><br>${esc(v.next.text)}<br><span class="muted">理由：${esc(v.next.reason)}。この提案から自動実行しません。</span></p>${latest ? `<p class="evidence-scope">${latest.applicable ? "現在の条件に対応する試行" : "以前の条件の試行。現在の判定には使えません"}：${esc(latest.run_id)}<br><a href="#evidence-${esc(latest.id)}">根拠と実行記録を見る</a><br>${evidenceLinks(latest)}</p>${latest.observed.unconfirmed.length ? `<div class="unconfirmed"><strong>この観測では確認していないこと</strong><ul>${latest.observed.unconfirmed.map((text) => `<li>${esc(text)}</li>`).join("")}</ul></div>` : ""}` : ""}${c.questions.map((q) => `<div><p><strong>${esc(q.text)}</strong>${q.answer ? `<br>${esc(q.answer)}<br><span class="muted">出所：${esc(q.origin)}</span>` : "<br>未回答"}</p><label for="answer-${esc(c.id)}-${esc(q.id)}">回答・修正する内容</label><input id="answer-${esc(c.id)}-${esc(q.id)}"><label for="origin-${esc(c.id)}-${esc(q.id)}">回答の出所</label><input id="origin-${esc(c.id)}-${esc(q.id)}"><button class="secondary answer" data-check="${esc(c.id)}" data-question="${esc(q.id)}">回答と出所を保存</button></div>`).join("")}${
         c.rule === "demo_save"
           ? `<details open><summary>合成データで新しい試行を行う</summary><p class="muted">架空の利用者1件をTCPで送信・ファイル保存します。選んだ故障条件を現在の試験条件として記録します。</p>${[
               ["normal", "正常"],
@@ -182,6 +226,17 @@ function render() {
         `<section id="evidence-${esc(e.id)}"><h3>${esc(e.id)}／試行 ${esc(e.manifest.correlation.run_id)}</h3><p>条件 ${esc(e.check_id)}・取り込み時の版 ${e.check_version}</p><table><thead><tr><th>根拠</th><th>観測した内容</th></tr></thead><tbody>${e.events.map((event) => `<tr id="evidence-${esc(e.id)}-events-${event.sequence}"><td>events.jsonl#${event.sequence}<br>${esc(event.source)}／${esc(event.kind)}</td><td>${esc(event.detail)}</td></tr>`).join("")}${(e.adapter?.events ?? []).map((event) => `<tr id="evidence-${esc(e.id)}-adapter-${event.sequence}"><td>adapter-events.jsonl#${event.sequence}<br>${esc(event.kind)}</td><td>${esc(typeof event.detail === "string" ? event.detail : JSON.stringify(event.detail))}</td></tr>`).join("")}</tbody></table><details><summary>条件・コード・入力・環境の記録</summary><pre>${esc(JSON.stringify({ manifest: e.manifest, dependencies: e.dependencies, target: e.adapter?.target }, null, 2))}</pre></details></section>`,
     )
     .join("");
+  for (const [id, value] of drafts) {
+    const el = $(id);
+    if (el) el.value = value;
+  }
+  for (const [id, selected] of choices)
+    for (const el of $(id).querySelectorAll("input"))
+      if (selected.has(el.value)) el.checked = selected.get(el.value);
+  for (const [id, summary, open] of details)
+    for (const el of $(id)?.querySelectorAll("details") ?? [])
+      if (el.querySelector("summary").textContent === summary) el.open = open;
+  renderedChecks = w.checks;
   document.querySelectorAll('a[href^="#"]').forEach((a) => {
     a.onclick = () => {
       const target = document.getElementById(a.getAttribute("href").slice(1));
