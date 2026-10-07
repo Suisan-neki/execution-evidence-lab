@@ -1,0 +1,13 @@
+{
+  "name": "execution-evidence-lab-review-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:ui": "node tools/review-smoke.mjs && node tools/explorer-smoke.mjs",
+    "test:reader": "node tools/scanner-tests.mjs",
+    "test:methods": "node tools/reproduce-methods.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

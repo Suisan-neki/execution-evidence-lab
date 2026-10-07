@@ -1,0 +1,18 @@
+{
+  "218329b7a1409539c6c581990bbbb4ed9dd4175c": {
+    "src/handler.mjs": "fe1fe1f6a6f9c4070af114563672969d2408a715",
+    "src/archiveUploadContract.mjs": "f6014bbab990202e2ee0b4602ec07f718ede4d0b",
+    "src/archiveIndex.mjs": "2c89a40ad198223ef6c70d74fba30e04f8e5e456",
+    "src/participantIdentity.mjs": "3df5d527c1f04989eded7bb5b8fe8c1c42581b5b",
+    "package.json": "b89ac3f410be3350f3f90fed0b1d88586b6f2e7e",
+    "package-lock.json": "4c31610206b2043ab84356a716aa9686775de244"
+  },
+  "2bc818b2a8e7002154ab5c29524bb03315f00b42": {
+    "src/handler.mjs": "99484460bd4155c5ee9eea7c59457701b1190e77",
+    "src/archiveUploadContract.mjs": "5b0dfbead15d33469416a39fbe73914031a79181",
+    "src/archiveIndex.mjs": "fff2114d65126496dbc5ee3ebed775b6e6beafbc",
+    "src/participantIdentity.mjs": "3df5d527c1f04989eded7bb5b8fe8c1c42581b5b",
+    "package.json": "b89ac3f410be3350f3f90fed0b1d88586b6f2e7e",
+    "package-lock.json": "4c31610206b2043ab84356a716aa9686775de244"
+  }
+}
