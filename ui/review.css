@@ -23,6 +23,8 @@ header p {
   max-width: 850px;
   margin-bottom: 0;
 }
+.feature-link, .feature-current { color: #fff; display: inline-block; margin: 0 20px 14px 0; font-size: .9rem; }
+.feature-current { border-bottom: 2px solid #c4e0d6; }
 main {
   max-width: 1200px;
   margin: auto;

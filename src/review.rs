@@ -23,6 +23,11 @@ pub fn html(token: &str) -> String {
         .replace("__REVIEW_TOKEN__", token)
 }
 
+pub fn explorer_html() -> String {
+    include_str!("../ui/explorer.html")
+        .replace("__EXPLORER_STYLE__", include_str!("../ui/explorer.css"))
+}
+
 struct Request {
     method: String,
     path: String,
@@ -137,7 +142,7 @@ fn respond(stream: &mut TcpStream, status: u16, content_type: &str, body: &[u8])
     };
     write!(
         stream,
-        "HTTP/1.1 {status} {phrase}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nContent-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {status} {phrase}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nContent-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; form-action 'none'; frame-ancestors 'none'; base-uri 'none'\r\nConnection: close\r\n\r\n",
         body.len()
     )?;
     stream.write_all(body)
@@ -163,11 +168,19 @@ struct DemoRequest {
 
 /// 任意ファイルへのアクセスや任意コマンド実行は公開しない。変更JSONのimportはCLI専用。
 pub fn handle_connection(mut stream: TcpStream, directory: &Path, token: &str) -> io::Result<()> {
-    let request = match read_request(&mut stream) {
+    handle_connection_mode(&mut stream, Some(directory), token)
+}
+
+fn handle_connection_mode(
+    stream: &mut TcpStream,
+    directory: Option<&Path>,
+    token: &str,
+) -> io::Result<()> {
+    let request = match read_request(stream) {
         Ok(request) => request,
         Err(error) => {
             return json(
-                &mut stream,
+                stream,
                 400,
                 &serde_json::json!({"error": error.to_string()}),
             );
@@ -181,7 +194,7 @@ pub fn handle_connection(mut stream: TcpStream, directory: &Path, token: &str) -
         .unwrap_or("");
     if host != format!("127.0.0.1:{port}") && host != format!("localhost:{port}") {
         return json(
-            &mut stream,
+            stream,
             403,
             &serde_json::json!({"error": "localhostのHostだけを受け付けます"}),
         );
@@ -193,29 +206,53 @@ pub fn handle_connection(mut stream: TcpStream, directory: &Path, token: &str) -
             || request.headers.get("content-type").map(String::as_str) != Some("application/json"))
     {
         return json(
-            &mut stream,
+            stream,
             403,
             &serde_json::json!({"error": "画面のOrigin・操作トークン・JSON形式が必要です"}),
         );
     }
     if request.method == "GET" && !request.body.is_empty() {
         return json(
-            &mut stream,
+            stream,
             400,
             &serde_json::json!({"error": "GETに本文は指定できません"}),
         );
     }
+    if request.method == "GET" {
+        let resource = match request.path.as_str() {
+            "/" | "/explore" => Some(("text/html; charset=utf-8", explorer_html())),
+            "/ui/explorer.js" => Some((
+                "text/javascript; charset=utf-8",
+                include_str!("../ui/explorer.js").to_owned(),
+            )),
+            "/ui/scanner.js" => Some((
+                "text/javascript; charset=utf-8",
+                include_str!("../ui/scanner.js").to_owned(),
+            )),
+            _ => None,
+        };
+        if let Some((content_type, body)) = resource {
+            return respond(stream, 200, content_type, body.as_bytes());
+        }
+    }
+    let Some(directory) = directory else {
+        return json(
+            stream,
+            404,
+            &serde_json::json!({"error": "テストの事例を開いていません"}),
+        );
+    };
     match (request.method.as_str(), request.path.as_str()) {
-        ("GET", "/") => respond(
-            &mut stream,
+        ("GET", "/review") => respond(
+            stream,
             200,
             "text/html; charset=utf-8",
             html(token).as_bytes(),
         ),
         ("GET", "/api/case") => match workspace::load(directory) {
-            Ok(case) => json(&mut stream, 200, &view(case)),
+            Ok(case) => json(stream, 200, &view(case)),
             Err(error) => json(
-                &mut stream,
+                stream,
                 400,
                 &serde_json::json!({"error": error.to_string()}),
             ),
@@ -232,7 +269,7 @@ pub fn handle_connection(mut stream: TcpStream, directory: &Path, token: &str) -
                     }
                     workspace::change(directory, change)
                 });
-            result_response(&mut stream, result)
+            result_response(stream, result)
         }
         ("POST", "/api/demo") => {
             let result = serde_json::from_slice::<DemoRequest>(&request.body)
@@ -247,10 +284,10 @@ pub fn handle_connection(mut stream: TcpStream, directory: &Path, token: &str) -
                         request.fault,
                     )
                 });
-            result_response(&mut stream, result)
+            result_response(stream, result)
         }
         _ => json(
-            &mut stream,
+            stream,
             404,
             &serde_json::json!({"error": "この操作はありません"}),
         ),
@@ -275,17 +312,30 @@ fn result_response(stream: &mut TcpStream, result: io::Result<WorkspaceView>) ->
 }
 pub fn serve(directory: PathBuf, port: u16) -> io::Result<()> {
     workspace::load(&directory)?;
+    serve_mode(Some(directory), port)
+}
+
+pub fn serve_explorer(port: u16) -> io::Result<()> {
+    serve_mode(None, port)
+}
+
+fn serve_mode(directory: Option<PathBuf>, port: u16) -> io::Result<()> {
     let mut bytes = [0; 24];
     File::open("/dev/urandom")?.read_exact(&mut bytes)?;
     let token = bytes.iter().map(|b| format!("{b:02x}")).collect::<String>();
     let listener = TcpListener::bind(("127.0.0.1", port))?;
-    println!(
-        "共同レビュー: http://{}\n終了: Ctrl+C。事例は{}へ保存します。",
-        listener.local_addr()?,
-        directory.display()
-    );
+    println!("理解: http://{}\n終了: Ctrl+C。", listener.local_addr()?);
+    if let Some(directory) = &directory {
+        println!(
+            "テストと判断の記録: http://{}/review\n事例は{}へ保存します。",
+            listener.local_addr()?,
+            directory.display()
+        );
+    }
     for stream in listener.incoming() {
-        match stream.and_then(|stream| handle_connection(stream, &directory, &token)) {
+        match stream.and_then(|mut stream| {
+            handle_connection_mode(&mut stream, directory.as_deref(), &token)
+        }) {
             Ok(()) => (),
             Err(error) => eprintln!("レビューの接続エラー: {error}"),
         }

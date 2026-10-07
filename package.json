@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:ui": "node tools/review-smoke.mjs",
+    "test:ui": "node tools/review-smoke.mjs && node tools/explorer-smoke.mjs",
+    "test:reader": "node tools/scanner-tests.mjs",
     "test:methods": "node tools/reproduce-methods.mjs"
   },
   "devDependencies": {

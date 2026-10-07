@@ -89,6 +89,14 @@ function evidenceLinks(evidence) {
     })
     .join("、");
 }
+function originMarkup(origin) {
+  try {
+    const url = new URL(origin);
+    if (url.protocol === "https:" && url.hostname === "github.com" && !url.username && !url.password)
+      return `<a href="${esc(url.href)}" target="_blank" rel="noopener noreferrer">${esc(origin)}</a>`;
+  } catch { /* 自由記述の出所は文字列として表示する。 */ }
+  return esc(origin);
+}
 function render() {
   const w = state.workspace;
   // 再描画で、未保存の回答や選択した条件を消さない。
@@ -140,7 +148,7 @@ function render() {
     .map((v) => {
       const c = w.checks.find((c) => c.id === v.check_id);
       const latest = v.evidence.at(-1);
-      return `<section class="check" id="check-${esc(c.id)}"><div class="row"><h2>${esc(c.text)}</h2><span class="badge ${esc(v.verdict)}">${esc(labels[v.verdict])}</span></div><p class="muted">条件 ${esc(c.id)}・版 ${c.version}／出所：${esc(c.origin)}</p><p class="reason">${esc(v.reason)}</p><p><strong>次の確認の提案</strong><br>${esc(v.next.text)}<br><span class="muted">理由：${esc(v.next.reason)}。この提案から自動実行しません。</span></p>${latest ? `<p class="evidence-scope">${latest.applicable ? "現在の条件に対応する試行" : "以前の条件の試行。現在の判定には使えません"}：${esc(latest.run_id)}<br><a href="#evidence-${esc(latest.id)}">根拠と実行記録を見る</a><br>${evidenceLinks(latest)}</p>${latest.observed.unconfirmed.length ? `<div class="unconfirmed"><strong>この観測では確認していないこと</strong><ul>${latest.observed.unconfirmed.map((text) => `<li>${esc(text)}</li>`).join("")}</ul></div>` : ""}` : ""}${c.questions.map((q) => `<div><p><strong>${esc(q.text)}</strong>${q.answer ? `<br>${esc(q.answer)}<br><span class="muted">出所：${esc(q.origin)}</span>` : "<br>未回答"}</p><label for="answer-${esc(c.id)}-${esc(q.id)}">回答・修正する内容</label><input id="answer-${esc(c.id)}-${esc(q.id)}"><label for="origin-${esc(c.id)}-${esc(q.id)}">回答の出所</label><input id="origin-${esc(c.id)}-${esc(q.id)}"><button class="secondary answer" data-check="${esc(c.id)}" data-question="${esc(q.id)}">回答と出所を保存</button></div>`).join("")}${
+      return `<section class="check" id="check-${esc(c.id)}"><div class="row"><h2>${esc(c.text)}</h2><span class="badge ${esc(v.verdict)}">${esc(labels[v.verdict])}</span></div><p class="muted">条件 ${esc(c.id)}・版 ${c.version}／出所：${originMarkup(c.origin)}</p><p class="reason">${esc(v.reason)}</p><p><strong>次の確認の提案</strong><br>${esc(v.next.text)}<br><span class="muted">理由：${esc(v.next.reason)}。この提案から自動実行しません。</span></p>${latest ? `<p class="evidence-scope">${latest.applicable ? "現在の条件に対応する試行" : "以前の条件の試行。現在の判定には使えません"}：${esc(latest.run_id)}<br><a href="#evidence-${esc(latest.id)}">根拠と実行記録を見る</a><br>${evidenceLinks(latest)}</p>${latest.observed.unconfirmed.length ? `<div class="unconfirmed"><strong>この観測では確認していないこと</strong><ul>${latest.observed.unconfirmed.map((text) => `<li>${esc(text)}</li>`).join("")}</ul></div>` : ""}` : ""}${c.questions.map((q) => `<div><p><strong>${esc(q.text)}</strong>${q.answer ? `<br>${esc(q.answer)}<br><span class="muted">出所：${esc(q.origin)}</span>` : "<br>未回答"}</p><label for="answer-${esc(c.id)}-${esc(q.id)}">回答・修正する内容</label><input id="answer-${esc(c.id)}-${esc(q.id)}"><label for="origin-${esc(c.id)}-${esc(q.id)}">回答の出所</label><input id="origin-${esc(c.id)}-${esc(q.id)}"><button class="secondary answer" data-check="${esc(c.id)}" data-question="${esc(q.id)}">回答と出所を保存</button></div>`).join("")}${
         c.rule === "demo_save"
           ? `<details open><summary>合成データで新しい試行を行う</summary><p class="muted">架空の利用者1件をTCPで送信・ファイル保存します。選んだ故障条件を現在の試験条件として記録します。</p>${[
               ["normal", "正常"],
@@ -376,4 +384,17 @@ button("add-check", () =>
     },
   }),
 );
-load().catch((e) => message(e.message, true));
+load().then(() => {
+  if (!location.hash.startsWith("#code=")) return;
+  const input = JSON.parse(decodeURIComponent(location.hash.slice(6)));
+  if (typeof input.source !== "string" || typeof input.subject !== "string") return;
+  const source = new URL(input.source);
+  if (source.protocol !== "https:" || source.hostname !== "github.com" || source.username || source.password) return;
+  $("new-origin").value = source.href;
+  $("new-id").value = "code-check-" + state.workspace.revision;
+  $("new-text").placeholder = input.subject + "で確かめたい動作を入力してください";
+  for (let parent = $("new-text").parentElement; parent; parent = parent.parentElement)
+    if (parent.tagName === "DETAILS") parent.open = true;
+  $("new-text").focus();
+  message("コードの出所を引き継ぎました。確かめたい動作を記入してください。試験方法はまだ未定義です。");
+}).catch((e) => message(e.message, true));

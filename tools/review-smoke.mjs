@@ -62,7 +62,7 @@ try {
   const page = await context.newPage();
   const failures = [];
   page.on("pageerror", (error) => failures.push(error.message));
-  await page.goto(url);
+  await page.goto(url + "/review");
   await page.locator("#check-save").waitFor();
   await page.locator("#actor").fill("合成・開発者役");
   await page.locator("#reason").fill("ブラウザ試験：現在の保存範囲を確認する");
@@ -135,7 +135,7 @@ try {
   ]);
 
   const stale = await context.newPage();
-  await stale.goto(url);
+  await stale.goto(url + "/review");
   await stale.locator("#check-save").waitFor();
   await stale.locator("#actor").fill("合成・別の画面");
   await stale.locator("#reason").fill("競合の検証");

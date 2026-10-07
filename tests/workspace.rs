@@ -657,6 +657,26 @@ fn http(
 }
 
 #[test]
+fn reader_and_test_pages_are_distinct_and_modules_are_served_as_javascript() {
+    let s = Sandbox::new();
+    let case = s.case();
+    let reader = http(&case, "GET", "/", "", None, None, None);
+    assert!(reader.starts_with("HTTP/1.1 200"));
+    assert!(reader.contains("公開GitHubリポジトリのURL"));
+    assert!(reader.contains("https://api.github.com https://raw.githubusercontent.com"));
+    let test_page = http(&case, "GET", "/review", "", None, None, None);
+    assert!(test_page.contains("テスト結果と根拠を確認する"));
+    assert!(test_page.contains("test-token"));
+    let module = http(&case, "GET", "/ui/scanner.js", "", None, None, None);
+    assert!(module.contains("Content-Type: text/javascript"));
+    assert!(module.contains("export async function scanPublicRepository"));
+    assert!(
+        http(&case, "GET", "/ui/../../Cargo.toml", "", None, None, None)
+            .starts_with("HTTP/1.1 404")
+    );
+}
+
+#[test]
 fn review_http_rejects_cross_origin_missing_token_import_and_stale_update() {
     let s = Sandbox::new();
     let case = s.case();

@@ -25,6 +25,7 @@ const HELP: &str = "execution-evidence-lab
   case import CASE_DIR RUN_DIR --condition CHECK_ID --actor TEXT --reason TEXT [--use-run-context true|false]
   case run CASE_DIR --actor TEXT --reason TEXT [--condition save] [--fault CONDITION]
   case export CASE_DIR --output NEW_DIR
+  explore [--port 8765]
   review CASE_DIR [--port 8765]
 
 外部コマンドのcaptureは隔離環境ではありません。業務条件は終了コードだけで判定しません。";
@@ -81,6 +82,15 @@ fn run(args: &[String]) -> io::Result<()> {
     match command.as_str() {
         "help" | "--help" | "-h" if args.len() == 1 => println!("{HELP}"),
         "case" => case_command(&args[1..])?,
+        "explore" => {
+            let opts = options(&args[1..], &["--port"])?;
+            let port = opts.get("--port").map_or(Ok(8765), |value| {
+                value
+                    .parse::<u16>()
+                    .map_err(|_| invalid("ポートは0〜65535です"))
+            })?;
+            review::serve_explorer(port)?;
+        }
         "review" if args.len() >= 2 => {
             let opts = options(&args[2..], &["--port"])?;
             let port = opts.get("--port").map_or(Ok(8765), |value| {
