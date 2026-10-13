@@ -66,6 +66,41 @@ try {
   await page.screenshot({path:join(output,'external-review-desktop.png'),fullPage:true});
   const state=await (await page.request.get(url+'/api/case')).json();
   assert.equal(state.workspace.evidence.length,2);assert.equal(state.checks[0].verdict,'satisfied');assert.equal(state.checks[0].evidence[0].applicable,false);
+  // 比較は観測時の判定と現在の適用範囲を分け、選択・保存では事例を書き換えない。
+  await page.locator('#check-stored .trial-comparison > summary').click();
+  const firstEvidence=state.workspace.evidence[0].id, secondEvidence=state.workspace.evidence[1].id;
+  assert.equal(await page.locator('#compare-before-stored').inputValue(),firstEvidence);
+  assert.equal(await page.locator('#compare-after-stored').inputValue(),secondEvidence);
+  await page.locator('.compare-trials[data-check="stored"]').click();
+  const comparison=page.locator('#trial-comparison-stored');
+  assert.ok((await comparison.innerText()).includes('現在の条件への適用には再確認'));
+  assert.equal(await comparison.locator('.comparison-trial .badge').nth(0).innerText(),'条件を満たさない');
+  assert.equal(await comparison.locator('.comparison-trial .badge').nth(1).innerText(),'条件を満たす');
+  assert.equal(await comparison.locator('[data-comparison-key="recipe.args"]').getAttribute('data-comparison-status'),'changed');
+  const comparisonDownload=page.waitForEvent('download');await page.locator('.download-comparison[data-check="stored"]').click();
+  const comparisonRecord=JSON.parse(await readFile(await (await comparisonDownload).path(),'utf8'));
+  assert.equal(comparisonRecord.case_revision,state.workspace.revision);
+  assert.equal(comparisonRecord.before.evidence_id,firstEvidence);assert.equal(comparisonRecord.after.evidence_id,secondEvidence);
+  assert.equal(comparisonRecord.before.observed.verdict,'not_satisfied');assert.equal(comparisonRecord.after.observed.verdict,'satisfied');
+  await page.locator('#reload').click();
+  await page.waitForFunction(()=>document.querySelector('#trial-comparison-stored .comparison-summary'));
+  assert.equal(await page.locator('#compare-before-stored').inputValue(),firstEvidence);
+  // 同じ試行へ変えた時点で前の比較を消し、誤った組合せの保存を防ぐ。
+  await page.locator('#compare-after-stored').selectOption(firstEvidence);
+  assert.equal(await comparison.innerText(),'');
+  await page.locator('.compare-trials[data-check="stored"]').click();
+  assert.ok((await page.locator('#message').innerText()).includes('二つの異なる試行'));
+  assert.ok(await page.locator('.download-comparison[data-check="stored"]').isHidden());
+  await page.locator('#compare-after-stored').selectOption(secondEvidence);
+  await page.locator('.compare-trials[data-check="stored"]').click();
+  assert.deepEqual((await (await page.request.get(url+'/api/case')).json()).workspace,state.workspace);
+  await comparison.locator('a[href^="#evidence-"]').first().click();
+  assert.ok(await page.locator('#evidence-'+firstEvidence).isVisible());
+  await page.screenshot({path:join(output,'trial-comparison-desktop.png'),fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'trial comparison mobile overflow');
+  await page.screenshot({path:join(output,'trial-comparison-mobile.png'),fullPage:true});
+  await page.setViewportSize({width:1440,height:1100});
   // 読取応答は合成の固定版を使う。実GitHubの読取とは別の確認。
   await context.route('https://api.github.com/**', async route=>{
     const target=route.request().url();let body;
@@ -76,7 +111,7 @@ try {
     await route.fulfill({status:200,headers:{'access-control-allow-origin':'*','content-type':'application/json'},body:JSON.stringify(body)});
   });
   await context.route('https://raw.githubusercontent.com/**',async route=>route.fulfill({status:200,headers:{'access-control-allow-origin':'*'},body:route.request().url().includes('observe.mjs') ? await readFile(join(root,'adapters/observation/observe.mjs'),'utf8') : sourceCode}));
-  await page.locator('#check-stored .code-reference a').click();await page.waitForFunction(()=>document.getElementById('notice').textContent.includes('固定版のコードを開きました'));
+  await comparison.locator('.comparison-trial .code-reference a').first().click();await page.waitForFunction(()=>document.getElementById('notice').textContent.includes('固定版のコードを開きました'));
   assert.equal(await page.locator('#file-name').innerText(),'examples/observable-store/app.mjs');
   await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await page.goto(url+'/review');await page.locator('#check-stored').waitFor();await page.screenshot({path:join(output,'external-review-mobile.png'),fullPage:true});
@@ -117,10 +152,25 @@ try {
   assert.equal(current.checks[0].verdict,'unknown');assert.equal(JSON.stringify(current.workspace.evidence),oldEvidence);
   await page.screenshot({path:join(output,'external-recipe-reuse-mobile.png'),fullPage:true});
   await page.setViewportSize({width:1440,height:1100});await page.screenshot({path:join(output,'external-recipe-reuse-desktop.png'),fullPage:true});
+  // 新版の入力・観測対象も変える。観測が欠けた結果を旧成功で補わない。
+  await writeFile(join(temp,'revised.json'),JSON.stringify(changedRecipe));
+  execFileSync(binary,['case','execute',casePath,join(temp,'revised.json'),'--repository-root',repository,'--mode','local','--actor','合成の確認者','--reason','新版と変更した観測対象を試す']);
+  current=await (await page.request.get(url+'/api/case')).json();
+  assert.equal(current.workspace.evidence.length,3);assert.equal(current.checks[0].verdict,'unknown');
+  assert.equal(JSON.stringify(current.workspace.evidence.slice(0,2)),oldEvidence);
+  const updatedEvidence=JSON.stringify(current.workspace.evidence);
+  await page.goto(url+'/review');await page.locator('#check-stored').waitFor();
+  await page.locator('#check-stored .trial-comparison > summary').click();
+  await page.locator('.compare-trials[data-check="stored"]').click();
+  assert.equal(await page.locator('#trial-comparison-stored .comparison-trial .badge').nth(1).innerText(),'判定できない');
+  for(const key of ['recipe.source','recipe.input','recipe.criterion'])
+    assert.equal(await page.locator(`#trial-comparison-stored [data-comparison-key="${key}"]`).getAttribute('data-comparison-status'),'changed');
+  assert.ok((await page.locator('#trial-comparison-stored').innerText()).includes('結果の変化だけではコード改修の効果を特定できません'));
+  await page.screenshot({path:join(output,'trial-comparison-revised-desktop.png'),fullPage:true});
   await change({op:'bind_source',check_id:'stored',source:{...source,repository:'other/project',commit:after}});
   await page.goto(url+'/review');await page.locator('#check-stored').waitFor();
   assert.equal(await page.locator('.load-prior-recipe[data-check="stored"]').count(),0);
-  assert.equal(JSON.stringify(current.workspace.evidence),oldEvidence);
+  assert.equal(JSON.stringify(current.workspace.evidence),updatedEvidence);
   assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({browser:await browser.version(),checks:['observation configuration','draft preservation','recipe download','pinned external execution','failure and retest','reuse without changing evidence','new commit and criterion in reused recipe','draft and provenance preservation','integer timeout validation','different repository excluded','runtime version and observation links','return to executed commit','mobile layout'],data:'synthetic',human_evaluation:'not_conducted'}));
+  console.log(JSON.stringify({browser:await browser.version(),checks:['observation configuration','draft preservation','recipe download','pinned external execution','failure and retest','trial comparison and export','comparison selection preservation','same trial rejected','comparison returns to evidence and code','revised code/input/criterion compared','unknown not replaced by prior success','reuse without changing evidence','new commit and criterion in reused recipe','draft and provenance preservation','integer timeout validation','different repository excluded','runtime version and observation links','return to executed commit','mobile layout'],data:'synthetic',human_evaluation:'not_conducted'}));
 } finally { await browser?.close();server.kill('SIGTERM');await rm(temp,{recursive:true,force:true}); }
