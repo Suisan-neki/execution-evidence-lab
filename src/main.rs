@@ -1,5 +1,5 @@
 use execution_evidence_lab::{
-    assessment::{assess, compare_runs},
+    assessment::compare_runs,
     capture::{CaptureConfig, capture},
     evaluation,
     experiment::{run_trial, verify_storage},
@@ -23,6 +23,7 @@ const HELP: &str = "execution-evidence-lab
   case show CASE_DIR
   case apply CASE_DIR CHANGE_JSON
   case import CASE_DIR RUN_DIR --condition CHECK_ID --actor TEXT --reason TEXT [--use-run-context true|false]
+  case execute CASE_DIR RECIPE_JSON --repository-root DIR --mode local|bubblewrap --actor TEXT --reason TEXT
   case run CASE_DIR --actor TEXT --reason TEXT [--condition save] [--fault CONDITION]
   case export CASE_DIR --output NEW_DIR
   explore [--port 8765]
@@ -149,8 +150,10 @@ fn run(args: &[String]) -> io::Result<()> {
             println!("条件: {}", manifest.condition.text);
             println!(
                 "{}",
-                serde_json::to_string_pretty(&assess(&manifest, &events))
-                    .map_err(io::Error::other)?
+                serde_json::to_string_pretty(&execution_evidence_lab::execution::assess_run(
+                    &directory, &manifest, &events
+                )?)
+                .map_err(io::Error::other)?
             );
             for event in events {
                 println!(
@@ -322,6 +325,23 @@ fn case_command(args: &[String]) -> io::Result<()> {
                         use_run_context,
                     },
                 },
+            )?)
+        }
+        "execute" if args.len() >= 3 => {
+            let opts = options(
+                &args[3..],
+                &["--repository-root", "--mode", "--actor", "--reason"],
+            )?;
+            let mode = required(&opts, "--mode")?
+                .parse::<execution_evidence_lab::execution::ExecutionMode>()?;
+            let recipe = execution_evidence_lab::recording::read_json(&PathBuf::from(&args[2]))?;
+            print_view(workspace::run_external_mode(
+                &directory,
+                &PathBuf::from(required(&opts, "--repository-root")?),
+                recipe,
+                mode,
+                required(&opts, "--actor")?,
+                required(&opts, "--reason")?,
             )?)
         }
         "run" => {

@@ -224,3 +224,7 @@ footer {
     overflow: auto;
   }
 }
+
+.external-setup { border-top: 1px solid #dbe4e9; padding-top: 10px; }
+.external-setup input,.external-setup textarea,.external-setup select { margin-bottom: 12px; }
+.execution-target { padding: 10px 14px; background: #eff6f1; border-left: 3px solid #59846b; margin: 12px 0; }

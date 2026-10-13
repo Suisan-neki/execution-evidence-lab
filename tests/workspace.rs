@@ -156,6 +156,7 @@ fn add_local_check(case: &std::path::Path) {
         Change::AddCheck {
             check: Check {
                 source: None,
+                observation: None,
                 id: "local-index".into(),
                 version: 1,
                 text: LOCAL_INDEX_CONDITION.into(),
@@ -600,6 +601,7 @@ fn general_case_starts_without_generated_domain_requirements() {
         Change::AddCheck {
             check: Check {
                 source: None,
+                observation: None,
                 id: "notification".into(),
                 version: 1,
                 text: "通知が届く".into(),

@@ -1,6 +1,11 @@
 //! 一件の確認事項と、その版に対する根拠・人の判断を保存する。
 //! 試行は取り込み時に複製し、答え合わせ用の保存物は読み込まない。
-use crate::{assessment::assess, model::*, recording::*};
+use crate::{
+    assessment::assess,
+    execution::{Criterion, ExecutionTrace},
+    model::*,
+    recording::*,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -47,6 +52,7 @@ pub enum Rule {
     DemoSave,
     LocalIndexUploaded,
     ManualOnly,
+    ObservedAssertion,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,6 +73,8 @@ pub struct Check {
     pub origin: String,
     #[serde(default)]
     pub source: Option<CodeReference>,
+    #[serde(default)]
+    pub observation: Option<Criterion>,
     pub rule: Rule,
     pub dependencies: Vec<String>,
     pub questions: Vec<Question>,
@@ -83,7 +91,7 @@ pub struct CodeReference {
     pub end_line: u32,
 }
 
-fn validate_source(source: &CodeReference) -> io::Result<()> {
+pub fn validate_source(source: &CodeReference) -> io::Result<()> {
     let parts: Vec<_> = source.repository.split('/').collect();
     let valid_part = |value: &str| {
         !value.is_empty()
@@ -143,6 +151,10 @@ pub struct Evidence {
     pub rule: Rule,
     #[serde(default)]
     pub source: Option<CodeReference>,
+    #[serde(default)]
+    pub observation: Option<Criterion>,
+    #[serde(default)]
+    pub execution: Option<ExecutionTrace>,
     pub dependencies: BTreeMap<String, String>,
     pub dependency_origins: BTreeMap<String, String>,
     pub manifest: Manifest,
@@ -263,6 +275,10 @@ pub enum Change {
     AddCheck {
         check: Check,
     },
+    ConfigureObservation {
+        check_id: String,
+        criterion: Criterion,
+    },
     BindSource {
         check_id: String,
         source: CodeReference,
@@ -314,14 +330,20 @@ fn nonempty(value: &str, name: &str) -> io::Result<()> {
     }
     Ok(())
 }
+fn context_value(value: &str) -> io::Result<()> {
+    if value.trim().is_empty() || value.len() > 256 * 1024 {
+        return Err(invalid("実行条件の値は空でない256KiB以内です"));
+    }
+    Ok(())
+}
 fn identifier(value: &str) -> io::Result<()> {
     if value.is_empty()
-        || value.len() > 80
+        || value.len() > 128
         || !value
             .bytes()
             .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
     {
-        return Err(invalid("識別子は英数字・ハイフン・下線の1〜80文字です"));
+        return Err(invalid("識別子は英数字・ハイフン・下線の1〜128文字です"));
     }
     Ok(())
 }
@@ -352,6 +374,25 @@ fn validate_check(check: &Check) -> io::Result<()> {
             "この判定規則に対応する条件文と一致しません。別の業務条件にはmanual_onlyを使ってください",
         ));
     }
+    if check.rule == Rule::ObservedAssertion {
+        let criterion = check
+            .observation
+            .as_ref()
+            .ok_or_else(|| invalid("判定する観測名と対象が必要です"))?;
+        crate::execution::validate_criterion(criterion)?;
+        if check.source.is_none() {
+            return Err(invalid("固定版のコード参照が必要です"));
+        }
+    }
+    if check.rule == Rule::ObservedAssertion
+        && !check
+            .dependencies
+            .contains(&format!("execution-{}", check.id))
+    {
+        return Err(invalid(
+            "固定版の入力・起動方法・ランタイムを照合する依存先が必要です",
+        ));
+    }
     unique(check.dependencies.iter().map(String::as_str))?;
     unique(check.questions.iter().map(|q| q.id.as_str()))?;
     for q in &check.questions {
@@ -375,7 +416,7 @@ fn validate_check(check: &Check) -> io::Result<()> {
             "fault",
             "command",
         ],
-        Rule::ManualOnly => &[],
+        Rule::ManualOnly | Rule::ObservedAssertion => &[],
     };
     if required
         .iter()
@@ -414,7 +455,7 @@ pub fn validate(workspace: &Workspace) -> io::Result<()> {
     }
     for (key, value) in &workspace.context {
         identifier(key)?;
-        nonempty(value, "実行条件の値")?;
+        context_value(value)?;
     }
     for e in &workspace.evidence {
         if let Some(source) = &e.source {
@@ -424,6 +465,9 @@ pub fn validate(workspace: &Workspace) -> io::Result<()> {
             return Err(invalid("根拠が参照する確認事項がありません"));
         }
         validate_events(&e.manifest, &e.events)?;
+        if let Some(trace) = &e.execution {
+            crate::execution::validate_trace(trace, &e.manifest)?;
+        }
         if let Some(adapter) = &e.adapter {
             validate_adapter(&e.manifest, adapter)?;
         }
@@ -467,6 +511,7 @@ pub fn demo_workspace() -> Workspace {
             Check {
                 id: "save".into(),
                 source: None,
+                observation: None,
                 version: 1,
                 text: Condition::demo().text,
                 origin: Condition::demo().origin,
@@ -479,6 +524,7 @@ pub fn demo_workspace() -> Workspace {
             Check {
                 id: "later-view".into(),
                 source: None,
+                observation: None,
                 version: 1,
                 text: "必要な担当者が、必要な記録を必要な時点で閲覧できる".into(),
                 origin: "Codexによる未採用の条件候補。具体的な利用条件は未回答".into(),
@@ -768,6 +814,14 @@ fn observed(evidence: &Evidence) -> Assessment {
             result.condition_id = evidence.check_id.clone();
             result.condition_version = evidence.check_version;
         }
+        Rule::ObservedAssertion => {
+            if let (Some(trace), Some(criterion)) = (&evidence.execution, &evidence.observation)
+                && evidence.source.as_ref() == Some(&trace.recipe.source)
+            {
+                return crate::execution::assess_trace(&evidence.manifest, trace, criterion);
+            }
+            result.reason = "固定版の実行記録と、条件のコード参照・観測規則を照合できない".into();
+        }
         Rule::ManualOnly => {
             result.reason =
                 "この条件に対応する判定規則は未定義。プロセス終了や別条件の成立から判断しない"
@@ -862,6 +916,9 @@ pub fn view(workspace: Workspace) -> WorkspaceView {
                 .filter(|e| e.check_id == check.id)
                 .map(|e| {
                     let mut invalidated_by = vec![];
+                    if e.observation != check.observation {
+                        invalidated_by.push("判定する観測名・対象が変わった".into());
+                    }
                     if e.source != check.source {
                         invalidated_by.push("確認事項が参照するコードの版・場所が変わった".into());
                     }
@@ -1010,6 +1067,30 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
             workspace.checks.push(check);
             "add_check"
         }
+        Change::ConfigureObservation {
+            check_id,
+            criterion,
+        } => {
+            crate::execution::validate_criterion(&criterion)?;
+            let i = find_check(&workspace.checks, &check_id)?;
+            let check = &mut workspace.checks[i];
+            if check.observation.as_ref() == Some(&criterion)
+                && check.rule == Rule::ObservedAssertion
+            {
+                return Err(invalid("同じ観測規則が既に記録されています"));
+            }
+            check.version = check
+                .version
+                .checked_add(1)
+                .ok_or_else(|| invalid("条件の版の上限です"))?;
+            check.rule = Rule::ObservedAssertion;
+            check.observation = Some(criterion);
+            let key = format!("execution-{}", check.id);
+            if !check.dependencies.contains(&key) {
+                check.dependencies.push(key);
+            }
+            "configure_observation"
+        }
         Change::BindSource { check_id, source } => {
             validate_source(&source)?;
             let i = find_check(&workspace.checks, &check_id)?;
@@ -1084,7 +1165,7 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
         }
         Change::SetContext { key, value } => {
             identifier(&key)?;
-            nonempty(&value, "実行条件の値")?;
+            context_value(&value)?;
             workspace.context.insert(key, value);
             "set_context"
         }
@@ -1108,6 +1189,25 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
             }
             let events = load_events(directory)?;
             validate_events(&manifest, &events)?;
+            let execution: Option<ExecutionTrace> = if manifest.mode == "pinned_execution" {
+                let trace: ExecutionTrace = document(&directory.join("execution.json"))?;
+                crate::execution::validate_trace(&trace, &manifest)?;
+                if manifest.condition.id != check.id
+                    || manifest.condition.version != check.version
+                    || manifest.condition.text != check.text
+                    || manifest.condition.origin != check.origin
+                    || trace.recipe.check_id != check.id
+                    || check.source.as_ref() != Some(&trace.recipe.source)
+                    || check.observation.as_ref() != Some(&trace.recipe.criterion)
+                {
+                    return Err(invalid(
+                        "試行の確認事項・コード参照・観測規則が現在の条件と一致しません",
+                    ));
+                }
+                Some(trace)
+            } else {
+                None
+            };
             if check.rule == Rule::DemoSave
                 && (manifest.mode != "demo" || manifest.condition != Condition::demo())
             {
@@ -1121,7 +1221,14 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
                     "この規則にはcaptureで取得した固定版ローカルアダプターの記録が必要です",
                 ));
             }
-            let values = dependency_values(&manifest, adapter.as_ref())?;
+            let mut values = dependency_values(&manifest, adapter.as_ref())?;
+            if let Some(trace) = &execution {
+                values = BTreeMap::from([(format!("execution-{}", check.id), serde_json::to_string(&serde_json::json!({
+                    "recipe": trace.recipe, "engine": manifest.source_fingerprint,
+                    "runtime_path": trace.runtime_path, "runtime_version": trace.runtime_version,
+                    "os": manifest.os, "architecture": manifest.architecture, "mode": trace.mode
+                })).map_err(io::Error::other)?)]);
+            }
             let dependencies = check
                 .dependencies
                 .iter()
@@ -1155,6 +1262,8 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
                 check_version: check.version,
                 rule: check.rule.clone(),
                 source: check.source.clone(),
+                observation: check.observation.clone(),
+                execution,
                 dependencies,
                 dependency_origins,
                 manifest,
@@ -1275,5 +1384,84 @@ pub fn run_demo(
                 use_run_context: true,
             },
         },
+    )
+}
+
+/// CLIだけが外部コードを起動する。画面からは設定・参照・結果を扱う。
+pub fn run_external_mode(
+    directory: &Path,
+    repository_root: &Path,
+    recipe: crate::execution::Recipe,
+    mode: crate::execution::ExecutionMode,
+    actor: String,
+    reason: String,
+) -> io::Result<WorkspaceView> {
+    nonempty(&actor, "記入者")?;
+    nonempty(&reason, "理由")?;
+    let workspace = load(directory)?;
+    let check = workspace
+        .checks
+        .iter()
+        .find(|c| c.id == recipe.check_id)
+        .ok_or_else(|| invalid("試験設定の確認事項がありません"))?;
+    if check.source.as_ref() != Some(&recipe.source)
+        || check.observation.as_ref() != Some(&recipe.criterion)
+        || check.rule != Rule::ObservedAssertion
+    {
+        return Err(invalid(
+            "コード参照と観測規則を画面かcase applyで設定してください",
+        ));
+    }
+    let previous = workspace
+        .evidence
+        .iter()
+        .rfind(|e| e.check_id == check.id)
+        .map(|e| e.manifest.correlation.run_id.clone());
+    let condition = Condition {
+        id: check.id.clone(),
+        version: check.version,
+        text: check.text.clone(),
+        origin: check.origin.clone(),
+        kind: ConditionKind::Custom,
+    };
+    let result = crate::execution::execute_with_mode(
+        repository_root,
+        &directory.join("runs"),
+        recipe,
+        condition,
+        previous,
+        mode,
+    )?;
+    eprintln!("外部コードの試行: {}", result.directory.display());
+    // 実行中に条件が変わった場合は取り込まず、試行をそのまま残す。
+    change(
+        directory,
+        ChangeRequest {
+            expected_revision: workspace.revision,
+            actor,
+            reason,
+            action: Change::Import {
+                check_id: check.id.clone(),
+                run_directory: result.directory.to_string_lossy().into_owned(),
+                use_run_context: true,
+            },
+        },
+    )
+}
+
+pub fn run_external(
+    directory: &Path,
+    repository_root: &Path,
+    recipe: crate::execution::Recipe,
+    actor: String,
+    reason: String,
+) -> io::Result<WorkspaceView> {
+    run_external_mode(
+        directory,
+        repository_root,
+        recipe,
+        crate::execution::ExecutionMode::Local,
+        actor,
+        reason,
     )
 }

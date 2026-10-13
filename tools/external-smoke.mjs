@@ -1,0 +1,71 @@
+// 合成のGitリポジトリで、画面の試験設定→実コードの実行→根拠・コードへの復帰を確認する。
+import assert from 'node:assert/strict';
+import { spawn, execFileSync } from 'node:child_process';
+import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { resolve, join } from 'node:path';
+import { chromium } from 'playwright';
+const root = resolve(import.meta.dirname, '..'), binary = process.env.REVIEW_BINARY || join(root,'target/debug/execution-evidence-lab');
+const temp = await mkdtemp(join(tmpdir(),'external-review-')), repository = join(temp,'repo'), casePath = join(temp,'case'), output = join(root,'test-results');
+await mkdir(repository); await mkdir(output,{recursive:true});
+const git = (...args) => execFileSync('git',['-C',repository,...args],{encoding:'utf8'}).trim();
+git('init','-q'); git('config','user.name','Synthetic test'); git('config','user.email','test@example.invalid'); git('remote','add','origin','https://github.com/example/observable-store.git');
+const sourceCode = await readFile(join(root,'examples/observable-store/app.mjs'),'utf8'), observerCode = await readFile(join(root,'adapters/observation/observe.mjs'),'utf8');
+await mkdir(join(repository,'examples/observable-store'),{recursive:true});await mkdir(join(repository,'adapters/observation'),{recursive:true});
+await writeFile(join(repository,'examples/observable-store/app.mjs'),sourceCode);await writeFile(join(repository,'adapters/observation/observe.mjs'),await readFile(join(root,'adapters/observation/observe.mjs'))); git('add','.');git('commit','-qm','synthetic store');
+const commit = git('rev-parse','HEAD');
+const source = { repository: 'example/observable-store', commit, path: 'examples/observable-store/app.mjs', line: 1, end_line: 1 };
+const spec = { schema_version:1, revision:1, id:'external-review', title:'固定版の外部試験', statements:[], context:{}, checks:[{id:'stored',version:1,text:'試行用の保存物を読み出し、入力と一致する',origin:'合成の接続試験',source,rule:'manual_only',dependencies:[],questions:[]}], evidence:[], decisions:[], history:[] };
+await writeFile(join(temp,'spec.json'),JSON.stringify(spec));
+execFileSync(binary,['case','init',casePath,'--file',join(temp,'spec.json')]);
+const server = spawn(binary,['review',casePath,'--port','0'],{stdio:['ignore','pipe','pipe']});
+let browser;
+try {
+  const url = await new Promise((accept,reject) => {
+    const timer=setTimeout(()=>reject(Error('server did not start')),10000);let text='';
+    server.stdout.on('data',data=>{text+=data; const match=/http:\/\/127\.0\.0\.1:\d+/.exec(text);if(match){clearTimeout(timer);accept(match[0]);}});
+    server.once('exit',code=>{clearTimeout(timer);reject(Error('server exit '+code));});
+  });
+  browser = await chromium.launch({headless:true,executablePath:process.env.REVIEW_BROWSER_EXECUTABLE||undefined,args:['--no-sandbox']});
+  const context = await browser.newContext({viewport:{width:1440,height:1100},acceptDownloads:true});
+  const page = await context.newPage(), errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(url+'/review');await page.locator('#check-stored').waitFor();
+  await page.locator('#actor').fill('合成の確認者');await page.locator('#reason').fill('観測名と条件を対応づける');
+  await page.locator('#check-stored .external-setup summary').click();
+  await page.locator('#assertion-stored').fill('stored_matches_input');await page.locator('#subject-stored').fill('record-1');
+  await page.locator('#input-stored').fill('{"message":"合成の入力"}');await page.locator('#args-stored').fill('["failure"]');
+  const configured=page.waitForResponse(r=>r.request().method()==='POST');
+  await page.locator('.configure-observation[data-check="stored"]').click();assert.equal((await configured).status(),200);
+  assert.equal(await page.locator('#input-stored').inputValue(),'{"message":"合成の入力"}');
+  const downloaded=page.waitForEvent('download');await page.locator('.download-recipe[data-check="stored"]').click();
+  const download=await downloaded, path=await download.path(), recipe=JSON.parse(await readFile(path,'utf8'));
+  assert.equal(recipe.source.commit,commit);assert.equal(recipe.criterion.assertion,'stored_matches_input');assert.deepEqual(recipe.args,['failure']);
+  execFileSync(binary,['case','execute',casePath,path,'--repository-root',repository,'--mode','local','--actor','合成の確認者','--reason','人工失敗を試す']);
+  await page.locator('#reload').click();await page.waitForFunction(()=>document.querySelector('#check-stored .badge').textContent==='条件を満たさない');
+  recipe.args=['normal'];await writeFile(join(temp,'normal.json'),JSON.stringify(recipe));
+  execFileSync(binary,['case','execute',casePath,join(temp,'normal.json'),'--repository-root',repository,'--mode','local','--actor','合成の確認者','--reason','正常に戻して再試験する']);
+  await page.locator('#reload').click();await page.waitForFunction(()=>document.querySelector('#check-stored .badge').textContent==='条件を満たす');
+  await page.locator('#check-stored a[href^="#evidence-"]').first().click();
+  assert.ok((await page.locator('#evidence').innerText()).includes('固定版の実行記録'));
+  assert.ok((await page.locator('#evidence').innerText()).includes(commit.slice(0,12)));
+  assert.equal(await page.locator('[id$="-observation-1"]').count(),2);
+  await page.screenshot({path:join(output,'external-review-desktop.png'),fullPage:true});
+  const state=await (await page.request.get(url+'/api/case')).json();
+  assert.equal(state.workspace.evidence.length,2);assert.equal(state.checks[0].verdict,'satisfied');assert.equal(state.checks[0].evidence[0].applicable,false);
+  // 読取応答は合成の固定版を使う。実GitHubの読取とは別の確認。
+  await context.route('https://api.github.com/**', async route=>{
+    const target=route.request().url();let body;
+    if(target.endsWith('/example/observable-store'))body={private:false,default_branch:'main'};
+    else if(target.endsWith('/commits/'+commit))body={sha:commit,commit:{tree:{sha:git('rev-parse','HEAD^{tree}')}}};
+    else if(target.includes('/git/trees/'))body={truncated:false,tree:[{path:'examples/observable-store/app.mjs',mode:'100644',type:'blob',sha:git('rev-parse','HEAD:examples/observable-store/app.mjs'),size:Buffer.byteLength(sourceCode)},{path:'adapters/observation/observe.mjs',mode:'100644',type:'blob',sha:git('rev-parse','HEAD:adapters/observation/observe.mjs'),size:Buffer.byteLength(observerCode)}]};
+    else throw Error('unexpected URL '+target);
+    await route.fulfill({status:200,headers:{'access-control-allow-origin':'*','content-type':'application/json'},body:JSON.stringify(body)});
+  });
+  await context.route('https://raw.githubusercontent.com/**',async route=>route.fulfill({status:200,headers:{'access-control-allow-origin':'*'},body:route.request().url().includes('observe.mjs') ? await readFile(join(root,'adapters/observation/observe.mjs'),'utf8') : sourceCode}));
+  await page.locator('#check-stored .code-reference a').click();await page.waitForFunction(()=>document.getElementById('notice').textContent.includes('固定版のコードを開きました'));
+  assert.equal(await page.locator('#file-name').innerText(),'examples/observable-store/app.mjs');
+  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.goto(url+'/review');await page.locator('#check-stored').waitFor();await page.screenshot({path:join(output,'external-review-mobile.png'),fullPage:true});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.deepEqual(errors,[]);
+  console.log(JSON.stringify({browser:await browser.version(),checks:['observation configuration','draft preservation','recipe download','pinned external execution','failure and retest','runtime version and observation links','return to executed commit','mobile layout'],data:'synthetic',human_evaluation:'not_conducted'}));
+} finally { await browser?.close();server.kill('SIGTERM');await rm(temp,{recursive:true,force:true}); }

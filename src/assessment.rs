@@ -1,6 +1,6 @@
 use crate::{
     model::*,
-    recording::{load_events, load_manifest},
+    recording::{load_events, load_manifest, read_json},
 };
 use std::{io, path::Path};
 
@@ -78,7 +78,34 @@ pub fn assess(manifest: &Manifest, events: &[Event]) -> Assessment {
 pub fn compare_runs(before: &Path, after: &Path) -> io::Result<Comparison> {
     let old = load_manifest(before)?;
     let new = load_manifest(after)?;
+    let old_trace: Option<crate::execution::ExecutionTrace> = if old.mode == "pinned_execution" {
+        Some(read_json(&before.join("execution.json"))?)
+    } else {
+        None
+    };
+    let new_trace: Option<crate::execution::ExecutionTrace> = if new.mode == "pinned_execution" {
+        Some(read_json(&after.join("execution.json"))?)
+    } else {
+        None
+    };
     let mut changed = vec![];
+    if let (Some(a), Some(b)) = (&old_trace, &new_trace) {
+        if a.recipe.source != b.recipe.source {
+            changed.push("実行対象の固定版・コード参照が変わった".into());
+        }
+        if a.recipe.input != b.recipe.input {
+            changed.push("外部コードの試験入力が変わった".into());
+        }
+        if a.recipe.criterion != b.recipe.criterion {
+            changed.push("判定する観測名・対象が変わった".into());
+        }
+        if a.runtime_path != b.runtime_path
+            || a.runtime_version != b.runtime_version
+            || a.mode != b.mode
+        {
+            changed.push("外部コードのランタイム・実行方式が変わった".into());
+        }
+    }
     if old.source_fingerprint != new.source_fingerprint {
         changed.push("基盤のコード・依存関係が変わった".into());
     }
@@ -106,10 +133,18 @@ pub fn compare_runs(before: &Path, after: &Path) -> io::Result<Comparison> {
             && old.mode == new.mode
             && old.command == new.command,
         prior_evidence_matches_current_configuration: changed.is_empty()
-            && old.mode == "demo"
-            && new.mode == "demo",
+            && ((old.mode == "demo" && new.mode == "demo")
+                || old_trace
+                    .as_ref()
+                    .zip(new_trace.as_ref())
+                    .is_some_and(|(a, b)| {
+                        a.snapshot_unchanged
+                            && b.snapshot_unchanged
+                            && a.diagnostics.is_empty()
+                            && b.diagnostics.is_empty()
+                    })),
         changed,
-        before: assess(&old, &load_events(before)?).verdict,
-        after: assess(&new, &load_events(after)?).verdict,
+        before: crate::execution::assess_run(before, &old, &load_events(before)?)?.verdict,
+        after: crate::execution::assess_run(after, &new, &load_events(after)?)?.verdict,
     })
 }
