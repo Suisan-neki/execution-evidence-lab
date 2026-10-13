@@ -35,6 +35,12 @@ for (const key of ['manifest.os', 'manifest.input', 'manifest.source_fingerprint
 const nullInput = structuredClone(a);nullInput.manifest.input = null;
 const nullAfter = structuredClone(b);nullAfter.manifest.input = null;
 assert.equal(compareTrials(state(nullInput, nullAfter), 'stored', 'old', 'new').rows.find(x => x.key === 'manifest.input').status, 'same');
+// JSONを読む時点で大きな整数の差が丸められても、同じ入力と断定しない。
+const hugeBefore = structuredClone(a), hugeAfter = structuredClone(b);
+hugeBefore.manifest.input = JSON.parse('{"id":9007199254740992}');
+hugeAfter.manifest.input = JSON.parse('{"id":9007199254740993}');
+const huge = compareTrials(state(hugeBefore, hugeAfter), 'stored', 'old', 'new').rows.find(x => x.key === 'manifest.input');
+assert.equal(huge.status, 'unknown');assert.ok(huge.reason.includes('大きな整数'));
 // 実行版・入力・引数・観測・環境を同時に変えても、一つの差へまとめない。
 function pinned(record) {
   const e = structuredClone(record);e.rule = 'observed_assertion';e.source = source;e.observation = { assertion: 'matches', subject: 'one' };

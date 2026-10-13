@@ -272,10 +272,10 @@ function showTrialComparison(checkId) {
     ${codeMarkup(side.source, checkId, '取り込み当時の参照コードを読む')}${side.execution_source ? codeMarkup(side.execution_source, checkId, '実行記録の固定版を読む', '実行記録に保存されたコード参照です。該当行の到達を証明する情報ではありません。') : ''}
     ${side.observed.unconfirmed.length ? `<details><summary>この観測では確認していないこと</summary><ul>${side.observed.unconfirmed.map(t => `<li>${esc(t)}</li>`).join('')}</ul></details>` : ''}
     ${side.execution_outcome ? `<details><summary>終了・コード照合・観測読取の記録</summary><pre>${esc(JSON.stringify(side.execution_outcome, null, 2))}</pre></details>` : ''}</section>`;
-  const statuses = { same: '記録の値が同じ', changed: '記録の値が異なる', unknown: '記録が不足' };
+  const statuses = { same: '記録の値が同じ', changed: '記録の値が異なる', unknown: '比較を確定できない' };
   const value = (v, recorded) => !recorded ? '記録なし・形式を確認できない' : typeof v === 'string' ? v : JSON.stringify(v, null, 2);
-  const table = rows => `<div class="comparison-table"><table><thead><tr><th>比較する項目</th><th>比較元</th><th>比較先</th></tr></thead><tbody>${rows.map(r => `<tr data-comparison-key="${esc(r.key)}" data-comparison-status="${r.status}"><th scope="row">${esc(r.label)}<br><span class="muted">${statuses[r.status]}</span></th><td><pre>${esc(value(r.before, r.before_recorded))}</pre></td><td><pre>${esc(value(r.after, r.after_recorded))}</pre></td></tr>`).join('')}</tbody></table></div>`;
-  $('trial-comparison-' + checkId).innerHTML = `<p class="comparison-summary">記録の値が異なる項目：${result.changed_count}件／記録が不足する項目：${result.unknown_count}件</p>
+  const table = rows => `<div class="comparison-table"><table><thead><tr><th>比較する項目</th><th>比較元</th><th>比較先</th></tr></thead><tbody>${rows.map(r => `<tr data-comparison-key="${esc(r.key)}" data-comparison-status="${r.status}"><th scope="row">${esc(r.label)}<br><span class="muted">${statuses[r.status]}${r.reason ? '<br>' + esc(r.reason) : ''}</span></th><td><pre>${esc(value(r.before, r.before_recorded))}</pre></td><td><pre>${esc(value(r.after, r.after_recorded))}</pre></td></tr>`).join('')}</tbody></table></div>`;
+  $('trial-comparison-' + checkId).innerHTML = `<p class="comparison-summary">記録の値が異なる項目：${result.changed_count}件／比較を確定できない項目：${result.unknown_count}件</p>
     <p class="muted">事例 ${esc(result.case_id)}・版 ${result.case_revision}の記録です。比較元・比較先の指定から時間順序は推定しません。</p>
     <div class="grid">${card(result.before, '比較元の観測')}${card(result.after, '比較先の観測')}</div>
     <h3>違いと不足する記録</h3>${result.rows.some(r => r.status !== 'same') ? table(result.rows.filter(r => r.status !== 'same')) : '<p>比較した項目の記録に違いはありませんでした。</p>'}

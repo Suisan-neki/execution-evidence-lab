@@ -7,6 +7,11 @@ export function sameValue(a, b) {
   const keys = Object.keys(a).sort(), other = Object.keys(b).sort();
   return keys.length === other.length && keys.every((k, i) => k === other[i] && sameValue(a[k], b[k]));
 }
+function exactNumbers(value) {
+  if (typeof value === 'number') return Number.isFinite(value) && (!Number.isInteger(value) || Number.isSafeInteger(value));
+  if (value && typeof value === 'object') return Object.values(value).every(exactNumbers);
+  return true;
+}
 
 export function compareTrials(state, checkId, beforeId, afterId) {
   const w = state.workspace, check = state.checks.find(c => c.check_id === checkId);
@@ -32,8 +37,10 @@ export function compareTrials(state, checkId, beforeId, afterId) {
       return { value, recorded: true };
     };
     const a = read(before), b = read(after);
+    const precision = exactNumbers(a.value) && exactNumbers(b.value);
     rows.push({ key, label, before: a.value, after: b.value, before_recorded: a.recorded, after_recorded: b.recorded,
-      status: !a.recorded || !b.recorded ? 'unknown' : sameValue(a.value, b.value) ? 'same' : 'changed' });
+      reason: !a.recorded || !b.recorded ? '片方または両方に、比較できる記録がありません。' : !precision ? '大きな整数をこの画面で正確に比較できません。元の記録を確認してください。' : '',
+      status: !a.recorded || !b.recorded || !precision ? 'unknown' : sameValue(a.value, b.value) ? 'same' : 'changed' });
   }
   const old = a.record, next = b.record, m = old.manifest, n = next.manifest;
   add('check', '取り込み時の条件版・判定規則', { version: old.check_version, rule: old.rule }, { version: next.check_version, rule: next.rule });

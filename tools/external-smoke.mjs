@@ -97,9 +97,11 @@ try {
   await comparison.locator('a[href^="#evidence-"]').first().click();
   assert.ok(await page.locator('#evidence-'+firstEvidence).isVisible());
   await page.screenshot({path:join(output,'trial-comparison-desktop.png'),fullPage:true});
+  await page.locator('#check-stored .trial-comparison').screenshot({path:join(output,'trial-comparison-panel-desktop.png')});
   await page.setViewportSize({width:390,height:844});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'trial comparison mobile overflow');
   await page.screenshot({path:join(output,'trial-comparison-mobile.png'),fullPage:true});
+  await page.locator('#check-stored .trial-comparison').screenshot({path:join(output,'trial-comparison-panel-mobile.png')});
   await page.setViewportSize({width:1440,height:1100});
   // 読取応答は合成の固定版を使う。実GitHubの読取とは別の確認。
   await context.route('https://api.github.com/**', async route=>{
