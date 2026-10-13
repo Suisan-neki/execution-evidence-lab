@@ -429,3 +429,20 @@ fn next_confirmation_distinguishes_execution_failure_missing_and_invalid_observa
         }
     }
 }
+
+#[test]
+fn prepare_never_replaces_existing_repo_and_bad_size_metadata_is_rejected() {
+    let fixture = Fixture::new();
+    let recipe = fixture.recipe(Runtime::Node, "normal");
+    assert!(prepare_repository(&fixture.root, &recipe).is_err());
+    assert_eq!(git(&fixture.root, &["rev-parse", "HEAD"]), fixture.commit);
+    let run = fixture.run(Runtime::Node, "normal");
+    let mut trace: ExecutionTrace = read_json(&run.directory.join("execution.json")).unwrap();
+    trace.files[1].bytes = u64::MAX;
+    assert!(validate_trace(&trace, &run.manifest).is_err());
+    let mut bad = recipe;
+    bad.source.repository = "other/../project".into();
+    let destination = fixture.directory.join("invalid-prepare");
+    assert!(prepare_repository(&destination, &bad).is_err());
+    assert!(!destination.exists());
+}

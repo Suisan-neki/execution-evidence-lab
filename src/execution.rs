@@ -289,8 +289,11 @@ fn inventory(root: &Path, recipe: &Recipe) -> io::Result<(String, Vec<SnapshotFi
         let bytes = git_text(root, &["cat-file", "-s", fields[2]])?
             .parse::<u64>()
             .map_err(io::Error::other)?;
+        if bytes > MAX_FILE {
+            return Err(invalid("対象ファイルが4MiBを超えています"));
+        }
         total += bytes;
-        if bytes > MAX_FILE || total > MAX_TOTAL || files.len() >= MAX_FILES {
+        if total > MAX_TOTAL || files.len() >= MAX_FILES {
             return Err(invalid("固定版は512ファイル・各4MiB・合計32MiB以内です"));
         }
         let blob = git(root, &["cat-file", "blob", fields[2]])?;
@@ -491,6 +494,9 @@ pub fn validate_trace(trace: &ExecutionTrace, manifest: &Manifest) -> io::Result
     let mut total = 0;
     for file in &trace.files {
         relative(&file.path)?;
+        if file.bytes > MAX_FILE {
+            return Err(invalid("固定版のファイルサイズが上限を超えています"));
+        }
         total += file.bytes;
         if !seen.insert(&file.path)
             || file.bytes > MAX_FILE
