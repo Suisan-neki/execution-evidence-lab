@@ -3,6 +3,7 @@ const token = "__REVIEW_TOKEN__";
 let state, pendingSource, codeHelpers;
 const codeTools = import('/ui/comprehension.js');
 let renderedChecks = [];
+const recipeBases = new Map();
 const $ = (id) => document.getElementById(id);
 const esc = (value) =>
   String(value ?? "").replace(
@@ -112,9 +113,62 @@ function codeMarkup(source, checkId, label = '理解画面でコードを読む'
 function executionSetup(check) {
   if (!check.source) return '';
   const id = esc(check.id), criterion = check.observation;
-  return `<details class="external-setup"><summary>このコードの試験を設定する</summary><p>条件に対応する観測名と対象を指定し、固定版を動かす設定を保存します。対象アプリは観測形式に対応している必要があります。</p><label for="assertion-${id}">判定に使う観測名</label><input id="assertion-${id}" value="${esc(criterion?.assertion || '')}" placeholder="例：stored_matches_input"><label for="subject-${id}">観測する対象の識別名</label><input id="subject-${id}" value="${esc(criterion?.subject || '')}" placeholder="例：record-1"><button class="secondary configure-observation" data-check="${id}">観測名・対象を条件に対応づける</button><p class="muted">対応づけを変えると以前の結果は再確認待ちになります。実行・独立した状態確認は別の操作です。</p><label for="runtime-${id}">実行言語</label><select id="runtime-${id}"><option value="node" ${check.source.path.endsWith('.py') ? '' : 'selected'}>Node.js</option><option value="python3" ${check.source.path.endsWith('.py') ? 'selected' : ''}>Python 3</option></select><label for="entry-${id}">固定版の起動ファイル</label><input id="entry-${id}" value="${esc(check.source.path)}"><label for="args-${id}">起動引数・JSON配列</label><textarea id="args-${id}">[]</textarea><label for="input-${id}">試験入力・JSON</label><textarea id="input-${id}">{}</textarea><label for="timeout-${id}">待機上限・ミリ秒</label><input type="number" id="timeout-${id}" min="1" max="300000" value="5000"><button class="secondary download-recipe" data-check="${id}" ${criterion && check.rule === 'observed_assertion' ? '' : 'disabled'}>この条件の試験設定を保存</button><p class="muted">保存した設定をCLIから実行します。画面から外部コードは起動しません。ローカル方式は試行用のコピーを作りますが、OSによる隔離はありません。自分で確認したコードに使ってください。</p><pre>cargo run -- repo prepare NEW_REPOSITORY_DIR RECIPE_JSON
+  const trials = state.workspace.evidence.filter(e =>
+    e.check_id === check.id && e.execution?.recipe.source.repository === check.source.repository,
+  );
+  const reuse = trials.length ? `
+    <label for="prior-trial-${id}">設定を読み込む過去の試行</label>
+    <select id="prior-trial-${id}">${trials.map(e => `<option value="${esc(e.id)}">${esc(e.id)}・${esc(e.execution.recipe.source.commit.slice(0,12))}・条件版 ${e.check_version}</option>`).join('')}</select>
+    <button class="secondary load-prior-recipe" data-check="${id}">過去の設定を入力欄へ読み込む</button>
+    <p class="muted">入力欄の言語・起動ファイル・引数・入力・待機上限を置き換えます。新しい試験設定には現在のコード版と観測条件を使います。</p>
+    <p id="recipe-basis-${id}" class="callout" hidden></p>` : '';
+  return `<details class="external-setup"><summary>このコードの試験を設定する</summary>
+    <p>条件に対応する観測名と対象を指定し、固定版を動かす設定を保存します。対象アプリは観測形式に対応している必要があります。</p>
+    <label for="assertion-${id}">判定に使う観測名</label>
+    <input id="assertion-${id}" value="${esc(criterion?.assertion || '')}" placeholder="例：stored_matches_input">
+    <label for="subject-${id}">観測する対象の識別名</label>
+    <input id="subject-${id}" value="${esc(criterion?.subject || '')}" placeholder="例：record-1">
+    <button class="secondary configure-observation" data-check="${id}">観測名・対象を条件に対応づける</button>
+    <p class="muted">対応づけを変えると以前の結果は再確認待ちになります。実行・独立した状態確認は別の操作です。</p>
+    ${reuse}
+    <label for="runtime-${id}">実行言語</label>
+    <select id="runtime-${id}"><option value="node" ${check.source.path.endsWith('.py') ? '' : 'selected'}>Node.js</option><option value="python3" ${check.source.path.endsWith('.py') ? 'selected' : ''}>Python 3</option></select>
+    <label for="entry-${id}">固定版の起動ファイル</label><input id="entry-${id}" value="${esc(check.source.path)}">
+    <label for="args-${id}">起動引数・JSON配列</label><textarea id="args-${id}">[]</textarea>
+    <label for="input-${id}">試験入力・JSON</label><textarea id="input-${id}">{}</textarea>
+    <label for="timeout-${id}">待機上限・ミリ秒</label><input type="number" id="timeout-${id}" min="1" max="300000" value="5000">
+    <p class="muted">保存するコード版：${esc(check.source.commit)}。観測名・対象は上で対応づけた現在の条件を使います。起動ファイルがこの版にあるかは実行時に照合します。</p>
+    <button class="secondary download-recipe" data-check="${id}" ${criterion && check.rule === 'observed_assertion' ? '' : 'disabled'}>この条件の試験設定を保存</button>
+    <p class="muted">保存した設定をCLIから実行します。画面から外部コードは起動しません。ローカル方式は試行用のコピーを作りますが、OSによる隔離はありません。自分で確認したコードに使ってください。</p>
+    <pre>cargo run -- repo prepare NEW_REPOSITORY_DIR RECIPE_JSON
 cargo run -- case execute CASE_DIR RECIPE_JSON --repository-root REPOSITORY_DIR --mode local --actor 記入者 --reason 試験理由</pre></details>`;
 }
+function loadPriorRecipe(checkId) {
+  const check = state.workspace.checks.find(c => c.id === checkId);
+  const evidence = state.workspace.evidence.find(e => e.id === $('prior-trial-' + checkId).value && e.check_id === checkId);
+  const recipe = evidence?.execution?.recipe;
+  if (!recipe || recipe.source.repository !== check.source.repository)
+    throw Error('この条件とリポジトリに対応する実行記録が必要です。');
+  const values = { runtime: recipe.runtime, entry: recipe.entrypoint,
+    args: JSON.stringify(recipe.args, null, 2), input: JSON.stringify(recipe.input, null, 2), timeout: recipe.timeout_ms };
+  for (const [prefix, value] of Object.entries(values)) $(prefix + '-' + checkId).value = value;
+  recipeBases.set(checkId, evidence.id);
+  showRecipeBasis(check, evidence);
+  message('過去の試験設定を入力欄へ読み込みました。実行結果と判定は変わっていません。');
+}
+function showRecipeBasis(check, evidence) {
+  const recipe = evidence.execution.recipe;
+  const changes = [];
+  if (recipe.source.commit !== check.source.commit) changes.push('コード版が変わっています');
+  if (evidence.check_version !== check.version) changes.push('確認事項の版が変わっています');
+  if (recipe.criterion.assertion !== check.observation?.assertion || recipe.criterion.subject !== check.observation?.subject)
+    changes.push('観測名・対象が変わっています');
+  const basis = $('recipe-basis-' + check.id);
+  if (!basis) return;
+  basis.hidden = false;
+  basis.textContent = `${evidence.id}（${recipe.source.commit.slice(0,12)}・条件版 ${evidence.check_version}）の設定を読み込みました。${changes.length ? changes.join('。') + '。' : ''}保存先は現在のコード版 ${check.source.commit.slice(0,12)}・条件版 ${check.version}です。入力と起動設定がこの条件に使えるか確認してください。`;
+}
+
 function downloadJSON(name, value) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' }));
   const link = document.createElement('a'); link.href = url; link.download = name; link.click();
@@ -268,6 +322,13 @@ function render() {
   for (const [id, summary, open] of details)
     for (const el of $(id)?.querySelectorAll("details") ?? [])
       if (el.querySelector("summary").textContent === summary) el.open = open;
+  for (const [checkId, evidenceId] of recipeBases) {
+    const check = w.checks.find(c => c.id === checkId);
+    const evidence = w.evidence.find(e => e.id === evidenceId);
+    if (check?.source && evidence?.execution && evidence.execution.recipe.source.repository === check.source.repository)
+      showRecipeBasis(check, evidence);
+    else recipeBases.delete(checkId);
+  }
   renderedChecks = w.checks;
   document.querySelectorAll('a[href^="#"]').forEach((a) => {
     a.onclick = () => {
@@ -284,6 +345,9 @@ function render() {
   document.querySelectorAll('.configure-observation').forEach(b => {
     b.onclick = () => guard(b, () => act({ op: 'configure_observation', check_id: b.dataset.check, criterion: { assertion: $('assertion-' + b.dataset.check).value.trim(), subject: $('subject-' + b.dataset.check).value.trim() } }));
   });
+  document.querySelectorAll('.load-prior-recipe').forEach(b => {
+    b.onclick = () => guard(b, () => loadPriorRecipe(b.dataset.check));
+  });
   document.querySelectorAll('.download-recipe').forEach(b => {
     b.onclick = () => guard(b, async () => {
       const check = state.workspace.checks.find(c => c.id === b.dataset.check);
@@ -291,7 +355,7 @@ function render() {
       if ($('assertion-' + check.id).value.trim() !== check.observation.assertion || $('subject-' + check.id).value.trim() !== check.observation.subject) throw Error('変更した観測名・対象を先に保存してください。');
       const args = JSON.parse($('args-' + check.id).value), input = JSON.parse($('input-' + check.id).value);
       const entrypoint = $('entry-' + check.id).value.trim(), timeout = Number($('timeout-' + check.id).value);
-      if (!Array.isArray(args) || args.some(a => typeof a !== 'string') || !entrypoint || entrypoint.startsWith('/') || entrypoint.split('/').some(p => !p || p === '..' || p === '.') || timeout < 1 || timeout > 300000) throw Error('起動ファイル・引数・待機上限を確認してください。');
+      if (!Array.isArray(args) || args.some(a => typeof a !== 'string') || !entrypoint || entrypoint.startsWith('/') || entrypoint.split('/').some(p => !p || p === '..' || p === '.') || !Number.isInteger(timeout) || timeout < 1 || timeout > 300000) throw Error('起動ファイル・引数・待機上限を確認してください。');
       downloadJSON(`trial-${state.workspace.id}-${check.id}.json`, { schema_version: 1, check_id: check.id, source: check.source, runtime: $('runtime-' + check.id).value, entrypoint, args, input, criterion: check.observation, timeout_ms: timeout });
       message('試験設定を保存しました。CLIから実行すると、新しい試行と根拠をこの条件へ取り込めます。');
     });

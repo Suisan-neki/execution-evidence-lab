@@ -42,7 +42,21 @@ try {
   assert.equal(recipe.source.commit,commit);assert.equal(recipe.criterion.assertion,'stored_matches_input');assert.deepEqual(recipe.args,['failure']);
   execFileSync(binary,['case','execute',casePath,path,'--repository-root',repository,'--mode','local','--actor','合成の確認者','--reason','人工失敗を試す']);
   await page.locator('#reload').click();await page.waitForFunction(()=>document.querySelector('#check-stored .badge').textContent==='条件を満たさない');
-  recipe.args=['normal'];await writeFile(join(temp,'normal.json'),JSON.stringify(recipe));
+  // 画面を開き直しても、過去の設定を選んで入力を復元できる。読み込みだけで記録は変わらない。
+  await page.reload();await page.locator('#check-stored').waitFor();
+  await page.locator('#check-stored .external-setup summary').click();
+  assert.equal(await page.locator('#input-stored').inputValue(),'{}');
+  const priorState=await (await page.request.get(url+'/api/case')).json();
+  await page.locator('.load-prior-recipe[data-check="stored"]').click();
+  assert.deepEqual(JSON.parse(await page.locator('#input-stored').inputValue()),recipe.input);
+  assert.deepEqual(JSON.parse(await page.locator('#args-stored').inputValue()),['failure']);
+  assert.equal(Number(await page.locator('#timeout-stored').inputValue()),recipe.timeout_ms);
+  assert.deepEqual((await (await page.request.get(url+'/api/case')).json()).workspace,priorState.workspace);
+  await page.locator('#args-stored').fill('["normal"]');
+  const repeatedDownload=page.waitForEvent('download');await page.locator('.download-recipe[data-check="stored"]').click();
+  const repeated=JSON.parse(await readFile(await (await repeatedDownload).path(),'utf8'));
+  assert.deepEqual(repeated.input,recipe.input);assert.deepEqual(repeated.args,['normal']);
+  await writeFile(join(temp,'normal.json'),JSON.stringify(repeated));
   execFileSync(binary,['case','execute',casePath,join(temp,'normal.json'),'--repository-root',repository,'--mode','local','--actor','合成の確認者','--reason','正常に戻して再試験する']);
   await page.locator('#reload').click();await page.waitForFunction(()=>document.querySelector('#check-stored .badge').textContent==='条件を満たす');
   await page.locator('#check-stored a[href^="#evidence-"]').first().click();
@@ -67,5 +81,46 @@ try {
   await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await page.goto(url+'/review');await page.locator('#check-stored').waitFor();await page.screenshot({path:join(output,'external-review-mobile.png'),fullPage:true});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({browser:await browser.version(),checks:['observation configuration','draft preservation','recipe download','pinned external execution','failure and retest','runtime version and observation links','return to executed commit','mobile layout'],data:'synthetic',human_evaluation:'not_conducted'}));
+  // コードと観測条件を変えた後は、旧試行の入力だけを新しい条件へ読み込む。
+  await writeFile(join(repository,'examples/observable-store/app.mjs'),sourceCode+'\n// 合成の新版\n');
+  git('add','.');git('commit','-qm','synthetic revised source');const after=git('rev-parse','HEAD');
+  let current=await (await page.request.get(url+'/api/case')).json();
+  const oldEvidence=JSON.stringify(current.workspace.evidence);
+  async function change(action) {
+    const changePath=join(temp,'change.json');
+    await writeFile(changePath,JSON.stringify({expected_revision:current.workspace.revision,actor:'合成の確認者',reason:'新版で設定を再利用する確認',action}));
+    current=JSON.parse(execFileSync(binary,['case','apply',casePath,changePath],{encoding:'utf8'}));
+  }
+  await change({op:'bind_source',check_id:'stored',source:{...source,commit:after}});
+  const changedCriterion={assertion:'stored_matches_input',subject:'another-record'};
+  await change({op:'configure_observation',check_id:'stored',criterion:changedCriterion});
+  await page.goto(url+'/review');await page.locator('#check-stored').waitFor();
+  await page.locator('#check-stored .external-setup summary').click();
+  await page.locator('#prior-trial-stored').selectOption(current.workspace.evidence[1].id);
+  await page.locator('.load-prior-recipe[data-check="stored"]').click();
+  assert.ok((await page.locator('#recipe-basis-stored').innerText()).includes('コード版が変わっています'));
+  assert.ok((await page.locator('#recipe-basis-stored').innerText()).includes('観測名・対象が変わっています'));
+  assert.equal(await page.locator('#subject-stored').inputValue(),'another-record');
+  await page.locator('#input-stored').fill('{"message":"編集した入力"}');const reloaded=page.waitForResponse(r=>r.url().endsWith('/api/case'));await page.locator('#reload').click();await reloaded;
+  await page.waitForFunction(revision=>document.getElementById('revision').textContent.endsWith('版 '+revision),current.workspace.revision);
+  assert.ok((await page.locator('#recipe-basis-stored').innerText()).includes(after.slice(0,12)));
+  assert.deepEqual(JSON.parse(await page.locator('#input-stored').inputValue()),{message:'編集した入力'});
+  await page.locator('#timeout-stored').fill('0.5');
+  await page.locator('.download-recipe[data-check="stored"]').click();
+  assert.ok((await page.locator('#message').innerText()).includes('待機上限を確認'));
+  await page.locator('#timeout-stored').fill('5000');
+  const changedDownload=page.waitForEvent('download');await page.locator('.download-recipe[data-check="stored"]').click();
+  const changedRecipe=JSON.parse(await readFile(await (await changedDownload).path(),'utf8'));
+  assert.equal(changedRecipe.source.commit,after);assert.deepEqual(changedRecipe.criterion,changedCriterion);
+  assert.deepEqual(changedRecipe.input,{message:'編集した入力'});assert.deepEqual(changedRecipe.args,['normal']);
+  current=await (await page.request.get(url+'/api/case')).json();
+  assert.equal(current.checks[0].verdict,'unknown');assert.equal(JSON.stringify(current.workspace.evidence),oldEvidence);
+  await page.screenshot({path:join(output,'external-recipe-reuse-mobile.png'),fullPage:true});
+  await page.setViewportSize({width:1440,height:1100});await page.screenshot({path:join(output,'external-recipe-reuse-desktop.png'),fullPage:true});
+  await change({op:'bind_source',check_id:'stored',source:{...source,repository:'other/project',commit:after}});
+  await page.goto(url+'/review');await page.locator('#check-stored').waitFor();
+  assert.equal(await page.locator('.load-prior-recipe[data-check="stored"]').count(),0);
+  assert.equal(JSON.stringify(current.workspace.evidence),oldEvidence);
+  assert.deepEqual(errors,[]);
+  console.log(JSON.stringify({browser:await browser.version(),checks:['observation configuration','draft preservation','recipe download','pinned external execution','failure and retest','reuse without changing evidence','new commit and criterion in reused recipe','draft and provenance preservation','integer timeout validation','different repository excluded','runtime version and observation links','return to executed commit','mobile layout'],data:'synthetic',human_evaluation:'not_conducted'}));
 } finally { await browser?.close();server.kill('SIGTERM');await rm(temp,{recursive:true,force:true}); }
