@@ -60,3 +60,11 @@ src/capture.rsと[ローカル適用手順](vitalsensing-local.md)を読む。�
 3. src/evaluation.rsのcommon_inputs：判断当時の自動説明を比較入力から外し、人の判断理由を残す理由。
 4. tools/reproduce-methods.mjs：同じ元情報の別実装、実TCP試行と合成加工、未宣言の依存先の限界。
 5. docs/general-release-plan.md：現在の入口、汎用版の未完了項目、医療特化と共通部分の分け方。
+
+## 10月13日の追加分を読む順番
+
+1. `ui/comprehension.js`の`explainFunction`と`functionRange`を読む。どの構文を説明し、どこからは候補・未確認にするか、`tools/comprehension-tests.mjs`の偽の宣言・別関数・不完全な一覧の反例で確認する。
+2. `ui/explorer.js`の`restoreSource`・`renderComparison`・参照先更新を読む。条件の元コードに戻り、二つの固定版を比較する。関数内の記述順と実際の実行順序を区別する。
+3. `src/workspace.rs`の`CodeReference`・`BindSource`・`view`と`ui/review.js`を読む。条件、取り込み時の参照、判断当時の根拠がどう残るかを、`code_update_invalidates_results_and_preserves_decision_basis`で確認する。
+
+この追加分でも、任意のGitHubアプリを実行した結果との対応は未完成。`Evidence.source`は取り込み時点で利用者が宣言した参照先で、実行対象コードを計測した値ではない。保存デモの成功を、選んだGitHubアプリの成功へ読み替えない。

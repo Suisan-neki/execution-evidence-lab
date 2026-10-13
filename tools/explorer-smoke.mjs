@@ -103,7 +103,7 @@ try {
   assert.equal(check.rule, "manual_only");
   assert.equal(check.origin, `https://github.com/example/project/blob/${commit}/src/main.rs#L3`);
   assert.equal(state.checks.at(-1).verdict, "unknown");
-  await page.locator(`#check-${check.id} a[href*="${commit}"]`).waitFor();
+  await page.locator(`#check-${check.id} a[href^="https://github.com/"][href*="${commit}"]`).waitFor();
   assert.equal(check.source.commit, commit);
   // 保存済みの固定版へ戻り、別の版を読み、変更箇所と参照先更新を確認する。
   await page.locator(`#check-${check.id} .code-reference a`).click();
