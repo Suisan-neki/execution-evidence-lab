@@ -244,6 +244,10 @@ fn handle_connection_mode(
                 "text/javascript; charset=utf-8",
                 include_str!("../ui/comprehension.js").to_owned(),
             )),
+            "/ui/call-navigation.js" => Some((
+                "text/javascript; charset=utf-8",
+                include_str!("../ui/call-navigation.js").to_owned(),
+            )),
             "/ui/scanner.js" => Some((
                 "text/javascript; charset=utf-8",
                 include_str!("../ui/scanner.js").to_owned(),

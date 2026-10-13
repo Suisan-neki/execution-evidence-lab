@@ -1,5 +1,6 @@
 // 静的なコードの読解案内。実行順序・業務上の意味・呼び出し先を保証しない。
 import { maskCode, codeLink, repositoryAddress, validateSnapshot } from './scanner.js';
+import { callTargets } from './call-navigation.js';
 
 export function sourceReference(snapshot, path, line = 1, endLine = line) {
   return validateCodeReference({ repository: snapshot.fullName, commit: snapshot.commit, path, line, end_line: endLine });
@@ -41,8 +42,7 @@ export function cachedSnapshot(source, storage) {
   } catch { return null; }
 }
 
-export function functionRange(file, symbol) {
-  const masked = maskCode(file.text, /\.rs$/.test(file.path), /\.py$/.test(file.path));
+export function functionRange(file, symbol, masked = maskCode(file.text, /\.rs$/.test(file.path), /\.py$/.test(file.path))) {
   const lines = masked.split('\n');
   if (/\.py$/.test(file.path)) {
     const indent = /^\s*/.exec(lines[symbol.line - 1])[0].length;
@@ -72,20 +72,32 @@ export function functionRange(file, symbol) {
   }
   return { start: symbol.line, end: symbol.line };
 }
+const guideCaches = new WeakMap();
 const RESERVED = new Set(['if', 'for', 'while', 'switch', 'catch', 'match', 'fn', 'function', 'def', 'return', 'sizeof', 'Some', 'Ok', 'Err']);
 export function explainFunction(model, path, selectedLine) {
   const file = model.files.find(f => f.path === path);
   if (!file) return null;
-  const ranges = file.symbols.map(s => ({ symbol: s, range: functionRange(file, s) }));
+  let cache = guideCaches.get(model);
+  if (!cache) { cache = new Map(); guideCaches.set(model, cache); }
+  let analyzed = cache.get(file.path);
+  if (!analyzed) {
+    const masked = maskCode(file.text, /\.rs$/.test(path), /\.py$/.test(path));
+    analyzed = { ranges: file.symbols.map(s => ({ symbol: s, range: functionRange(file, s, masked) })),
+      lines: masked.split('\n'), original: file.text.split('\n'), guides: new Map() };
+    cache.set(file.path, analyzed);
+  }
+  const ranges = analyzed.ranges;
   const enclosing = ranges.filter(s => s.range.start <= selectedLine && selectedLine <= s.range.end).at(-1);
   if (!enclosing) return null;
   const { symbol, range } = enclosing;
-  const original = file.text.split('\n');
-  const lines = maskCode(file.text, /\.rs$/.test(path), /\.py$/.test(path)).split('\n');
+  if (analyzed.guides.has(symbol.line)) return analyzed.guides.get(symbol.line);
+  const original = analyzed.original;
+  const lines = analyzed.lines;
   const steps = [], calls = [];
   // 表示順はコードの行順。分岐や非同期処理の実行順序ではない。
   for (let i = range.start - 1; i < range.end; i++) {
     const line = lines[i], number = i + 1;
+    if (ranges.some(other => other.range.start > range.start && other.range.start <= number && number <= other.range.end)) continue;
     if (/\b(if|else|match|switch)\b/.test(line)) steps.push({ kind: 'branch', line: number, text: '条件に応じて処理を分ける記述があります。条件式と各分岐を確認してください。' });
     if (/\b(for|while|loop)\b/.test(line)) steps.push({ kind: 'loop', line: number, text: '処理を繰り返す記述があります。繰り返す対象と終了条件を確認してください。' });
     if (/\b(throw|raise|panic)\b|\b(?:panic|bail)!/.test(line)) steps.push({ kind: 'error', line: number, text: '例外やエラーを発生させる記述があります。呼び出し元の扱いを確認してください。' });
@@ -93,20 +105,41 @@ export function explainFunction(model, path, selectedLine) {
     if (/\bawait\b|\.await\b/.test(line)) steps.push({ kind: 'wait', line: number, text: '非同期処理の完了を待つ記述があります。待機後の成功・失敗の扱いを確認してください。' });
     if (/\.rs$/.test(path) && /\?/.test(line)) steps.push({ kind: 'propagate', line: number, text: '?演算子があります。ResultやOptionの値に応じて呼び出し元へ戻る可能性があります。' });
     for (const match of line.matchAll(/\b([A-Za-z_$][\w$]*(?:(?:::|\.)[A-Za-z_$][\w$]*)*)\s*(!)?\s*\(/g)) {
-      const name = match[1], last = name.split(/::|\./).at(-1);
+      const name = match[1];
       const preceding = line.slice(0, match.index);
       if (RESERVED.has(name) || /(?:fn|function|def)\s*$/.test(preceding)) continue;
-      const qualifier = name.split(/::|\./).slice(0, -1).at(-1);
-      // 型・レシーバーの解決は行わない。対応先は名前と参照宣言からの候補だけ。
-      const candidates = model.files.flatMap(f => f.symbols.filter(s => s.name === last).map(s => ({ path: f.path, line: s.line, name: s.name })))
-        .filter(s => qualifier ? file.imports.some(e => e.to === s.path && new RegExp('(?:^|/)' + qualifier + '(?:\\.[^/]+|/mod\\.rs)$').test(s.path)) : s.path === path || file.imports.some(e => e.to === s.path));
-      calls.push({ name, line: number, macro: Boolean(match[2]), candidates });
+      const targets = callTargets(model, file, name, range);
+      calls.push({ name, line: number, macro: Boolean(match[2]), ...targets });
     }
   }
   const startOffset = original.slice(0, range.start - 1).join('\n').length + (range.start > 1 ? 1 : 0);
   const signature = range.header_end !== undefined ? file.text.slice(startOffset, range.header_end).trim() : original[range.start - 1].trim();
-  return { name: symbol.name, range, signature, steps: steps.slice(0, 80), calls: calls.slice(0, 80), truncated: steps.length > 80 || calls.length > 80,
+  const result = { name: symbol.name, range, signature, steps: steps.slice(0, 80), calls: calls.slice(0, 80), truncated: steps.length > 80 || calls.length > 80,
     limits: 'コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。' };
+  analyzed.guides.set(symbol.line, result);
+  return result;
+}
+
+// 読取済みの関数だけを調べる。未読・未対応の呼び出しをないものにしない。
+export function callersOf(model, path, declarationLine, maxFunctions = 400, maxCallers = 80) {
+  const callers = [], seen = new Set(); let scanned = 0, limited = false;
+  outer: for (const file of model.files) for (const symbol of file.symbols) {
+    if (scanned >= maxFunctions) { limited = true; break outer; }
+    scanned++;
+    const guide = explainFunction(model, file.path, symbol.line);
+    if (!guide) continue;
+    if (guide.truncated) limited = true;
+    for (const call of guide.calls) if (call.candidates.some(c => c.path === path && c.line === declarationLine)) {
+      const key = file.path + ':' + call.line + ':' + call.name;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (callers.length >= maxCallers) { limited = true; continue; }
+      callers.push({ path: file.path, line: call.line, function: guide.name, function_line: guide.range.start,
+        call: call.name, bindings: call.bindings, reason: call.reason });
+    }
+  }
+  return { callers, scanned_functions: scanned, limited, inventory_truncated: model.inventory_truncated === true, max_functions: maxFunctions, max_callers: maxCallers,
+    unread_files: (model.inventory || []).filter(f => /\.(rs|[cm]?[jt]sx?|py)$/.test(f.path) && !model.files.some(read => read.path === f.path)).length };
 }
 
 export function compareSnapshots(before, after) {
