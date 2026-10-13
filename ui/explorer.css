@@ -125,3 +125,8 @@ footer { font-size: .75rem; color: var(--muted); margin-top: 28px; }
 #code-update input { margin-bottom: 10px; }
 #back-check { display: inline-block; margin: 10px; }
 @media(max-width: 800px) { .diff-grid { grid-template-columns: 1fr; } }
+
+.call-record { border-top: 1px solid #dbe4e9; padding: 10px 0; }
+.call-record:first-child { border-top: 0; }
+.call-targets { display: flex; flex-wrap: wrap; gap: 8px; }
+.binding-evidence pre { white-space: pre-wrap; overflow-wrap: anywhere; }

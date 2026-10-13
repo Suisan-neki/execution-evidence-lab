@@ -28,6 +28,9 @@ try {
     "src/main.rs": '//! 操作を受け付けて保存処理を呼ぶ。\nuse example_app::{storage};\nfn main() { storage::save(); }',
     "src/storage.rs": '//! ファイルの書き込みを行う。\npub fn save() {}',
     "package.json": '{"scripts":{"test":"cargo test"}}',
+    "ui/app.js": 'import {\n save as persist\n} from "./z-store.js";\nfunction run(data) {\n persist(data);\n}\nfunction shadow(persist) { persist(); }',
+    "ui/z-store.js": 'export function save(data) { return data; }',
+    ...Object.fromEntries(Array.from({ length: 26 }, (_, i) => ['aux/' + String(i).padStart(2, '0') + '.js', 'export function helper() {}'])),
   };
   const newerCommit = "c".repeat(40), newerTree = "d".repeat(40);
   const newerFiles = { ...files, "src/main.rs": '//! 失敗した場合は呼び出し元へ戻る。\nuse example_app::{storage};\nfn main() { if ready() { storage::save(); } }', "src/new.rs": 'fn added() {}' };
@@ -74,6 +77,30 @@ try {
   await page.locator('#outgoing button[data-path="src/storage.rs"]').click();
   assert.ok((await page.locator("#incoming").innerText()).includes("src/main.rs"));
   await page.screenshot({ path: join(output, "understand-code-desktop.png"), fullPage: true });
+  await page.locator('#symbol-list button[data-line="2"]').click();
+  assert.ok((await page.locator('#function-guide .caller-list').innerText()).includes('src/main.rs'));
+  await page.locator('#function-guide .caller-list button[data-path="src/main.rs"]').click();
+  assert.equal(await page.locator('.code-line.target .line-number').innerText(),'3');
+  // 別名の参照先は初回の24ファイルに含めず、選択時に読んで関係を更新する。
+  await page.locator('#file-list button[data-path="ui/app.js"]').click();
+  await page.locator('#symbol-list button[data-line="4"]').click();
+  assert.ok((await page.locator('#function-guide').innerText()).includes('参照先をまだ読み取っていません'));
+  await page.locator('#function-guide .call-targets button[data-path="ui/z-store.js"]').click();
+  assert.equal(await page.locator('#file-name').innerText(),'ui/z-store.js');
+  assert.ok((await page.locator('#function-guide .caller-list').innerText()).includes('ui/app.js'));
+  assert.equal(await page.locator('#function-guide .caller-list button[data-path="ui/app.js"]').count(),1);
+  await page.locator('#function-guide .caller-list .binding-evidence summary').click();
+  assert.ok((await page.locator('#function-guide .caller-list').innerText()).includes('save as persist'));
+  await page.locator('#function-guide .caller-list .binding-evidence button').click();
+  assert.equal(await page.locator('#file-name').innerText(),'ui/app.js');
+  assert.equal(await page.locator('.code-line.target .line-number').innerText(),'1');
+  await page.locator('#symbol-list button[data-line="4"]').click();
+  assert.equal(await page.locator('#function-guide .call-targets button[data-path="ui/z-store.js"]').count(),1);
+  await page.screenshot({path:join(output,'understand-calls-desktop.png'),fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'call navigation mobile overflow');
+  await page.screenshot({path:join(output,'understand-calls-mobile.png'),fullPage:true});
+  await page.setViewportSize({width:1440,height:1100});
   const download = page.waitForEvent("download");
   await page.locator("#download").click();
   const saved = await download;
@@ -158,7 +185,7 @@ try {
     await livePage.screenshot({ path: join(output, "understand-live-github-desktop.png"), fullPage: true });
   } catch (error) { liveResult = { status: "not_verified", reason: error.message }; }
   await liveContext.close();
-  console.log(JSON.stringify({ browser: await browser.version(), public_api: "fixed responses", checks: ["commit-pinned GitHub requests", "README and declarations", "source and references", "escaped code", "record export and import", "code to unverified condition", "function guide and candidate calls", "return to pinned code", "version comparison and reference update", "invalid URLs", "mobile layout"], human_evaluation: "not_conducted" }));
+  console.log(JSON.stringify({ browser: await browser.version(), public_api: "fixed responses", checks: ["commit-pinned GitHub requests", "README and declarations", "source and references", "escaped code", "record export and import", "code to unverified condition", "function guide and candidate calls", "alias import evidence", "unread target updates", "return to caller", "parameter collision excluded", "return to pinned code", "version comparison and reference update", "invalid URLs", "mobile layout"], human_evaluation: "not_conducted" }));
   console.log(JSON.stringify({ live_github: liveResult }));
 } finally {
   await browser?.close(); server.kill("SIGTERM"); await rm(temp, { recursive: true, force: true });

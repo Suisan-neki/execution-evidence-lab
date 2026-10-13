@@ -1,6 +1,6 @@
 import { scanPublicRepository, readSource, analyze, codeLink, validateSnapshot } from "/ui/scanner.js";
 
-import { sourceReference, sourceURL, validateCodeReference, explainFunction, compareSnapshots, lineChanges, cacheSnapshot, cachedSnapshot } from '/ui/comprehension.js';
+import { sourceReference, sourceURL, validateCodeReference, explainFunction, callersOf, compareSnapshots, lineChanges, cacheSnapshot, cachedSnapshot } from '/ui/comprehension.js';
 let comparison, comparisonBefore, comparisonAfter, linkedCheckId = '', caseState;
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -141,11 +141,31 @@ function currentSource() {
   // 選択行を入口として保持し、関数末尾までの範囲を残す。
   return sourceReference(snapshot, selectedPath, selectedLine, guide?.range.end || selectedLine);
 }
+function bindingMarkup(bindings, path) {
+  if (!bindings?.length) return '';
+  const declarations = [...new Map(bindings.map(b => [b.line + ':' + b.end_line, b])).values()];
+  return `<details class="binding-evidence"><summary>読み込み宣言の根拠</summary>${declarations.map(b => `<p>${codeButton(path, b.line, b.line + '〜' + b.end_line + '行の宣言を見る')}</p><pre>${esc(b.declaration)}</pre>`).join('')}</details>`;
+}
 function renderGuide(file) {
   const guide = explainFunction(model, file.path, selectedLine);
   if (!guide) { $('function-guide').innerHTML = '<p class="muted">関数を選ぶと、入力・分岐・呼び出しの記述をたどれます。対応する関数範囲を特定できない行では案内を作りません。</p>'; return; }
-  $('function-guide').innerHTML = `<section class="guide"><h3>${esc(guide.name)}の処理を読む</h3><p>入力・型・戻り値は、この宣言で確認できます。</p><pre class="guide-signature">${esc(guide.signature)}</pre><p class="muted">${guide.range.start}〜${guide.range.end}行の範囲。下の項目はコードの行順です。</p><ul>${guide.steps.map(step => `<li>${esc(step.text)} ${codeButton(file.path, step.line, step.line + '行を見る')}</li>`).join('') || '<li>対応する分岐・繰り返し・戻りの記述は抽出できませんでした。</li>'}</ul><h3>呼び出しの記述をたどる</h3>${guide.calls.map(call => `<div class="link-row"><code>${esc(call.name)}${call.macro ? '!' : ''}</code> ${codeButton(file.path, call.line, call.line + '行')}${call.candidates.length ? call.candidates.map(c => codeButton(c.path, c.line, '候補：' + c.path + ' / ' + c.name)).join('') : '<span class="muted">対応先は未解決</span>'}</div>`).join('') || '<p class="muted">対応する呼び出しの記述は抽出できませんでした。</p>'}<p class="muted">${esc(guide.limits)}</p>${guide.truncated ? '<p class="muted">先頭80件まで表示しています。</p>' : ''}</section>`;
+  const incoming = callersOf(model, file.path, guide.range.start);
+  $('function-guide').innerHTML = `<section class="guide">
+    <h3>${esc(guide.name)}の処理を読む</h3><p>入力・型・戻り値は、この宣言で確認できます。</p>
+    <pre class="guide-signature">${esc(guide.signature)}</pre>
+    <p class="muted">${guide.range.start}〜${guide.range.end}行の範囲。下の項目はコードの行順です。</p>
+    <ul>${guide.steps.map(step => `<li>${esc(step.text)} ${codeButton(file.path, step.line, step.line + '行を見る')}</li>`).join('') || '<li>対応する分岐・繰り返し・戻りの記述は抽出できませんでした。</li>'}</ul>
+    <h3>呼び出し先の候補をたどる</h3>
+    <div class="call-list">${guide.calls.map(call => `<div class="call-record"><div class="link-row"><code>${esc(call.name)}${call.macro ? '!' : ''}</code> ${codeButton(file.path, call.line, call.line + '行の呼び出しを見る')}</div>
+      <div class="call-targets">${call.candidates.map(c => codeButton(c.path, c.line, '候補：' + c.path + ' / ' + c.name)).join('')}${call.unread.map(path => codeButton(path, 1, '未読の参照先を読む：' + path)).join('')}</div>
+      <p class="muted">${esc(call.reason)}</p>${bindingMarkup(call.bindings, file.path)}</div>`).join('') || '<p class="muted">対応する呼び出しの記述は抽出できませんでした。</p>'}</div>
+    <h3>この関数を呼ぶ候補</h3>
+    <div class="caller-list">${incoming.callers.map(c => `<div class="call-record">${codeButton(c.path, c.line, c.path + '：' + c.line + '行 / ' + c.function)}<p><code>${esc(c.call)}</code>という呼び出しの記述があります。</p><p class="muted">${esc(c.reason)}</p>${bindingMarkup(c.bindings, c.path)}</div>`).join('') || '<p class="muted">調べた範囲では呼び出し元の候補を抽出できませんでした。呼び出しがないと確定した結果ではありません。</p>'}</div>
+    <p class="muted">読取済みの${incoming.scanned_functions}関数を調べました。取得した一覧のうち、未読のコードは${incoming.unread_files}ファイルあります。${incoming.inventory_truncated ? 'ファイル一覧が途中で切れているため、リポジトリ全体の数ではありません。' : ''}${incoming.limited ? '探索または表示が上限に達しています。' : ''}探索は最大${incoming.max_functions}関数、呼び出し元の表示は最大${incoming.max_callers}件です。</p>
+    <p class="muted">${esc(guide.limits)}</p>${guide.truncated ? '<p class="muted">関数内の案内は先頭80件まで表示しています。</p>' : ''}
+  </section>`;
 }
+
 async function restoreSource() {
   if (!location.hash.startsWith('#source=')) return;
   const request = JSON.parse(decodeURIComponent(location.hash.slice(8)));

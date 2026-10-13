@@ -170,7 +170,8 @@ function resolvePath(path, specifier, paths) {
   const directory = path.split("/").slice(0, -1).join("/");
   const base = normalize(`${directory}/${specifier}`);
   if (!base) return null;
-  return [base, ...[".rs", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".py", "/mod.rs", "/index.js", "/index.ts", "/index.tsx", "/__init__.py"].map(ext => base + ext)].find(p => paths.has(p)) || null;
+  const extensions = /\.py$/.test(path) ? [".py", "/__init__.py"] : /\.rs$/.test(path) ? [".rs", "/mod.rs"] : [".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", "/index.js", "/index.ts", "/index.tsx"];
+  return [base, ...extensions.map(ext => base + ext)].find(p => paths.has(p)) || null;
 }
 export function symbols(path, text) {
   if (!SOURCE.test(path)) return [];
@@ -233,7 +234,13 @@ function imports(path, text, paths, crateName) {
 export function analyze(snapshot) {
   const paths = new Set(snapshot.inventory.map(f => f.path));
   const crateName = /^name\s*=\s*"([^"]+)"/m.exec(snapshot.files["Cargo.toml"] || "")?.[1]?.replaceAll("-", "_");
-  const files = Object.entries(snapshot.files).map(([path, text]) => ({ path, text, symbols: symbols(path, text), imports: imports(path, text, paths, crateName), role: role(path) }));
+  const files = Object.entries(snapshot.files).map(([path, text]) => {
+    const bindings = importBindings(path, text, paths, crateName);
+    const edges = imports(path, text, paths, crateName);
+    for (const binding of bindings) if (binding.target && binding.target !== path && !edges.some(e => e.to === binding.target && e.line === binding.line))
+      edges.push({ from: path, to: binding.target, line: binding.line, kind: "参照宣言" });
+    return { path, text, symbols: symbols(path, text), imports: edges, bindings, role: role(path) };
+  });
   const entries = files.filter(f => /(^|\/)(main\.(rs|py)|server\.[cm]?[jt]s|app\.[jt]sx?|index\.[cm]?[jt]sx?)$/.test(f.path)).map(f => ({ path: f.path, line: f.symbols.find(s => s.name === "main")?.line || 1, reason: /main\.rs$/.test(f.path) ? "Rustの実行入口に使われるファイル" : "名前から選んだ入口の候補" }));
   const scripts = [];
   for (const f of files.filter(f => /(^|\/)package\.json$/.test(f.path))) {
@@ -243,7 +250,7 @@ export function analyze(snapshot) {
         if (typeof command === "string") scripts.push({ path: f.path, name, command, line: f.text.split("\n").findIndex(l => l.includes(JSON.stringify(name))) + 1 });
     } catch { /* 読めないmanifestを成功した起動設定としない。 */ }
   }
-  return { files, entries, scripts, edges: files.flatMap(f => f.imports) };
+  return { files, entries, scripts, inventory: snapshot.inventory, inventory_truncated: snapshot.truncated === true, edges: files.flatMap(f => f.imports) };
 }
 
 export function role(path) {
@@ -265,4 +272,89 @@ export function validateSnapshot(value) {
   for (const [path, text] of Object.entries(value.files))
     if (!value.inventory.some(f => f.path === path) || typeof text !== "string" || encoder.encode(text).length > MAX_FILE_BYTES) throw Error("読取記録のコードが不正です。");
   return value;
+}
+
+// 読み込み宣言に現れる別名。対応する構文だけを記録する。
+const IDENT = /^[A-Za-z_$][\w$]*$/;
+export function rustPath(parts, paths) {
+  const base = 'src/' + parts.join('/');
+  return [base+'.rs',base+'/mod.rs'].find(p=>paths.has(p)) || null;
+}
+function splitUse(text) {
+  let depth=0, start=0;const result=[];
+  for(let i=0;i<=text.length;i++) {
+    if(i===text.length || (text[i]===',' && depth===0)) {result.push(text.slice(start,i).trim());start=i+1;}
+    else if(text[i]==='{') depth++;else if(text[i]==='}') depth--;
+  }
+  return result.filter(Boolean);
+}
+export function importBindings(path, text, paths, crateName) {
+  const clean=maskCode(text,/\.rs$/.test(path),/\.py$/.test(path)), result=[];
+  const lineAt=offset=>clean.slice(0,offset).split('\n').length;
+  const add=(match, values)=>{
+    const prefix=clean.slice(0,match.index);
+    const nested=/\.py$/.test(path) ? /^[ \t]+/.test(match[0]) : (prefix.match(/{/g)||[]).length > (prefix.match(/}/g)||[]).length;
+    result.push({...values,nested,line:lineAt(match.index),end_line:lineAt(match.index+match[0].length),declaration:text.slice(match.index,match.index+match[0].length).trim()});
+  };
+  if(/\.[cm]?[jt]sx?$/.test(path)) {
+    for(const match of text.matchAll(/\bimport\s+([\w$\s{},*]+?)\s+from\s*(['"])([^'"\n]+)\2\s*;?/g)) {
+      if(!/^import\b/.test(clean.slice(match.index))) continue;
+      const clause=match[1].trim(), specifier=match[3];
+      if(/^type\s/.test(clause)) continue;
+      const target=specifier.startsWith('.') ? resolvePath(path,specifier,paths) : null;
+      const named=/{([^}]*)}/.exec(clause);
+      if(named) for(const item of named[1].split(',')) {
+        const value=item.trim();if(/^type\s/.test(value)) continue;
+        const binding=/^([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?$/.exec(value);
+        if(binding) add(match,{kind:'named',local:binding[2]||binding[1],imported:binding[1],target,specifier});
+      }
+      const namespace=/(?:^|,)\s*\*\s+as\s+([A-Za-z_$][\w$]*)\s*$/.exec(clause);
+      if(namespace) add(match,{kind:'namespace',local:namespace[1],imported:null,target,specifier});
+      const defaultName=/^([A-Za-z_$][\w$]*)(?:\s*,|\s*$)/.exec(clause)?.[1];
+      if(defaultName) add(match,{kind:'default',local:defaultName,imported:'default',target,specifier});
+    }
+  } else if(/\.rs$/.test(path)) {
+    for(const match of clean.matchAll(/\buse\s+([^;]+);/g)) {
+      function visit(part, prefix=[]) {
+        const brace=part.indexOf('{');
+        if(brace>=0) {
+          const end=part.lastIndexOf('}');if(end<brace || part.slice(end+1).trim()) return;
+          const head=part.slice(0,brace).trim().replace(/::$/,'');
+          const next=prefix.concat(head ? head.split('::').map(s=>s.trim()) : []);
+          for(const inner of splitUse(part.slice(brace+1,end))) visit(inner,next);
+          return;
+        }
+        const alias=part.split(/\s+as\s+/);if(alias.length>2) return;
+        const names=prefix.concat(alias[0].split('::').map(s=>s.trim()));
+        if(!names.every(n=>IDENT.test(n)) || (alias[1] && !IDENT.test(alias[1].trim()))) return;
+        const own=names[0]==='crate'||names[0]===crateName, relative=names.slice(1);
+        if(!relative.length) return;
+        const self=relative.at(-1)==='self';
+        const module=self ? relative.slice(0,-1) : relative;
+        const direct=own ? rustPath(module,paths) : null;
+        const kind=self||direct ? 'namespace' : 'named';
+        const target=own ? direct||rustPath(relative.slice(0,-1),paths) : null;
+        const imported=kind==='namespace' ? null : relative.at(-1);
+        const local=alias[1]?.trim() || (self ? relative.at(-2) : relative.at(-1));
+        if(local) add(match,{kind,local,imported,target,specifier:names.join('::')});
+      }
+      visit(match[1].trim());
+    }
+  } else if(/\.py$/.test(path)) {
+    for(const match of clean.matchAll(/^[ \t]*from\s+([.\w]+)\s+import\s+(\([^)]*\)|[^\n]+)/gm)) {
+      const module=match[1], relative=/^(\.+)([\w.]*)$/.exec(module);
+      const specifier=relative ? './'+'../'.repeat(relative[1].length-1)+relative[2].replaceAll('.','/') : module;
+      const list=match[2].replace(/^\(|\)$/g,'');
+      for(const item of list.split(',')) {
+        const binding=/^\s*([A-Za-z_]\w*)(?:\s+as\s+([A-Za-z_]\w*))?\s*$/.exec(item);if(!binding) continue;
+        const namespace=relative && !relative[2];
+        const target=relative ? resolvePath(path,specifier+(namespace ? binding[1] : ''),paths) : null;
+        add(match,{kind:namespace?'namespace':'named',local:binding[2]||binding[1],imported:namespace?null:binding[1],target,specifier});
+      }
+    }
+    // 絶対importの探索ルートは不明なので、外部の束縛として残す。
+    for(const match of clean.matchAll(/^[ \t]*import\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)(?:\s+as\s+([A-Za-z_]\w*))?[ \t]*(?:$|#)/gm))
+      add(match,{kind:'namespace',local:match[2]||match[1].split('.')[0],imported:null,target:null,specifier:match[1]});
+  }
+  return result;
 }
