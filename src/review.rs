@@ -1,6 +1,7 @@
 //! localhostだけで動く共同レビュー。任意のコマンドやファイルはHTTPで受け付けない。
 use crate::{
     model::*,
+    review_execution::{Controller, ExecuteRequest, ExecutionStatus, Job},
     workspace::{self, *},
 };
 use serde::Deserialize;
@@ -134,6 +135,7 @@ fn read_request(stream: &mut TcpStream) -> io::Result<Request> {
 fn respond(stream: &mut TcpStream, status: u16, content_type: &str, body: &[u8]) -> io::Result<()> {
     let phrase = match status {
         200 => "OK",
+        202 => "Accepted",
         400 => "Bad Request",
         403 => "Forbidden",
         404 => "Not Found",
@@ -168,13 +170,23 @@ struct DemoRequest {
 
 /// 任意ファイルへのアクセスや任意コマンド実行は公開しない。変更JSONのimportはCLI専用。
 pub fn handle_connection(mut stream: TcpStream, directory: &Path, token: &str) -> io::Result<()> {
-    handle_connection_mode(&mut stream, Some(directory), token)
+    handle_connection_mode(&mut stream, Some(directory), token, None)
+}
+
+pub fn handle_connection_with_execution(
+    mut stream: TcpStream,
+    directory: &Path,
+    token: &str,
+    controller: &Controller,
+) -> io::Result<()> {
+    handle_connection_mode(&mut stream, Some(directory), token, Some(controller))
 }
 
 fn handle_connection_mode(
     stream: &mut TcpStream,
     directory: Option<&Path>,
     token: &str,
+    controller: Option<&Controller>,
 ) -> io::Result<()> {
     let request = match read_request(stream) {
         Ok(request) => request,
@@ -264,6 +276,29 @@ fn handle_connection_mode(
                 &serde_json::json!({"error": error.to_string()}),
             ),
         },
+        ("GET", "/api/execution") => {
+            let result =
+                controller.map_or_else(|| Ok(ExecutionStatus::disabled()), Controller::status);
+            result_response(stream, result)
+        }
+        ("POST", "/api/execute") => {
+            let result = controller
+                .ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        "画面からの実行は起動時にリポジトリと方式を指定した場合だけ利用できます",
+                    )
+                })
+                .and_then(|controller| {
+                    serde_json::from_slice::<ExecuteRequest>(&request.body)
+                        .map_err(io::Error::other)
+                        .and_then(|request| controller.start(request))
+                });
+            match result {
+                Ok(job) => json(stream, 202, &job),
+                Err(error) => result_response(stream, Err::<Job, _>(error)),
+            }
+        }
         ("POST", "/api/change") => {
             let result = serde_json::from_slice::<ChangeRequest>(&request.body)
                 .map_err(io::Error::other)
@@ -300,7 +335,10 @@ fn handle_connection_mode(
         ),
     }
 }
-fn result_response(stream: &mut TcpStream, result: io::Result<WorkspaceView>) -> io::Result<()> {
+fn result_response<T: serde::Serialize>(
+    stream: &mut TcpStream,
+    result: io::Result<T>,
+) -> io::Result<()> {
     match result {
         Ok(value) => json(stream, 200, &value),
         Err(error) => {
@@ -319,14 +357,28 @@ fn result_response(stream: &mut TcpStream, result: io::Result<WorkspaceView>) ->
 }
 pub fn serve(directory: PathBuf, port: u16) -> io::Result<()> {
     workspace::load(&directory)?;
-    serve_mode(Some(directory), port)
+    serve_mode(Some(directory), port, None)
 }
 
 pub fn serve_explorer(port: u16) -> io::Result<()> {
-    serve_mode(None, port)
+    serve_mode(None, port, None)
 }
 
-fn serve_mode(directory: Option<PathBuf>, port: u16) -> io::Result<()> {
+pub fn serve_with_execution(
+    directory: PathBuf,
+    port: u16,
+    repository_root: PathBuf,
+    mode: crate::execution::ExecutionMode,
+) -> io::Result<()> {
+    let controller = Controller::new(directory.clone(), repository_root, mode)?;
+    serve_mode(Some(directory), port, Some(controller))
+}
+
+fn serve_mode(
+    directory: Option<PathBuf>,
+    port: u16,
+    controller: Option<Controller>,
+) -> io::Result<()> {
     let mut bytes = [0; 24];
     File::open("/dev/urandom")?.read_exact(&mut bytes)?;
     let token = bytes.iter().map(|b| format!("{b:02x}")).collect::<String>();
@@ -341,7 +393,12 @@ fn serve_mode(directory: Option<PathBuf>, port: u16) -> io::Result<()> {
     }
     for stream in listener.incoming() {
         match stream.and_then(|mut stream| {
-            handle_connection_mode(&mut stream, directory.as_deref(), &token)
+            handle_connection_mode(
+                &mut stream,
+                directory.as_deref(),
+                &token,
+                controller.as_ref(),
+            )
         }) {
             Ok(()) => (),
             Err(error) => eprintln!("レビューの接続エラー: {error}"),

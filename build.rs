@@ -5,7 +5,13 @@ fn collect(path: &Path, files: &mut Vec<std::path::PathBuf>) {
             collect(&entry.expect("source entry").path(), files);
         }
     } else if path.extension().is_some_and(|ext| {
-        ext == "rs" || ext == "html" || ext == "json" || ext == "mjs" || ext == "js" || ext == "css"
+        ext == "rs"
+            || ext == "py"
+            || ext == "html"
+            || ext == "json"
+            || ext == "mjs"
+            || ext == "js"
+            || ext == "css"
     }) {
         files.push(path.to_owned());
     }

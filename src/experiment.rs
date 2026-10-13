@@ -1,5 +1,4 @@
 use crate::{
-    assessment::assess,
     model::*,
     protocol::{read_frame, write_frame},
     recording::*,
@@ -148,7 +147,8 @@ pub fn finish_run(
     manifest: Manifest,
     truth: Truth,
 ) -> io::Result<RunResult> {
-    let assessment = assess(&manifest, &load_events(&directory)?);
+    let assessment =
+        crate::execution::assess_run(&directory, &manifest, &load_events(&directory)?)?;
     write_json_new(&directory.join("assessment.json"), &assessment)?;
     write_json_new(&directory.join("truth.json"), &truth)?;
     let mut report = OpenOptions::new()

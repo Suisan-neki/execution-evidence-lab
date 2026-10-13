@@ -18,6 +18,7 @@ jobs:
       - run: cargo test --locked
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo build --locked
+      - run: node tools/pinned-demo.mjs evaluations/ci-external
       - run: node tools/reproduce-methods.mjs evaluations/ci-methods
       - run: npm run test:reader
       - run: npm ci --ignore-scripts
@@ -32,5 +33,6 @@ jobs:
             test-results/*.png
             evaluations/ci-methods/results.json
             evaluations/ci-methods/results.md
+            evaluations/ci-external/result.json
           if-no-files-found: ignore
           retention-days: 7

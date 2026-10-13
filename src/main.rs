@@ -1,5 +1,5 @@
 use execution_evidence_lab::{
-    assessment::{assess, compare_runs},
+    assessment::compare_runs,
     capture::{CaptureConfig, capture},
     evaluation,
     experiment::{run_trial, verify_storage},
@@ -18,15 +18,17 @@ const HELP: &str = "execution-evidence-lab
   retest RUN_DIR [--fault CONDITION] [--output DIR]
   compare BEFORE_DIR AFTER_DIR
   capture --condition TEXT [--timeout-ms 5000] [--output DIR] -- PROGRAM [ARGS...]
+  repo prepare NEW_DIR RECIPE_JSON
   case init CASE_DIR [--file SPEC_JSON] [--actor TEXT] [--reason TEXT]
   case init CASE_DIR --template general --id CASE_ID --title TEXT [--actor TEXT] [--reason TEXT]
   case show CASE_DIR
   case apply CASE_DIR CHANGE_JSON
   case import CASE_DIR RUN_DIR --condition CHECK_ID --actor TEXT --reason TEXT [--use-run-context true|false]
+  case execute CASE_DIR RECIPE_JSON --repository-root DIR --mode local|bubblewrap --actor TEXT --reason TEXT
   case run CASE_DIR --actor TEXT --reason TEXT [--condition save] [--fault CONDITION]
   case export CASE_DIR --output NEW_DIR
   explore [--port 8765]
-  review CASE_DIR [--port 8765]
+  review CASE_DIR [--port 8765] [--repository-root DIR --execution-mode local|bubblewrap]
 
 外部コマンドのcaptureは隔離環境ではありません。業務条件は終了コードだけで判定しません。";
 
@@ -82,6 +84,17 @@ fn run(args: &[String]) -> io::Result<()> {
     match command.as_str() {
         "help" | "--help" | "-h" if args.len() == 1 => println!("{HELP}"),
         "case" => case_command(&args[1..])?,
+        "repo" if args.len() == 4 && args[1] == "prepare" => {
+            let recipe = execution_evidence_lab::recording::read_json(&PathBuf::from(&args[3]))?;
+            execution_evidence_lab::execution::prepare_repository(
+                &PathBuf::from(&args[2]),
+                &recipe,
+            )?;
+            println!(
+                "固定コミットを取得しました: {}。checkoutと対象コードの実行は行っていません。",
+                args[2]
+            );
+        }
         "explore" => {
             let opts = options(&args[1..], &["--port"])?;
             let port = opts.get("--port").map_or(Ok(8765), |value| {
@@ -92,13 +105,29 @@ fn run(args: &[String]) -> io::Result<()> {
             review::serve_explorer(port)?;
         }
         "review" if args.len() >= 2 => {
-            let opts = options(&args[2..], &["--port"])?;
+            let opts = options(
+                &args[2..],
+                &["--port", "--repository-root", "--execution-mode"],
+            )?;
             let port = opts.get("--port").map_or(Ok(8765), |value| {
                 value
                     .parse::<u16>()
                     .map_err(|_| invalid("ポートは0〜65535です"))
             })?;
-            review::serve(PathBuf::from(&args[1]), port)?;
+            match (opts.get("--repository-root"), opts.get("--execution-mode")) {
+                (None, None) => review::serve(PathBuf::from(&args[1]), port)?,
+                (Some(root), Some(mode)) => review::serve_with_execution(
+                    PathBuf::from(&args[1]),
+                    port,
+                    PathBuf::from(root),
+                    mode.parse()?,
+                )?,
+                _ => {
+                    return Err(invalid(
+                        "画面から実行するには--repository-rootと--execution-modeの両方を指定してください",
+                    ));
+                }
+            }
         }
         "demo" => {
             let opts = options(&args[1..], &["--fault", "--name", "--age", "--output"])?;
@@ -149,8 +178,10 @@ fn run(args: &[String]) -> io::Result<()> {
             println!("条件: {}", manifest.condition.text);
             println!(
                 "{}",
-                serde_json::to_string_pretty(&assess(&manifest, &events))
-                    .map_err(io::Error::other)?
+                serde_json::to_string_pretty(&execution_evidence_lab::execution::assess_run(
+                    &directory, &manifest, &events
+                )?)
+                .map_err(io::Error::other)?
             );
             for event in events {
                 println!(
@@ -322,6 +353,23 @@ fn case_command(args: &[String]) -> io::Result<()> {
                         use_run_context,
                     },
                 },
+            )?)
+        }
+        "execute" if args.len() >= 3 => {
+            let opts = options(
+                &args[3..],
+                &["--repository-root", "--mode", "--actor", "--reason"],
+            )?;
+            let mode = required(&opts, "--mode")?
+                .parse::<execution_evidence_lab::execution::ExecutionMode>()?;
+            let recipe = execution_evidence_lab::recording::read_json(&PathBuf::from(&args[2]))?;
+            print_view(workspace::run_external_mode(
+                &directory,
+                &PathBuf::from(required(&opts, "--repository-root")?),
+                recipe,
+                mode,
+                required(&opts, "--actor")?,
+                required(&opts, "--reason")?,
             )?)
         }
         "run" => {

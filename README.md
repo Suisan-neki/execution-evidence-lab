@@ -6,13 +6,13 @@
 
 提供する機能は「理解」と「テスト」。理解では公開GitHubのコードを読み取り、構成・入口・関数・参照先をコードの根拠とともにたどる。関数の入力・分岐・呼び出し・戻りの記述を読み、別の版とファイルを比較できる。テストでは対象の処理を実行して期待する動作・失敗・未確認事項を確かめる。理解した処理と試験結果を同じコードへ対応づける。
 
-現在の理解画面は公開リポジトリの限定した読取と簡易解析の試作。AIによる意味の説明や完全な呼び出し解析は未実装。テスト基盤は架空データ1件のTCP送信・保存の4条件と、固定版VitalSensingの限定したローカル試験に対応する。任意のリポジトリの自動起動・自動テストには未対応。研究の新規性、他者の理解や安心感への効果、医療機関での有効性は未検証。
+現在の理解画面は公開リポジトリの限定した読取と簡易解析の試作。AIによる意味の説明や完全な呼び出し解析は未実装。テスト基盤は架空データ1件のTCP送信・保存の4条件と、固定版VitalSensingの限定したローカル試験に対応する。PR #126では、Node.js/Pythonの固定版と明示した観測規則を使う外部試験を追加した。任意のリポジトリの自動起動・自動計測には未対応。研究の新規性、他者の理解や安心感への効果、医療機関での有効性は未検証。
 
 ## GitHubのコードを理解する
 
 ```bash
-# PR #110は未マージ。現在の実装はこのブランチにある。
-git switch test/reject-age-151-issue-109
+# PR #110はmainへマージ済み。PR #126の追加機能はこのブランチにある。
+git switch feat/pinned-execution-review
 git pull --ff-only
 cargo run -- explore
 ```
@@ -115,3 +115,17 @@ npm run test:ui
 実行結果は[検証記録](docs/validation.md)、試作用の選択は[判断理由](docs/implementation-decisions.md)に残す。[3日間の理解計画](docs/understanding-plan.md)に沿って、送受信、記録と判定、実アプリへの適用の順で読める。
 
 2026年10月6日から、2日間ほど実装を進め、3日間ほど理解・レビュー・修正に使う方針へ変更した。Codexは関連するIssueをまとめて実装・検証し、PRを提出する。マージは本人の指示で行う。[協働手順](AGENTS.md)と[研究・開発ロードマップ](docs/roadmap.md)にも反映した。
+
+## 固定版の外部コードをテストする
+
+```bash
+git fetch origin
+git switch feat/pinned-execution-review
+git pull --ff-only
+cargo build --locked
+npm run test:external
+```
+
+合成のGitリポジトリでコードの改修と再試験を通し、正常・失敗・観測欠落・食い違いを同じ事例に残す。画面では、コード参照のある条件から観測名・対象と試験設定を保存できる。`cargo run -- review CASE_DIR --repository-root LOCAL_REPOSITORY --execution-mode local`で起動した場合は、指定したリポジトリの固定版を画面から実行し、結果へ進める。通常のreviewは外部実行を有効にしない。Node.js/Python向けの観測部品を追加した。結果から固定版・起動ファイル・観測の行へ戻れる。
+
+実行方式はlocalかLinuxのbubblewrapを明示する。localはOSによる隔離ではない。bubblewrapを起動できなければローカルへ切り替えない。対象プログラムの報告と独立した状態の確認、実AWS・iOSとの照合は別に必要。[接続手順と限界](docs/pinned-execution.md)を参照。

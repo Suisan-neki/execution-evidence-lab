@@ -1,11 +1,13 @@
 pub mod assessment;
 pub mod capture;
 pub mod evaluation;
+pub mod execution;
 pub mod experiment;
 pub mod model;
 pub mod protocol;
 pub mod recording;
 pub mod review;
+pub mod review_execution;
 pub mod workspace;
 
 #[cfg(test)]

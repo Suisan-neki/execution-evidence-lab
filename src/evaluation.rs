@@ -36,8 +36,8 @@ pub fn common_inputs(view: &WorkspaceView) -> serde_json::Value {
     let case = &view.workspace;
     serde_json::json!({"schema_version": 1, "case_id": case.id, "revision": case.revision, "title": case.title,
         "statements": case.statements, "checks": case.checks, "context": case.context,
-        "runs": case.evidence.iter().map(|e| serde_json::json!({"id": e.id, "manifest": e.manifest, "events": e.events, "adapter": e.adapter})).collect::<Vec<_>>(),
-        "declared_mapping": case.evidence.iter().map(|e| serde_json::json!({"evidence_id":e.id,"check_id":e.check_id,"check_version":e.check_version,"source":e.source,"dependencies":e.dependencies,"dependency_origins":e.dependency_origins})).collect::<Vec<_>>(),
+        "runs": case.evidence.iter().map(|e| serde_json::json!({"id": e.id, "manifest": e.manifest, "events": e.events, "adapter": e.adapter, "execution": e.execution})).collect::<Vec<_>>(),
+        "declared_mapping": case.evidence.iter().map(|e| serde_json::json!({"evidence_id":e.id,"check_id":e.check_id,"check_version":e.check_version,"source":e.source,"observation":e.observation,"dependencies":e.dependencies,"dependency_origins":e.dependency_origins})).collect::<Vec<_>>(),
         "decisions": case.decisions.iter().map(|d| serde_json::json!({
             "id":d.id,"based_on_revision":d.based_on_revision,"actor":d.actor,"role":d.role,
             "action":d.action,"reason":d.reason,"check_ids":d.check_ids,
