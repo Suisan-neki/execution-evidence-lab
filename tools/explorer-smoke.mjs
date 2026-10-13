@@ -81,7 +81,7 @@ try {
   await page.screenshot({ path: join(output, "understand-code-desktop.png"), fullPage: true });
   await page.locator('#symbol-list button[data-line="2"]').click();
   assert.ok((await page.locator('#function-guide .caller-list').innerText()).includes('src/main.rs'));
-  await page.locator('#function-guide .caller-list button[data-path="src/main.rs"]').click();
+  await page.locator('#function-guide .caller-list > .call-record > button[data-path="src/main.rs"]').click();
   assert.equal(await page.locator('.code-line.target .line-number').innerText(),'3');
   // 別名の参照先は初回の24ファイルに含めず、選択時に読んで関係を更新する。
   await page.locator('#file-list button[data-path="ui/app.js"]').click();
@@ -91,7 +91,7 @@ try {
   await page.waitForFunction(()=>document.getElementById("file-name").textContent=== "ui/z-store.js");
   assert.equal(await page.locator('#file-name').innerText(),'ui/z-store.js');
   assert.ok((await page.locator('#function-guide .caller-list').innerText()).includes('ui/app.js'));
-  assert.equal(await page.locator('#function-guide .caller-list button[data-path="ui/app.js"]').count(),1);
+  assert.equal(await page.locator('#function-guide .caller-list > .call-record > button[data-path="ui/app.js"]').count(),1);
   await page.locator('#function-guide .caller-list .binding-evidence summary').click();
   assert.ok((await page.locator('#function-guide .caller-list').innerText()).includes('save as persist'));
   await page.locator('#function-guide .caller-list .binding-evidence button').click();
