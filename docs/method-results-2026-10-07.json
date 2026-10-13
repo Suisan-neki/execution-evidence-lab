@@ -1,0 +1,153 @@
+{
+  "schema_version": 1,
+  "evaluation": "developer_regression_not_human_evaluation",
+  "reference": "developer_defined_not_independent",
+  "human_evaluation": "not_conducted",
+  "results": [
+    {
+      "id": "normal",
+      "input": "normal/materials/input.json",
+      "input_fingerprint": "fnv1a64:9c5eaa65161be3fd",
+      "trace_type": "real_tcp_with_synthetic_case",
+      "expected": "satisfied",
+      "checklist": "satisfied",
+      "proposed": "satisfied",
+      "keyword": "satisfied",
+      "limitation": null
+    },
+    {
+      "id": "save-failure",
+      "input": "save-failure/materials/input.json",
+      "input_fingerprint": "fnv1a64:2b0256bdac0ac70f",
+      "trace_type": "real_tcp_with_synthetic_case",
+      "expected": "not_satisfied",
+      "checklist": "not_satisfied",
+      "proposed": "not_satisfied",
+      "keyword": "not_satisfied",
+      "limitation": null
+    },
+    {
+      "id": "disconnect",
+      "input": "disconnect/materials/input.json",
+      "input_fingerprint": "fnv1a64:556ee8d9cdb4705c",
+      "trace_type": "real_tcp_with_synthetic_case",
+      "expected": "not_satisfied",
+      "checklist": "not_satisfied",
+      "proposed": "not_satisfied",
+      "keyword": "not_satisfied",
+      "limitation": null
+    },
+    {
+      "id": "missing-observation",
+      "input": "missing-observation/materials/input.json",
+      "input_fingerprint": "fnv1a64:bdba4fee468af277",
+      "trace_type": "real_tcp_with_synthetic_case",
+      "expected": "unknown",
+      "checklist": "unknown",
+      "proposed": "unknown",
+      "keyword": "unknown",
+      "limitation": null
+    },
+    {
+      "id": "foreign-attempt",
+      "input": "foreign-attempt/materials/input.json",
+      "input_fingerprint": "fnv1a64:4200b14d4653fe40",
+      "trace_type": "synthetic_mutation_of_real_tcp_trace",
+      "expected": "unknown",
+      "checklist": "unknown",
+      "proposed": "unknown",
+      "keyword": "satisfied",
+      "limitation": null
+    },
+    {
+      "id": "wrong-source",
+      "input": "wrong-source/materials/input.json",
+      "input_fingerprint": "fnv1a64:aba1f987dff22171",
+      "trace_type": "synthetic_mutation_of_real_tcp_trace",
+      "expected": "unknown",
+      "checklist": "unknown",
+      "proposed": "unknown",
+      "keyword": "satisfied",
+      "limitation": null
+    },
+    {
+      "id": "conflicting-events",
+      "input": "conflicting-events/materials/input.json",
+      "input_fingerprint": "fnv1a64:773dc59e6809c4f2",
+      "trace_type": "synthetic_mutation_of_real_tcp_trace",
+      "expected": "unknown",
+      "checklist": "unknown",
+      "proposed": "unknown",
+      "keyword": "satisfied",
+      "limitation": null
+    },
+    {
+      "id": "changed-code",
+      "input": "changed-code/materials/input.json",
+      "input_fingerprint": "fnv1a64:ce74751786a42fb9",
+      "trace_type": "real_tcp_with_synthetic_case",
+      "expected": "unknown",
+      "checklist": "unknown",
+      "proposed": "unknown",
+      "keyword": "satisfied",
+      "limitation": null
+    },
+    {
+      "id": "changed-condition",
+      "input": "changed-condition/materials/input.json",
+      "input_fingerprint": "fnv1a64:4a03120441732a00",
+      "trace_type": "real_tcp_with_synthetic_case",
+      "expected": "unknown",
+      "checklist": "unknown",
+      "proposed": "unknown",
+      "keyword": "satisfied",
+      "limitation": null
+    },
+    {
+      "id": "unanswered-scope",
+      "input": "unanswered-scope/materials/input.json",
+      "input_fingerprint": "fnv1a64:2cfc645c69102f0a",
+      "trace_type": "real_tcp_with_synthetic_case",
+      "expected": "unknown",
+      "checklist": "unknown",
+      "proposed": "unknown",
+      "keyword": "satisfied",
+      "limitation": null
+    },
+    {
+      "id": "later-view",
+      "input": "later-view/materials/input.json",
+      "input_fingerprint": "fnv1a64:411b6c98af4d689d",
+      "trace_type": "real_tcp_with_synthetic_case",
+      "expected": "unknown",
+      "checklist": "unknown",
+      "proposed": "unknown",
+      "keyword": "satisfied",
+      "limitation": null
+    },
+    {
+      "id": "undeclared-dependency",
+      "input": "undeclared-dependency/materials/input.json",
+      "input_fingerprint": "fnv1a64:cd49a3b0cf2d5d5b",
+      "trace_type": "real_tcp_with_synthetic_case",
+      "expected": "satisfied",
+      "checklist": "satisfied",
+      "proposed": "satisfied",
+      "keyword": "satisfied",
+      "limitation": "宣言していない依存先の変更は検出できない。成立は宣言された保存条件の範囲だけ"
+    },
+    {
+      "id": "historical-decision",
+      "input": "historical-decision/materials/input.json",
+      "input_fingerprint": "fnv1a64:ab7243f566f761cb",
+      "trace_type": "real_tcp_with_synthetic_case",
+      "expected": "satisfied",
+      "checklist": "satisfied",
+      "proposed": "satisfied",
+      "keyword": "satisfied",
+      "limitation": null
+    }
+  ],
+  "implementation_base": "b5459bb04d577267cd6e4ecd465d7fc8d3db821d",
+  "reproduction": "cargo build --locked && node tools/reproduce-methods.mjs"
+}

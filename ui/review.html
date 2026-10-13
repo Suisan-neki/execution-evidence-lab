@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>条件と根拠の共同レビュー</title>
+    <style>
+      __REVIEW_STYLE__
+    </style>
+  </head>
+  <body>
+    <header>
+      <nav aria-label="機能"><a class="feature-link" href="/">理解する</a><span class="feature-current">テストする</span></nav>
+      <h1>テスト結果と根拠を確認する</h1>
+      <p>
+        対象の処理で確かめたい動作と、試験結果・根拠・未確認事項を記録します。理解画面で選んだコードにも戻れます。
+      </p>
+    </header>
+    <div id="message" role="status" aria-live="polite"></div>
+    <main>
+      <section class="panel">
+        <div class="row">
+          <div>
+            <h2 id="case-title">読み込み中</h2>
+            <span id="revision" class="muted"></span>
+          </div>
+          <button class="secondary" id="reload">最新版を読み直す</button>
+        </div>
+        <p class="callout">
+          各条件の判定は、記録に含まれる範囲の確認です。公開・導入の可否は人が判断します。ここに残す「公開する」という記録から、実際の公開は実行されません。
+        </p>
+      </section>
+      <section class="panel">
+        <h2>記入者と今回の理由</h2>
+        <div class="row">
+          <div>
+            <label for="actor">記入者</label
+            ><input
+              id="actor"
+              placeholder="自分の名前・識別名"
+              autocomplete="off"
+            />
+          </div>
+          <div>
+            <label for="role">立場</label
+            ><select id="role">
+              <option value="developer">開発者</option>
+              <option value="operator">運用担当</option>
+              <option value="other">その他・模擬的な確認</option>
+            </select>
+          </div>
+        </div>
+        <label for="reason">確認・変更・判断の理由</label
+        ><textarea
+          id="reason"
+          placeholder="何を確かめたいか、なぜ変更・判断するか"
+        ></textarea>
+        <p class="muted">
+          立場は記入者の申告です。参加者が理解した範囲は、発言や判断理由で確認してください。
+        </p>
+      </section>
+      <section class="panel" aria-label="現在の確認状況">
+        <h2>現在の確認状況</h2>
+        <div id="overview"></div>
+        <p class="muted">
+          条件を満たすという判定は、その条件文の範囲に限ります。ほかの条件や公開・導入の判断は含みません。
+        </p>
+      </section>
+      <div id="checks"></div>
+      <div class="grid">
+        <section class="panel">
+          <h2>認識・発言と出所を残す</h2>
+          <label for="statement-kind">記録の種類</label
+          ><select id="statement-kind">
+            <option value="statement">自分の認識・発言</option>
+            <option value="code_fact">コードから確認した事実</option>
+            <option value="proposal">提案</option>
+            <option value="unanswered">
+              未回答・まだ分からないこと
+            </option></select
+          ><label for="statement-text">内容</label
+          ><textarea
+            id="statement-text"
+            placeholder="どの状態を確認したと考えるか。異なる認識があればその内容"
+          ></textarea
+          ><label for="statement-origin">出所</label
+          ><input
+            id="statement-origin"
+            placeholder="発言者・確認日時・コードや資料の参照"
+          />
+          <p>関連する条件</p>
+          <div class="choices" id="statement-checks"></div>
+          <button id="add-statement">記録する</button>
+          <div id="statements"></div>
+        </section>
+        <section class="panel">
+          <h2>判断と理由を残す</h2>
+          <div class="choices" id="decision-checks"></div>
+          <label for="decision-action">次に行うこと</label
+          ><select id="decision-action">
+            <option value="verify">追加確認する</option>
+            <option value="ask">利用条件を質問する</option>
+            <option value="modify">改修する</option>
+            <option value="hold">保留する</option>
+            <option value="release">
+              この範囲で公開・導入すると判断する
+            </option></select
+          ><label for="change-reference">改修への参照（任意）</label
+          ><input
+            id="change-reference"
+            placeholder="PR・コミット・作業記録への参照"
+          />
+          <div class="row">
+            <div>
+              <label for="confidence">判断への安心感（任意）</label
+              ><select id="confidence">
+                <option value="">記録しない</option>
+                <option value="0">0：全く安心していない</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5：とても安心している</option>
+              </select>
+            </div>
+            <div>
+              <label for="elapsed">確認に使った時間・秒（任意）</label
+              ><input id="elapsed" type="number" min="0" max="86400" step="1" />
+            </div>
+          </div>
+          <button id="decide">理由と現在の根拠を保存する</button>
+          <p class="muted">
+            上の「今回の理由」を判断理由として保存します。安心感や両者の一致だけで正しい判断とは評価しません。
+          </p>
+        </section>
+      </div>
+      <section class="panel">
+        <h2>これまでの判断</h2>
+        <div id="decisions"></div>
+      </section>
+      <section class="panel">
+        <details>
+          <summary>条件・実行環境を更新する</summary>
+          <p>
+            手動更新は事例が参照する値の変更です。実際のコード・認証・環境は変更しません。新しい試行の取り込み時に、実行記録の値と照合します。
+          </p>
+          <div class="grid">
+            <div>
+              <h3>確認事項を追加する</h3>
+              <label for="new-id">識別子</label
+              ><input id="new-id" placeholder="view-authorization" /><label
+                for="new-text"
+                >確かめたい条件</label
+              ><textarea id="new-text"></textarea
+              ><label for="new-origin">条件の出所</label
+              ><input id="new-origin" /><button id="add-check">
+                判定方法が未定義の条件として追加
+              </button>
+            </div>
+            <div>
+              <h3>依存先の値を更新する</h3>
+              <label for="context-key">依存先</label
+              ><input id="context-key" list="context-keys" /><datalist
+                id="context-keys"
+              ></datalist
+              ><label for="context-value">新しい値</label
+              ><textarea id="context-value"></textarea
+              ><button id="context-update">理由を付けて更新</button>
+              <pre id="context"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+      <section class="panel">
+        <details>
+          <summary>変更履歴と実行時の詳しい記録</summary>
+          <div id="audit"></div>
+          <div id="evidence"></div>
+        </details>
+      </section>
+      <footer>
+        練習用の条件・合成データは実際の利用要件と区別して確認してください。試行の答え合わせ用ファイルはこの画面へ読み込みません。
+      </footer>
+    </main>
+    <script>
+      __REVIEW_SCRIPT__;
+    </script>
+  </body>
+</html>
