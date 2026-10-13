@@ -4,6 +4,7 @@ let state, pendingSource, codeHelpers;
 const codeTools = import('/ui/comprehension.js');
 let renderedChecks = [];
 const recipeBases = new Map();
+let executionState = { enabled: false }, executionPollTimer;
 const $ = (id) => document.getElementById(id);
 const esc = (value) =>
   String(value ?? "").replace(
@@ -60,12 +61,17 @@ async function act(action) {
   await post("/api/change", { ...common(), action });
 }
 async function load() {
+  // 完了状態を読んでから事例を読む。取り込み前の事例と完了表示を混ぜない。
+  const statusResponse = await fetch("/api/execution");
+  if (!statusResponse.ok) throw Error("実行状態を読み取れません。最新版を読み直してください。");
+  executionState = await statusResponse.json();
   const response = await fetch("/api/case");
   const body = await response.json();
   if (!response.ok) throw Error(body.error);
   codeHelpers = await codeTools;
   state = body;
   render();
+  scheduleExecutionPoll();
 }
 function button(id, fn) {
   $(id).addEventListener("click", async (event) => {
@@ -113,6 +119,10 @@ function codeMarkup(source, checkId, label = '理解画面でコードを読む'
 function executionSetup(check) {
   if (!check.source) return '';
   const id = esc(check.id), criterion = check.observation;
+  const ready = !!criterion && check.rule === "observed_assertion";
+  const executeButton = executionState.enabled && executionState.repository === check.source.repository
+    ? `<button class="execute-recipe" data-check="${id}" data-ready="${ready}" ${ready ? "" : "disabled"}>この固定版で試験を実行する</button><p class="muted">入力した起動設定と入力を使って実行します。記入者と理由を上で入力してください。</p>`
+    : executionState.enabled ? '<p class="muted">画面からの実行対象と、この条件のリポジトリが異なります。</p>' : "";
   const trials = state.workspace.evidence.filter(e =>
     e.check_id === check.id && e.execution?.recipe.source.repository === check.source.repository,
   );
@@ -138,8 +148,9 @@ function executionSetup(check) {
     <label for="input-${id}">試験入力・JSON</label><textarea id="input-${id}">{}</textarea>
     <label for="timeout-${id}">待機上限・ミリ秒</label><input type="number" id="timeout-${id}" min="1" max="300000" value="5000">
     <p class="muted">保存するコード版：${esc(check.source.commit)}。観測名・対象は上で対応づけた現在の条件を使います。起動ファイルがこの版にあるかは実行時に照合します。</p>
+    ${executeButton}
     <button class="secondary download-recipe" data-check="${id}" ${criterion && check.rule === 'observed_assertion' ? '' : 'disabled'}>この条件の試験設定を保存</button>
-    <p class="muted">保存した設定をCLIから実行します。画面から外部コードは起動しません。ローカル方式は試行用のコピーを作りますが、OSによる隔離はありません。自分で確認したコードに使ってください。</p>
+    <p class="muted">設定を保存してCLIから実行することもできます。local方式はOSによる隔離がないため、自分で確認したコードを使ってください。</p>
     <pre>cargo run -- repo prepare NEW_REPOSITORY_DIR RECIPE_JSON
 cargo run -- case execute CASE_DIR RECIPE_JSON --repository-root REPOSITORY_DIR --mode local --actor 記入者 --reason 試験理由</pre></details>`;
 }
@@ -167,6 +178,61 @@ function showRecipeBasis(check, evidence) {
   if (!basis) return;
   basis.hidden = false;
   basis.textContent = `${evidence.id}（${recipe.source.commit.slice(0,12)}・条件版 ${evidence.check_version}）の設定を読み込みました。${changes.length ? changes.join('。') + '。' : ''}保存先は現在のコード版 ${check.source.commit.slice(0,12)}・条件版 ${check.version}です。入力と起動設定がこの条件に使えるか確認してください。`;
+}
+
+
+function recipeFromForm(checkId) {
+  const check = state.workspace.checks.find(c => c.id === checkId);
+  if (!check.source || !check.observation || check.rule !== 'observed_assertion') throw Error('コード参照と観測名・対象を先に保存してください。');
+  if ($('assertion-' + check.id).value.trim() !== check.observation.assertion || $('subject-' + check.id).value.trim() !== check.observation.subject) throw Error('変更した観測名・対象を先に保存してください。');
+  const args = JSON.parse($('args-' + check.id).value), input = JSON.parse($('input-' + check.id).value);
+  const entrypoint = $('entry-' + check.id).value.trim(), timeout = Number($('timeout-' + check.id).value);
+  const bytes = value => new TextEncoder().encode(value).length;
+  if (!Array.isArray(args) || args.length > 64 || args.some(a => typeof a !== 'string' || a.includes('\0') || bytes(a) > 16384) || !entrypoint || entrypoint.startsWith('/') || /[\\\x00-\x1f\x7f]/.test(entrypoint) || entrypoint.split('/').some(p => !p || p === '..' || p === '.' || p === '.git') || !Number.isInteger(timeout) || timeout < 1 || timeout > 300000) throw Error('起動ファイル・引数・待機上限を確認してください。');
+  const recipe = { schema_version: 1, check_id: check.id, source: check.source, runtime: $('runtime-' + check.id).value, entrypoint, args, input, criterion: check.observation, timeout_ms: timeout };
+  if (bytes(JSON.stringify(input)) > 128 * 1024 || bytes(JSON.stringify(recipe)) > 192 * 1024) throw Error('試験入力は128KiB、設定全体は192KiB以内にしてください。');
+  return recipe;
+}
+function renderExecution() {
+  $('execution-panel').hidden = !executionState.enabled;
+  const job = executionState.job;
+  if (executionState.enabled) {
+    const status = job?.status === 'running' ? `${job.check_id}の試験を実行中です。終了後に結果を読み直します。`
+      : job?.status === 'completed' ? `${job.check_id}の試験が終了し、結果を版 ${job.resulting_revision}へ取り込みました。各条件の判定と根拠を確認してください。`
+      : job?.status === 'failed' ? `試験の実行または取り込みを完了できませんでした。${job.error}` : '試験を実行できます。';
+    $('execution-status').innerHTML = `<p>対象：${esc(executionState.repository)}<br>方式：${esc(executionState.mode)}<br><span class="muted">${esc(executionState.repository_root)}</span></p><p>${esc(status)}</p><p class="muted">${executionState.mode === 'local' ? 'local方式はOSの隔離を行いません。確認したコードを試してください。' : 'bubblewrap方式を要求します。起動できない場合はlocalへ切り替えません。'}</p>`;
+  }
+  document.querySelectorAll('.execute-recipe').forEach(b => { b.disabled = job?.status === 'running' || b.dataset.ready !== 'true'; });
+}
+function scheduleExecutionPoll() {
+  if (executionPollTimer || executionState.job?.status !== 'running') return;
+  executionPollTimer = setTimeout(async () => {
+    executionPollTimer = null;
+    try {
+      const response = await fetch('/api/execution');
+      if (!response.ok) throw Error('試験の実行状態を読み取れません。最新版を読み直してください。');
+      executionState = await response.json();
+      if (executionState.job?.status !== 'running') {
+        await load();
+        message(executionState.job?.status === 'completed' ? '試験が終了し、新しい結果を読み込みました。判定と根拠を確認してください。' : executionState.job?.error || '試験の状態を確認してください。', executionState.job?.status === 'failed');
+      } else { renderExecution(); scheduleExecutionPoll(); }
+    } catch (error) { message(error.message, true); }
+  }, 500);
+}
+async function startExternal(checkId) {
+  const data = { ...common(), recipe: recipeFromForm(checkId) };
+  try {
+    const response = await fetch('/api/execute', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Review-Token': token }, body: JSON.stringify(data) });
+    const body = await response.json();
+    if (!response.ok) throw Error(body.error || '試験を開始できませんでした。');
+    executionState.job = body;
+    renderExecution(); scheduleExecutionPoll();
+    message('試験を開始しました。終了後に新しい結果と根拠を表示します。');
+  } catch (error) {
+    // 応答が失われても、受け付けられた試験を二重に起動しないよう状態を読み直す。
+    await load();
+    throw error;
+  }
 }
 
 function downloadJSON(name, value) {
@@ -350,16 +416,15 @@ function render() {
   });
   document.querySelectorAll('.download-recipe').forEach(b => {
     b.onclick = () => guard(b, async () => {
-      const check = state.workspace.checks.find(c => c.id === b.dataset.check);
-      if (!check.source || !check.observation || check.rule !== 'observed_assertion') throw Error('コード参照と観測名・対象を先に保存してください。');
-      if ($('assertion-' + check.id).value.trim() !== check.observation.assertion || $('subject-' + check.id).value.trim() !== check.observation.subject) throw Error('変更した観測名・対象を先に保存してください。');
-      const args = JSON.parse($('args-' + check.id).value), input = JSON.parse($('input-' + check.id).value);
-      const entrypoint = $('entry-' + check.id).value.trim(), timeout = Number($('timeout-' + check.id).value);
-      if (!Array.isArray(args) || args.some(a => typeof a !== 'string') || !entrypoint || entrypoint.startsWith('/') || entrypoint.split('/').some(p => !p || p === '..' || p === '.') || !Number.isInteger(timeout) || timeout < 1 || timeout > 300000) throw Error('起動ファイル・引数・待機上限を確認してください。');
-      downloadJSON(`trial-${state.workspace.id}-${check.id}.json`, { schema_version: 1, check_id: check.id, source: check.source, runtime: $('runtime-' + check.id).value, entrypoint, args, input, criterion: check.observation, timeout_ms: timeout });
+      const recipe = recipeFromForm(b.dataset.check);
+      downloadJSON(`trial-${state.workspace.id}-${recipe.check_id}.json`, recipe);
       message('試験設定を保存しました。CLIから実行すると、新しい試行と根拠をこの条件へ取り込めます。');
     });
   });
+  document.querySelectorAll('.execute-recipe').forEach(b => {
+    b.onclick = async () => { await guard(b, () => startExternal(b.dataset.check)); renderExecution(); };
+  });
+  renderExecution();
   document.querySelectorAll(".add-question").forEach((b) => {
     b.onclick = () =>
       guard(b, () =>

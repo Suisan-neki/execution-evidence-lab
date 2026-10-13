@@ -245,6 +245,23 @@ fn expected_origin(repository: &str, origin: &str) -> bool {
         || origin == format!("https://github.com/{repository}.git")
         || origin == format!("git@github.com:{repository}.git")
 }
+/// 表示用にGitHubのリポジトリ名だけを返す。認証情報を含むURLは受け付けない。
+pub fn repository_name(root: &Path) -> io::Result<String> {
+    let origin = git_text(root, &["remote", "get-url", "origin"])?;
+    let repository = origin
+        .strip_prefix("https://github.com/")
+        .or_else(|| origin.strip_prefix("git@github.com:"))
+        .ok_or_else(|| invalid("GitHubのoriginを持つリポジトリが必要です"))?;
+    let repository = repository.strip_suffix(".git").unwrap_or(repository);
+    crate::workspace::validate_source(&CodeReference {
+        repository: repository.into(),
+        commit: "0".repeat(40),
+        path: "README.md".into(),
+        line: 1,
+        end_line: 1,
+    })?;
+    Ok(repository.into())
+}
 fn inventory(root: &Path, recipe: &Recipe) -> io::Result<(String, Vec<SnapshotFile>)> {
     let commit = git_text(
         root,

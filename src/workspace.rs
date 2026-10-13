@@ -1445,7 +1445,7 @@ pub fn run_demo(
     )
 }
 
-/// CLIだけが外部コードを起動する。画面からは設定・参照・結果を扱う。
+/// 明示的に指定したリポジトリを実行する。
 pub fn run_external_mode(
     directory: &Path,
     repository_root: &Path,
@@ -1454,9 +1454,36 @@ pub fn run_external_mode(
     actor: String,
     reason: String,
 ) -> io::Result<WorkspaceView> {
+    run_external_at_revision(
+        directory,
+        repository_root,
+        recipe,
+        mode,
+        actor,
+        reason,
+        None,
+    )
+}
+
+/// 起動時と取り込み時の版を照合し、実行中の変更を上書きしない。
+pub fn run_external_at_revision(
+    directory: &Path,
+    repository_root: &Path,
+    recipe: crate::execution::Recipe,
+    mode: crate::execution::ExecutionMode,
+    actor: String,
+    reason: String,
+    expected_revision: Option<u64>,
+) -> io::Result<WorkspaceView> {
     nonempty(&actor, "記入者")?;
     nonempty(&reason, "理由")?;
     let workspace = load(directory)?;
+    if expected_revision.is_some_and(|revision| revision != workspace.revision) {
+        return Err(io::Error::new(
+            io::ErrorKind::WouldBlock,
+            "事例が更新されています。最新版を読み直してください",
+        ));
+    }
     let check = workspace
         .checks
         .iter()
@@ -1505,6 +1532,12 @@ pub fn run_external_mode(
             },
         },
     )
+    .map_err(|error| {
+        io::Error::new(
+            error.kind(),
+            format!("{error}。試行記録: {}", result.directory.display()),
+        )
+    })
 }
 
 pub fn run_external(

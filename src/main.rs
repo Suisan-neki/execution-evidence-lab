@@ -28,7 +28,7 @@ const HELP: &str = "execution-evidence-lab
   case run CASE_DIR --actor TEXT --reason TEXT [--condition save] [--fault CONDITION]
   case export CASE_DIR --output NEW_DIR
   explore [--port 8765]
-  review CASE_DIR [--port 8765]
+  review CASE_DIR [--port 8765] [--repository-root DIR --execution-mode local|bubblewrap]
 
 外部コマンドのcaptureは隔離環境ではありません。業務条件は終了コードだけで判定しません。";
 
@@ -105,13 +105,29 @@ fn run(args: &[String]) -> io::Result<()> {
             review::serve_explorer(port)?;
         }
         "review" if args.len() >= 2 => {
-            let opts = options(&args[2..], &["--port"])?;
+            let opts = options(
+                &args[2..],
+                &["--port", "--repository-root", "--execution-mode"],
+            )?;
             let port = opts.get("--port").map_or(Ok(8765), |value| {
                 value
                     .parse::<u16>()
                     .map_err(|_| invalid("ポートは0〜65535です"))
             })?;
-            review::serve(PathBuf::from(&args[1]), port)?;
+            match (opts.get("--repository-root"), opts.get("--execution-mode")) {
+                (None, None) => review::serve(PathBuf::from(&args[1]), port)?,
+                (Some(root), Some(mode)) => review::serve_with_execution(
+                    PathBuf::from(&args[1]),
+                    port,
+                    PathBuf::from(root),
+                    mode.parse()?,
+                )?,
+                _ => {
+                    return Err(invalid(
+                        "画面から実行するには--repository-rootと--execution-modeの両方を指定してください",
+                    ));
+                }
+            }
         }
         "demo" => {
             let opts = options(&args[1..], &["--fault", "--name", "--age", "--output"])?;

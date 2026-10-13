@@ -446,3 +446,285 @@ fn prepare_never_replaces_existing_repo_and_bad_size_metadata_is_rejected() {
     assert!(prepare_repository(&destination, &bad).is_err());
     assert!(!destination.exists());
 }
+
+fn review_case(fixture: &Fixture) -> PathBuf {
+    let case = fixture.directory.join("review-case");
+    let recipe = fixture.recipe(Runtime::Node, "normal");
+    let mut spec = empty_workspace("review-execution".into(), "合成の画面実行".into());
+    spec.checks.push(Check {
+        id: "stored".into(),
+        version: 1,
+        text: fixture.condition().text,
+        origin: "合成の仕様".into(),
+        source: Some(recipe.source),
+        observation: Some(recipe.criterion),
+        rule: Rule::ObservedAssertion,
+        dependencies: vec!["execution-stored".into()],
+        questions: vec![],
+    });
+    initialize(&case, spec, "Synthetic", "合成の試験を設定する").unwrap();
+    case
+}
+fn execute_request(
+    fixture: &Fixture,
+    revision: u64,
+    scenario: &str,
+) -> execution_evidence_lab::review_execution::ExecuteRequest {
+    execution_evidence_lab::review_execution::ExecuteRequest {
+        expected_revision: revision,
+        actor: "Synthetic".into(),
+        reason: "画面経由の合成試験".into(),
+        recipe: fixture.recipe(Runtime::Node, scenario),
+    }
+}
+fn wait_job(
+    controller: &execution_evidence_lab::review_execution::Controller,
+) -> execution_evidence_lab::review_execution::Job {
+    let start = std::time::Instant::now();
+    loop {
+        let job = controller.status().unwrap().job.unwrap();
+        if job.status != "running" {
+            return job;
+        }
+        assert!(start.elapsed() < std::time::Duration::from_secs(10));
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+fn review_http(
+    case: &Path,
+    controller: Option<&execution_evidence_lab::review_execution::Controller>,
+    method: &str,
+    path: &str,
+    body: &str,
+    authenticated: bool,
+) -> (u16, serde_json::Value) {
+    use std::{
+        io::{Read, Write},
+        net::{TcpListener, TcpStream},
+        thread,
+    };
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let case = case.to_owned();
+    let controller = controller.cloned();
+    let server = thread::spawn(move || {
+        let (stream, _) = listener.accept().unwrap();
+        if let Some(controller) = controller {
+            execution_evidence_lab::review::handle_connection_with_execution(
+                stream,
+                &case,
+                "test-token",
+                &controller,
+            )
+            .unwrap();
+        } else {
+            execution_evidence_lab::review::handle_connection(stream, &case, "test-token").unwrap();
+        }
+    });
+    let mut stream = TcpStream::connect(address).unwrap();
+    write!(stream, "{method} {path} HTTP/1.1\r\nHost: {address}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n", body.len()).unwrap();
+    if authenticated {
+        write!(
+            stream,
+            "Origin: http://{address}\r\nX-Review-Token: test-token\r\n"
+        )
+        .unwrap();
+    }
+    write!(stream, "\r\n{body}").unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+    server.join().unwrap();
+    let (header, body) = response.split_once("\r\n\r\n").unwrap();
+    (
+        header.split_whitespace().nth(1).unwrap().parse().unwrap(),
+        serde_json::from_str(body).unwrap(),
+    )
+}
+
+#[test]
+fn review_execution_is_opt_in_authenticated_and_cannot_replace_root_or_mode() {
+    use execution_evidence_lab::review_execution::Controller;
+    let fixture = Fixture::new();
+    let case = review_case(&fixture);
+    let controller =
+        Controller::new(case.clone(), fixture.root.clone(), ExecutionMode::Local).unwrap();
+    let value = serde_json::json!({"expected_revision":1,"actor":"Synthetic","reason":"合成の画面試験","recipe":fixture.recipe(Runtime::Node,"normal")});
+    assert_eq!(
+        review_http(
+            &case,
+            None,
+            "POST",
+            "/api/execute",
+            &value.to_string(),
+            true
+        )
+        .0,
+        403
+    );
+    assert_eq!(
+        review_http(&case, None, "GET", "/api/execution", "", false).1["enabled"],
+        false
+    );
+    assert_eq!(
+        review_http(
+            &case,
+            Some(&controller),
+            "POST",
+            "/api/execute",
+            &value.to_string(),
+            false
+        )
+        .0,
+        403
+    );
+    for key in ["repository_root", "mode", "program"] {
+        let mut modified = value.clone();
+        modified[key] = "arbitrary".into();
+        assert_eq!(
+            review_http(
+                &case,
+                Some(&controller),
+                "POST",
+                "/api/execute",
+                &modified.to_string(),
+                true
+            )
+            .0,
+            400
+        );
+    }
+    let mut stale = value.clone();
+    stale["expected_revision"] = 0.into();
+    assert_eq!(
+        review_http(
+            &case,
+            Some(&controller),
+            "POST",
+            "/api/execute",
+            &stale.to_string(),
+            true
+        )
+        .0,
+        409
+    );
+    let mut foreign = value.clone();
+    foreign["recipe"]["source"]["repository"] = "other/project".into();
+    assert_eq!(
+        review_http(
+            &case,
+            Some(&controller),
+            "POST",
+            "/api/execute",
+            &foreign.to_string(),
+            true
+        )
+        .0,
+        403
+    );
+    assert!(controller.status().unwrap().job.is_none());
+    let (status, job) = review_http(
+        &case,
+        Some(&controller),
+        "POST",
+        "/api/execute",
+        &value.to_string(),
+        true,
+    );
+    assert_eq!(status, 202);
+    assert_eq!(job["status"], "running");
+    assert_eq!(wait_job(&controller).status, "completed");
+    let view = view(load(&case).unwrap());
+    assert_eq!(view.checks[0].verdict, Verdict::Satisfied);
+    assert_eq!(view.workspace.evidence.len(), 1);
+}
+
+#[test]
+fn background_review_keeps_reads_available_rejects_duplicates_and_preserves_conflicting_run() {
+    use execution_evidence_lab::review_execution::Controller;
+    let fixture = Fixture::new();
+    let case = review_case(&fixture);
+    let controller =
+        Controller::new(case.clone(), fixture.root.clone(), ExecutionMode::Local).unwrap();
+    let mut request = execute_request(&fixture, 1, "timeout");
+    request.recipe.timeout_ms = 800;
+    controller.start(request).unwrap();
+    assert_eq!(
+        controller
+            .start(execute_request(&fixture, 1, "normal"))
+            .unwrap_err()
+            .kind(),
+        std::io::ErrorKind::WouldBlock
+    );
+    let (status, current) = review_http(&case, Some(&controller), "GET", "/api/case", "", false);
+    assert_eq!(status, 200);
+    assert_eq!(current["workspace"]["revision"], 1);
+    // コピーや起動が終わる前でも、実行終了前の変更は取り込み時に照合する。
+    let start = std::time::Instant::now();
+    while !case.join("runs").exists() {
+        assert!(start.elapsed() < std::time::Duration::from_secs(5));
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    change(
+        &case,
+        ChangeRequest {
+            expected_revision: 1,
+            actor: "Synthetic".into(),
+            reason: "実行中の条件変更".into(),
+            action: Change::SetContext {
+                key: "configuration".into(),
+                value: "revised".into(),
+            },
+        },
+    )
+    .unwrap();
+    let job = wait_job(&controller);
+    assert_eq!(job.status, "failed");
+    assert!(job.error.unwrap().contains("試行記録"));
+    assert!(load(&case).unwrap().evidence.is_empty());
+    assert!(
+        fs::read_dir(case.join("runs")).unwrap().any(|entry| entry
+            .unwrap()
+            .path()
+            .join("complete.json")
+            .exists())
+    );
+    controller
+        .start(execute_request(&fixture, 2, "normal"))
+        .unwrap();
+    assert_eq!(wait_job(&controller).status, "completed");
+    assert_eq!(
+        view(load(&case).unwrap()).checks[0].verdict,
+        Verdict::Satisfied
+    );
+}
+
+#[test]
+fn pinned_review_reports_target_failure_and_timeout_as_unknown_without_running_other_origin() {
+    use execution_evidence_lab::review_execution::Controller;
+    let fixture = Fixture::new();
+    let case = review_case(&fixture);
+    let controller =
+        Controller::new(case.clone(), fixture.root.clone(), ExecutionMode::Local).unwrap();
+    let mut request = execute_request(&fixture, 1, "timeout");
+    request.recipe.timeout_ms = 60;
+    controller.start(request).unwrap();
+    assert_eq!(wait_job(&controller).status, "completed");
+    assert_eq!(
+        view(load(&case).unwrap()).checks[0].verdict,
+        Verdict::Unknown
+    );
+    git(
+        &fixture.root,
+        &[
+            "remote",
+            "set-url",
+            "origin",
+            "https://github.com/other/project.git",
+        ],
+    );
+    controller
+        .start(execute_request(&fixture, 2, "normal"))
+        .unwrap();
+    assert_eq!(wait_job(&controller).status, "failed");
+    assert_eq!(load(&case).unwrap().evidence.len(), 1);
+}

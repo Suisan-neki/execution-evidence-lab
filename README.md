@@ -126,6 +126,6 @@ cargo build --locked
 npm run test:external
 ```
 
-合成のGitリポジトリでコードの改修と再試験を通し、正常・失敗・観測欠落・食い違いを同じ事例に残す。画面では、コード参照のある条件から観測名・対象と試験設定を保存できる。Node.js/Python向けの観測部品を追加した。結果から固定版・起動ファイル・観測の行へ戻れる。
+合成のGitリポジトリでコードの改修と再試験を通し、正常・失敗・観測欠落・食い違いを同じ事例に残す。画面では、コード参照のある条件から観測名・対象と試験設定を保存できる。`cargo run -- review CASE_DIR --repository-root LOCAL_REPOSITORY --execution-mode local`で起動した場合は、指定したリポジトリの固定版を画面から実行し、結果へ進める。通常のreviewは外部実行を有効にしない。Node.js/Python向けの観測部品を追加した。結果から固定版・起動ファイル・観測の行へ戻れる。
 
 実行方式はlocalかLinuxのbubblewrapを明示する。localはOSによる隔離ではない。bubblewrapを起動できなければローカルへ切り替えない。対象プログラムの報告と独立した状態の確認、実AWS・iOSとの照合は別に必要。[接続手順と限界](docs/pinned-execution.md)を参照。
