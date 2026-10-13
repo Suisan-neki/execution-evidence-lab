@@ -83,10 +83,12 @@ async function selectFile(path, line = 1) {
   if (busy) return;
   busy = true;
   try {
-    if (snapshot.files[path] === undefined) { notice(`${path}を読み取っています`); await readSource(snapshot, path); refresh(); }
+    const wasUnread = snapshot.files[path] === undefined;
+    if (wasUnread) { notice(`${path}を読み取っています`); await readSource(snapshot, path); refresh(); }
     selectedPath = path;
     selectedLine = Math.max(1, Math.min(Number(line) || 1, snapshot.files[path].split("\n").length));
     tab("code"); renderFiles(); renderSource();
+    if (wasUnread) notice(`${path}のコードを開きました。`);
   } catch (e) { notice(e.message, true); } finally { busy = false; }
 }
 $("scan-form").addEventListener("submit", async event => {

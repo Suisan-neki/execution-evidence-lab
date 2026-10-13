@@ -75,6 +75,8 @@ try {
   assert.ok((await page.locator("#file-links a").getAttribute("href")).endsWith(`/src/main.rs#L3`));
   assert.ok((await page.locator('#function-guide').innerText()).includes('storage::save'));
   await page.locator('#outgoing button[data-path="src/storage.rs"]').click();
+  await page.waitForFunction(()=>document.getElementById("file-name").textContent=== "src/storage.rs");
+  assert.ok((await page.locator("#notice").innerText()).includes("コードを開きました"));
   assert.ok((await page.locator("#incoming").innerText()).includes("src/main.rs"));
   await page.screenshot({ path: join(output, "understand-code-desktop.png"), fullPage: true });
   await page.locator('#symbol-list button[data-line="2"]').click();
@@ -86,6 +88,7 @@ try {
   await page.locator('#symbol-list button[data-line="4"]').click();
   assert.ok((await page.locator('#function-guide').innerText()).includes('参照先をまだ読み取っていません'));
   await page.locator('#function-guide .call-targets button[data-path="ui/z-store.js"]').click();
+  await page.waitForFunction(()=>document.getElementById("file-name").textContent=== "ui/z-store.js");
   assert.equal(await page.locator('#file-name').innerText(),'ui/z-store.js');
   assert.ok((await page.locator('#function-guide .caller-list').innerText()).includes('ui/app.js'));
   assert.equal(await page.locator('#function-guide .caller-list button[data-path="ui/app.js"]').count(),1);
