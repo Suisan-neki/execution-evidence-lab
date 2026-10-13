@@ -365,3 +365,67 @@ fn sandbox_unavailability_never_falls_back_to_local_execution() {
         Err(error) => assert!(error.to_string().contains("bwrap")),
     }
 }
+
+#[test]
+fn next_confirmation_distinguishes_execution_failure_missing_and_invalid_observations() {
+    let fixture = Fixture::new();
+    for (scenario, kind) in [
+        ("missing", ActionKind::AddObservation),
+        ("foreign", ActionKind::InspectConflict),
+        ("conflict", ActionKind::InspectConflict),
+        ("timeout", ActionKind::InspectFailure),
+    ] {
+        let case = fixture.directory.join(format!("next-{scenario}"));
+        let mut recipe = fixture.recipe(Runtime::Node, scenario);
+        if scenario == "timeout" {
+            recipe.timeout_ms = 80;
+        }
+        let mut workspace =
+            empty_workspace(format!("case-{scenario}"), "次の確認を選ぶ合成事例".into());
+        workspace.checks.push(Check {
+            id: "stored".into(),
+            version: 1,
+            text: fixture.condition().text,
+            origin: "合成の仕様".into(),
+            source: Some(recipe.source.clone()),
+            observation: None,
+            rule: Rule::ManualOnly,
+            dependencies: vec![],
+            questions: vec![],
+        });
+        initialize(&case, workspace, "Synthetic", "初期化").unwrap();
+        change(
+            &case,
+            ChangeRequest {
+                expected_revision: 1,
+                actor: "Synthetic".into(),
+                reason: "観測規則を対応づける".into(),
+                action: Change::ConfigureObservation {
+                    check_id: "stored".into(),
+                    criterion: recipe.criterion.clone(),
+                },
+            },
+        )
+        .unwrap();
+        let result = run_external(
+            &case,
+            &fixture.root,
+            recipe,
+            "Synthetic".into(),
+            scenario.into(),
+        )
+        .unwrap();
+        assert_eq!(result.checks[0].verdict, Verdict::Unknown);
+        assert_eq!(
+            std::mem::discriminant(&result.checks[0].next.kind),
+            std::mem::discriminant(&kind),
+            "{scenario}"
+        );
+        if scenario == "missing" {
+            assert!(result.checks[0].next.text.contains("stored_matches_input"));
+        }
+        if scenario == "timeout" {
+            assert!(result.checks[0].next.text.contains("起動ファイル"));
+        }
+    }
+}

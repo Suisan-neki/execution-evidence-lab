@@ -905,6 +905,56 @@ fn observed(evidence: &Evidence) -> Assessment {
     result
 }
 
+fn external_suggestion(evidence: &Evidence) -> Option<SuggestedAction> {
+    use crate::execution::ObservationRead;
+    let trace = evidence.execution.as_ref()?;
+    let criterion = evidence.observation.as_ref()?;
+    let (kind, reason, text) = if trace.timed_out
+        || trace.output_limit
+        || trace.exit_code != Some(0)
+    {
+        (
+            ActionKind::InspectFailure,
+            "対象の実行が完了していないため、観測を追加する前に起動・終了を確認する".into(),
+            format!(
+                "{}方式の起動ファイル {}、ランタイム、待機上限、標準エラーを確認する。方式を自動で変更しない",
+                trace.mode, trace.recipe.entrypoint
+            ),
+        )
+    } else if !trace.snapshot_unchanged {
+        (
+            ActionKind::InspectConflict,
+            "試行用の固定版が開始時と終了時で異なり、どのコードの結果か確認できない".into(),
+            "sourceの書き換え・追加ファイルと出所を調べ、固定版を維持して再試験する".into(),
+        )
+    } else if trace.observation_read == ObservationRead::Invalid {
+        (
+            ActionKind::InspectConflict,
+            "観測の識別子・順序・参照先または形式を採用できない".into(),
+            "観測の診断記録を読み、試行識別子・順序番号・JSONL・固定版のパスと行を照合する".into(),
+        )
+    } else {
+        let matching: Vec<_> = trace
+            .observations
+            .iter()
+            .filter(|o| o.assertion == criterion.assertion && o.subject == criterion.subject)
+            .collect();
+        if matching.is_empty() {
+            (
+                ActionKind::AddObservation,
+                "試行は完了したが、選択した観測名・対象の根拠がない".into(),
+                format!(
+                    "観測名 {}・対象 {} の出力箇所と分岐を固定版で確認し、観測を追加して再試験する。記録の欠落を処理失敗と決めない",
+                    criterion.assertion, criterion.subject
+                ),
+            )
+        } else {
+            return None;
+        }
+    };
+    Some(SuggestedAction { kind, reason, text })
+}
+
 pub fn view(workspace: Workspace) -> WorkspaceView {
     let checks = workspace
         .checks
@@ -992,6 +1042,14 @@ pub fn view(workspace: Workspace) -> WorkspaceView {
                     reason: "この条件を判定する観測方法が未定義".into(),
                     text: "必要な状態と観測箇所、別経路での確認方法を決める".into(),
                 }
+            } else if let Some(next) = workspace
+                .evidence
+                .iter()
+                .rev()
+                .find(|e| e.check_id == check.id)
+                .and_then(external_suggestion)
+            {
+                next
             } else if last.is_none() {
                 SuggestedAction {
                     kind: ActionKind::RunTest,

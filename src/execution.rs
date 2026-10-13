@@ -99,6 +99,15 @@ pub struct SnapshotFile {
     pub bytes: u64,
     pub lines: u32,
 }
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ObservationRead {
+    Valid,
+    Missing,
+    Invalid,
+    #[default]
+    Unspecified,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionTrace {
     pub schema_version: u32,
@@ -113,6 +122,8 @@ pub struct ExecutionTrace {
     pub output_limit: bool,
     pub snapshot_unchanged: bool,
     pub observations: Vec<Observation>,
+    #[serde(default)]
+    pub observation_read: ObservationRead,
     pub diagnostics: Vec<String>,
     pub mode: String,
     pub stdout_excerpt: String,
@@ -180,7 +191,8 @@ pub fn validate_recipe(recipe: &Recipe) -> io::Result<()> {
     Ok(())
 }
 fn git(root: &Path, args: &[&str]) -> io::Result<Vec<u8>> {
-    let output = Command::new("git")
+    let mut command = Command::new("git");
+    command
         .args([
             "--no-replace-objects",
             "-c",
@@ -193,8 +205,27 @@ fn git(root: &Path, args: &[&str]) -> io::Result<Vec<u8>> {
         .env("PATH", std::env::var_os("PATH").unwrap_or_default())
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
         .env("GIT_CONFIG_NOSYSTEM", "1")
-        .stdin(Stdio::null())
-        .output()?;
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .stdin(Stdio::null());
+    // 取得に必要なネットワーク設定だけをGitへ渡す。対象アプリへは渡さない。
+    for name in [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "no_proxy",
+        "SSL_CERT_FILE",
+        "SSL_CERT_DIR",
+        "GIT_SSL_CAINFO",
+    ] {
+        if let Some(value) = std::env::var_os(name) {
+            command.env(name, value);
+        }
+    }
+    let output = command.output()?;
     if !output.status.success() {
         return Err(invalid(format!(
             "Gitの固定版を読み取れません: {}",
@@ -371,7 +402,7 @@ fn load_observations(
     path: &Path,
     correlation: &Correlation,
     files: &[SnapshotFile],
-) -> (Vec<Observation>, Vec<String>) {
+) -> (Vec<Observation>, Vec<String>, ObservationRead) {
     let read = (|| -> io::Result<Vec<Observation>> {
         let metadata = fs::symlink_metadata(path)?;
         if !metadata.is_file() || metadata.len() > MAX_TRACE {
@@ -409,12 +440,17 @@ fn load_observations(
         Ok(observations)
     })();
     match read {
-        Ok(o) => (o, vec![]),
+        Ok(o) => (o, vec![], ObservationRead::Valid),
         Err(e) if e.kind() == io::ErrorKind::NotFound => (
             vec![],
             vec!["観測ファイルを取得できませんでした。条件の失敗とは断定しません".into()],
+            ObservationRead::Missing,
         ),
-        Err(e) => (vec![], vec![format!("観測を採用できません: {e}")]),
+        Err(e) => (
+            vec![],
+            vec![format!("観測を採用できません: {e}")],
+            ObservationRead::Invalid,
+        ),
     }
 }
 
@@ -442,6 +478,9 @@ pub fn validate_trace(trace: &ExecutionTrace, manifest: &Manifest) -> io::Result
             .files
             .iter()
             .any(|f| f.path == trace.recipe.entrypoint)
+        || (trace.observation_read == ObservationRead::Missing
+            || trace.observation_read == ObservationRead::Invalid)
+            && !trace.observations.is_empty()
         || trace.observations.len() > 2000
         || trace.diagnostics.len() > 100
         || trace.diagnostics.iter().any(|d| d.len() > 16384)
@@ -493,15 +532,31 @@ pub fn assess_trace(
         unconfirmed: vec!["対象プログラムが出力した観測です。独立した読み出し、参照した行への到達、外部依存先・医療業務の利用可否は確認していない".into()],
         next_action: "不足・食い違いの出所を確認し、新しい試行で観測する".into(),
     };
-    if validate_trace(trace, manifest).is_err()
-        || !trace.snapshot_unchanged
-        || !trace.diagnostics.is_empty()
-        || trace.timed_out
-        || trace.output_limit
-        || trace.exit_code != Some(0)
-    {
-        result.reason = "試行の完了、固定版の維持、または観測の整合性を確認できない".into();
-        result.unconfirmed.extend(trace.diagnostics.clone());
+    result.unconfirmed.extend(trace.diagnostics.clone());
+    if validate_trace(trace, manifest).is_err() {
+        result.reason = "試行・観測・固定版の対応を照合できない".into();
+        return result;
+    }
+    if !trace.snapshot_unchanged {
+        result.reason = "試行用の固定版が開始時と終了時で異なり、結果の適用先を確認できない".into();
+        return result;
+    }
+    if trace.timed_out || trace.output_limit || trace.exit_code != Some(0) {
+        result.reason =
+            "対象の起動・実行・終了を確認できない。選択した方式と標準エラーを確認する".into();
+        return result;
+    }
+    if trace.observation_read == ObservationRead::Invalid {
+        result.reason = "試行は終了したが、観測の識別子・順序・参照先・形式を採用できない".into();
+        return result;
+    }
+    if trace.observation_read == ObservationRead::Missing {
+        result.reason =
+            "試行は正常に終了したが、観測ファイルがない。条件の失敗とは断定しない".into();
+        return result;
+    }
+    if !trace.diagnostics.is_empty() {
+        result.reason = "観測の採用条件を確認できない".into();
         return result;
     }
     let matching: Vec<_> = trace
@@ -718,7 +773,7 @@ pub fn execute_with_mode(
         },
         format!("{status}、出力上限超過={output_limit}"),
     )?;
-    let (observations, mut diagnostics) =
+    let (observations, mut diagnostics, observation_read) =
         load_observations(&work.join("observations.jsonl"), &correlation, &files);
     let excerpt = |path: &Path| -> io::Result<String> {
         let mut bytes = vec![];
@@ -747,6 +802,7 @@ pub fn execute_with_mode(
         output_limit,
         snapshot_unchanged: unchanged,
         observations,
+        observation_read,
         diagnostics,
         mode: mode.label().into(),
         stdout_excerpt,
@@ -794,4 +850,53 @@ pub fn assess_run(
     } else {
         Ok(crate::assessment::assess(manifest, events))
     }
+}
+
+/// 公開GitHubの固定コミットを取得する。checkoutや対象コードの起動は行わない。
+pub fn prepare_repository(destination: &Path, recipe: &Recipe) -> io::Result<()> {
+    validate_recipe(recipe)?;
+    if let Some(parent) = destination.parent().filter(|p| !p.as_os_str().is_empty()) {
+        fs::create_dir_all(parent)?;
+    }
+    fs::create_dir(destination)?;
+    git(destination, &["init", "-q"])?;
+    let origin = format!("https://github.com/{}.git", recipe.source.repository);
+    git(destination, &["remote", "add", "origin", &origin])?;
+    git(
+        destination,
+        &[
+            "-c",
+            "credential.helper=",
+            "-c",
+            "credential.interactive=false",
+            "fetch",
+            "--depth=1",
+            "--no-tags",
+            "origin",
+            &recipe.source.commit,
+        ],
+    )?;
+    if git_text(
+        destination,
+        &[
+            "rev-parse",
+            "--verify",
+            &format!("{}^{{commit}}", recipe.source.commit),
+        ],
+    )? != recipe.source.commit
+    {
+        return Err(invalid("取得したコミットが試験設定と一致しません"));
+    }
+    git(
+        destination,
+        &["update-ref", "refs/heads/prepared", &recipe.source.commit],
+    )?;
+    git(
+        destination,
+        &["symbolic-ref", "HEAD", "refs/heads/prepared"],
+    )?;
+    write_json_new(
+        &destination.join("prepared.json"),
+        &serde_json::json!({"schema_version":1,"repository":recipe.source.repository,"commit":recipe.source.commit,"checkout":false,"executed":false}),
+    )
 }

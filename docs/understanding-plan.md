@@ -68,3 +68,12 @@ src/capture.rsと[ローカル適用手順](vitalsensing-local.md)を読む。�
 3. `src/workspace.rs`の`CodeReference`・`BindSource`・`view`と`ui/review.js`を読む。条件、取り込み時の参照、判断当時の根拠がどう残るかを、`code_update_invalidates_results_and_preserves_decision_basis`で確認する。
 
 この追加分でも、任意のGitHubアプリを実行した結果との対応は未完成。`Evidence.source`は取り込み時点で利用者が宣言した参照先で、実行対象コードを計測した値ではない。保存デモの成功を、選んだGitHubアプリの成功へ読み替えない。
+
+## 固定版の外部実行を読む順番
+
+1. `adapters/observation/observe.mjs`・`observe.py`と`examples/observable-store`を読む。観測名・対象・結果と、呼び出し元の場所をどう記録するかを確認する。
+2. `src/execution.rs`のGit固定版・コピー・起動・観測の読込・判定を読む。終了コード0と観測成功、起動ファイルの固定と該当行への到達を区別する。
+3. `src/workspace.rs`の`ConfigureObservation`・`run_external_mode`・取り込み・次の確認を読む。入力やコードの変更後にどの根拠が使えなくなるかを、`tools/pinned-demo.mjs`の前後比較で確認する。
+4. `ui/review.js`と`tools/external-smoke.mjs`を読み、画面の設定→CLI実行→根拠とコードへの復帰を対応づける。
+
+Linuxの隔離方式は実際に起動できた範囲と起動不能を分ける。localでの成功から、外部状態を安全に復元できるとは判断しない。本人の理解確認を次の実装の必須条件にはしない。

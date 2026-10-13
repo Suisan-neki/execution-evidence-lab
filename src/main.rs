@@ -18,6 +18,7 @@ const HELP: &str = "execution-evidence-lab
   retest RUN_DIR [--fault CONDITION] [--output DIR]
   compare BEFORE_DIR AFTER_DIR
   capture --condition TEXT [--timeout-ms 5000] [--output DIR] -- PROGRAM [ARGS...]
+  repo prepare NEW_DIR RECIPE_JSON
   case init CASE_DIR [--file SPEC_JSON] [--actor TEXT] [--reason TEXT]
   case init CASE_DIR --template general --id CASE_ID --title TEXT [--actor TEXT] [--reason TEXT]
   case show CASE_DIR
@@ -83,6 +84,17 @@ fn run(args: &[String]) -> io::Result<()> {
     match command.as_str() {
         "help" | "--help" | "-h" if args.len() == 1 => println!("{HELP}"),
         "case" => case_command(&args[1..])?,
+        "repo" if args.len() == 4 && args[1] == "prepare" => {
+            let recipe = execution_evidence_lab::recording::read_json(&PathBuf::from(&args[3]))?;
+            execution_evidence_lab::execution::prepare_repository(
+                &PathBuf::from(&args[2]),
+                &recipe,
+            )?;
+            println!(
+                "固定コミットを取得しました: {}。checkoutと対象コードの実行は行っていません。",
+                args[2]
+            );
+        }
         "explore" => {
             let opts = options(&args[1..], &["--port"])?;
             let port = opts.get("--port").map_or(Ok(8765), |value| {
