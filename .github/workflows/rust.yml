@@ -18,9 +18,9 @@ jobs:
       - run: cargo test --locked
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo build --locked
+      - run: node tools/pinned-demo.mjs evaluations/ci-external
       - run: node tools/reproduce-methods.mjs evaluations/ci-methods
       - run: npm run test:reader
-      - run: node tools/pinned-demo.mjs evaluations/ci-external
       - run: npm ci --ignore-scripts
       - run: npx playwright install --with-deps chromium
       - run: npm run test:ui

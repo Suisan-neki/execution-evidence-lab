@@ -2,9 +2,11 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
+import { resolve, join, dirname } from 'node:path';
 const root = resolve(import.meta.dirname,'..'), binary = process.env.REVIEW_BINARY || join(root,'target/debug/execution-evidence-lab');
 const output = resolve(process.argv[2] || join(root,'evaluations','pinned-'+Date.now()));
+// 親だけを用意し、既存の試行ディレクトリは再利用しない。
+await mkdir(dirname(output), { recursive: true });
 await mkdir(output);const repository=join(output,'repo'), casePath=join(output,'case');await mkdir(repository);
 const git=(...args)=>execFileSync('git',['-C',repository,...args],{encoding:'utf8'}).trim();
 const run=(...args)=>JSON.parse(execFileSync(binary,args,{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
