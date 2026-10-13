@@ -1,5 +1,7 @@
 import { scanPublicRepository, readSource, analyze, codeLink, validateSnapshot } from "/ui/scanner.js";
 
+import { sourceReference, sourceURL, validateCodeReference, explainFunction, compareSnapshots, lineChanges, cacheSnapshot, cachedSnapshot } from '/ui/comprehension.js';
+let comparison, comparisonBefore, comparisonAfter, linkedCheckId = '', caseState;
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 let snapshot, model, selectedPath, selectedLine = 1, hasCase = false, busy = false;
@@ -46,7 +48,7 @@ function refresh() {
   if (selectedPath && snapshot.files[selectedPath] !== undefined) renderSource();
   else {
     $("file-name").textContent = "読むファイルを選んでください";
-    for (const id of ["file-role", "file-purpose", "file-links", "symbol-list", "outgoing", "incoming", "selected-line", "source"]) $(id).replaceChildren();
+    for (const id of ["file-role", "file-purpose", "file-links", "symbol-list", "outgoing", "incoming", "selected-line", "source", "function-guide"]) $(id).replaceChildren();
     $("to-test").disabled = true;
     $("bridge-note").textContent = "コードを選ぶと、その出所を確認事項へ引き継げます。";
   }
@@ -68,6 +70,7 @@ function renderSource() {
   $("symbol-list").innerHTML = `<h3>関数の宣言へ移動する</h3><div class="symbols">${file.symbols.map(s => codeButton(file.path, s.line, `${s.name} · ${s.line}行`)).join("") || '<p class="muted">対応する関数宣言は抽出できませんでした。</p>'}</div>`;
   $("outgoing").innerHTML = file.imports.map(e => `<div class="link-row">${codeButton(e.to)}${sourceLink(e.from, e.line, `参照宣言 · ${e.line}行`)}</div>`).join("") || '<p class="muted">この簡易解析で解決できた参照先はありません。参照がないと断定した結果ではありません。</p>';
   $("incoming").innerHTML = model.edges.filter(e => e.to === file.path).map(e => `<div class="link-row">${codeButton(e.from, e.line)}${sourceLink(e.from, e.line, `${e.line}行`)}</div>`).join("") || '<p class="muted">読取済みのファイルから解決できた参照宣言はありません。</p>';
+  renderGuide(file);
   $("selected-line").textContent = `${selectedLine}行を選択`;
   $("source").innerHTML = file.text.split("\n").map((line, i) => `<div class="code-line ${i + 1 === selectedLine ? "target" : ""}" id="source-line-${i + 1}"><span class="line-number">${i + 1}</span><code>${esc(line)}</code></div>`).join("");
   // ページ全体を跳ばさずコード領域だけをスクロールする。
@@ -113,7 +116,8 @@ document.querySelector(".reader-tabs").addEventListener("keydown", event => {
 $("to-test").addEventListener("click", () => {
   if (!hasCase || !selectedPath) return;
   const symbol = model.files.find(f => f.path === selectedPath)?.symbols.find(s => s.line === selectedLine);
-  const data = { source: codeLink(snapshot, selectedPath, selectedLine), subject: `${snapshot.fullName} / ${selectedPath}${symbol ? " / " + symbol.name : ""}` };
+  cacheSnapshot(snapshot, sessionStorage);
+  const data = { source: codeLink(snapshot, selectedPath, selectedLine), reference: currentSource(), subject: `${snapshot.fullName} / ${selectedPath}${symbol ? " / " + symbol.name : ""}` };
   location.href = "/review#code=" + encodeURIComponent(JSON.stringify(data));
 });
 $("download").addEventListener("click", () => {
@@ -130,4 +134,78 @@ $("snapshot-file").addEventListener("change", async event => {
     notice("保存された読取記録を開きました。現在のGitHubと照合した結果ではありません。");
   } catch (e) { notice(e.message, true); } finally { event.target.value = ""; }
 });
-fetch("/api/case").then(r => { hasCase = r.ok; $("test-nav").href = hasCase ? "/review" : "#test-help"; if (!hasCase) $("test-nav").addEventListener("click", e => { e.preventDefault(); notice("テスト記録を開くには cargo run -- case init CASE_DIR の後に cargo run -- review CASE_DIR で起動してください。"); }); }).catch(() => {});
+fetch("/api/case").then(async r => { hasCase = r.ok; if (r.ok) caseState = await r.json(); $("test-nav").href = hasCase ? "/review" : "#test-help"; if (!hasCase) $("test-nav").addEventListener("click", e => { e.preventDefault(); notice("テスト記録を開くには cargo run -- case init CASE_DIR の後に cargo run -- review CASE_DIR で起動してください。"); }); }).then(restoreSource).catch(e => notice(e.message, true));
+
+function currentSource() {
+  const guide = explainFunction(model, selectedPath, selectedLine);
+  // 選択行を入口として保持し、関数末尾までの範囲を残す。
+  return sourceReference(snapshot, selectedPath, selectedLine, guide?.range.end || selectedLine);
+}
+function renderGuide(file) {
+  const guide = explainFunction(model, file.path, selectedLine);
+  if (!guide) { $('function-guide').innerHTML = '<p class="muted">関数を選ぶと、入力・分岐・呼び出しの記述をたどれます。対応する関数範囲を特定できない行では案内を作りません。</p>'; return; }
+  $('function-guide').innerHTML = `<section class="guide"><h3>${esc(guide.name)}の処理を読む</h3><p>入力・型・戻り値は、この宣言で確認できます。</p><pre class="guide-signature">${esc(guide.signature)}</pre><p class="muted">${guide.range.start}〜${guide.range.end}行の範囲。下の項目はコードの行順です。</p><ul>${guide.steps.map(step => `<li>${esc(step.text)} ${codeButton(file.path, step.line, step.line + '行を見る')}</li>`).join('') || '<li>対応する分岐・繰り返し・戻りの記述は抽出できませんでした。</li>'}</ul><h3>呼び出しの記述をたどる</h3>${guide.calls.map(call => `<div class="link-row"><code>${esc(call.name)}${call.macro ? '!' : ''}</code> ${codeButton(file.path, call.line, call.line + '行')}${call.candidates.length ? call.candidates.map(c => codeButton(c.path, c.line, '候補：' + c.path + ' / ' + c.name)).join('') : '<span class="muted">対応先は未解決</span>'}</div>`).join('') || '<p class="muted">対応する呼び出しの記述は抽出できませんでした。</p>'}<p class="muted">${esc(guide.limits)}</p>${guide.truncated ? '<p class="muted">先頭80件まで表示しています。</p>' : ''}</section>`;
+}
+async function restoreSource() {
+  if (!location.hash.startsWith('#source=')) return;
+  const request = JSON.parse(decodeURIComponent(location.hash.slice(8)));
+  const source = validateCodeReference(request.source);
+  if (typeof request.check_id !== 'string') throw Error('確認事項の識別子を確認してください。');
+  linkedCheckId = request.check_id;
+  $('repository-url').value = 'https://github.com/' + source.repository;
+  $('repository-ref').value = source.commit;
+  snapshot = cachedSnapshot(source, sessionStorage);
+  if (!snapshot) snapshot = await scanPublicRepository($('repository-url').value, source.commit, notice);
+  refresh(); await selectFile(source.path, source.line);
+  if (linkedCheckId && caseState?.workspace.checks.some(c => c.id === linkedCheckId)) {
+    $('code-update').hidden = false;
+    $('linked-check').textContent = '確認事項：' + caseState.workspace.checks.find(c => c.id === linkedCheckId).text;
+    $('back-check').href = '/review#check-' + encodeURIComponent(linkedCheckId);
+  }
+  notice('確認事項が参照する固定版のコードを開きました。試行で実行したコードとの一致は別途確認が必要です。');
+}
+$('compare-form').addEventListener('submit', async event => {
+  event.preventDefault(); if (busy || !snapshot) return;
+  busy = true; $('compare-version').disabled = true;
+  try {
+    const newer = await scanPublicRepository('https://github.com/' + snapshot.fullName, $('compare-ref').value, notice);
+    comparisonBefore = snapshot; comparisonAfter = newer; comparison = compareSnapshots(snapshot, newer);
+    renderComparison(); notice('版を比較しました。変更の影響と再試験の必要性を確認してください。');
+  } catch (e) { notice(e.message, true); } finally { busy = false; $('compare-version').disabled = false; }
+});
+function renderComparison() {
+  const labels = { changed: '変更あり', added: '追加', removed: '削除', unchanged: '同じ', unknown: '分からない' };
+  const counts = Object.entries(labels).map(([status, label]) => label + ' ' + comparison.entries.filter(e => e.status === status).length + '件').join('・');
+  const entries = comparison.entries.filter(e => e.status !== 'unchanged');
+  $('comparison-result').innerHTML = `<p>${esc(comparison.before.slice(0, 12))} → ${esc(comparison.after.slice(0, 12))}</p><p>${esc(counts)}</p><button type="button" data-compared-overview>比較した版を読む</button><p class="muted">${esc(comparison.limits)}</p>${entries.slice(0, 200).map(e => {
+    const affected = caseState?.workspace.checks.filter(c => c.source?.repository === comparison.repository && c.source.path === e.path) || [];
+    const diff = lineChanges(comparisonBefore.files[e.path], comparisonAfter.files[e.path]);
+    return `<div class="version-row"><strong>${esc(labels[e.status])}：${esc(e.path)}</strong><p>${esc(e.basis)}</p>${affected.length ? `<p>このファイルを参照する確認事項：${affected.map(c => `<a href="/review#check-${esc(c.id)}">${esc(c.text)}</a>`).join('、')}</p>` : ''}${comparisonAfter.inventory.some(f => f.path === e.path) ? `<button data-version-path="${esc(e.path)}">比較した版のコードを開く</button>` : ''}${diff ? `<details><summary>異なる範囲のコードを見る</summary><p class="muted">前後で一致する先頭と末尾を除いた範囲です。行ごとの最小差分ではありません。</p><div class="diff-grid"><div><h3>以前の版</h3><pre>${esc(diff.before.map(l => l.line + ': ' + l.text).join('\n'))}</pre></div><div><h3>比較した版</h3><pre>${esc(diff.after.map(l => l.line + ': ' + l.text).join('\n'))}</pre></div></div>${diff.truncated ? '<p>先頭120行まで表示しています。</p>' : ''}</details>` : '<p class="muted">本文の比較には両方のコードの読取が必要です。</p>'}</div>`;
+  }).join('')}${entries.length > 200 ? '<p>先頭200件まで表示しています。全体の比較は読取記録で確認してください。</p>' : ''}`;
+}
+document.addEventListener('click', async event => {
+  const target = event.target.closest('button[data-version-path],button[data-compared-overview]'); if (!target || busy || !comparisonAfter) return;
+  snapshot = comparisonAfter; selectedPath = null; selectedLine = 1; refresh();
+  if (target.dataset.versionPath) await selectFile(target.dataset.versionPath);
+  else tab('overview');
+  notice('比較した版のコードを開きました。確認事項の参照先は、更新するまで以前の版のままです。');
+});
+$('bind-source').addEventListener('click', async () => {
+  if (!linkedCheckId || !snapshot || !selectedPath || busy) return;
+  const actor = $('binding-actor').value.trim(), reason = $('binding-reason').value.trim();
+  if (!actor || !reason) { notice('記入者と更新する理由を入力してください。', true); return; }
+  busy = true; $('bind-source').disabled = true;
+  try {
+    const response = await fetch('/api/case');
+    if (!response.ok) throw Error('確認事項を読み取れませんでした。');
+    const current = await response.json();
+    // 画面を開いた後の変更を上書きしない。最新の版は競合検査のためだけに使わない。
+    if (caseState.workspace.revision !== current.workspace.revision) { caseState = current; throw Error('事例が更新されています。内容をテスト画面で確認してから再度更新してください。'); }
+    const token = document.querySelector('meta[name=review-token]').content;
+    if (!token) throw Error('操作トークンを取得できませんでした。');
+    const result = await fetch('/api/change', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Review-Token': token }, body: JSON.stringify({ expected_revision: caseState.workspace.revision, actor, reason, action: { op: 'bind_source', check_id: linkedCheckId, source: currentSource() } }) });
+    const body = await result.json(); if (!result.ok) throw Error(body.error);
+    caseState = body; cacheSnapshot(snapshot, sessionStorage);
+    notice('参照先と理由を保存しました。以前の結果は履歴として残り、現在の条件には再確認が必要です。');
+  } catch (e) { notice(e.message, true); } finally { busy = false; $('bind-source').disabled = false; }
+});

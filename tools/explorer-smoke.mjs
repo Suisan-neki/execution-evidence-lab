@@ -1,5 +1,6 @@
 // 公開GitHubの応答を固定し、実ブラウザ・コード読取・確認事項への引継ぎを確認する。
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { spawn, execFileSync } from "node:child_process";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -28,6 +29,8 @@ try {
     "src/storage.rs": '//! ファイルの書き込みを行う。\npub fn save() {}',
     "package.json": '{"scripts":{"test":"cargo test"}}',
   };
+  const newerCommit = "c".repeat(40), newerTree = "d".repeat(40);
+  const newerFiles = { ...files, "src/main.rs": '//! 失敗した場合は呼び出し元へ戻る。\nuse example_app::{storage};\nfn main() { if ready() { storage::save(); } }', "src/new.rs": 'fn added() {}' };
   const requests = [];
   const headers = { "access-control-allow-origin": "*", "content-type": "application/json" };
   await context.route("https://api.github.com/**", async route => {
@@ -35,15 +38,18 @@ try {
     let data;
     if (target.endsWith("/example/project")) data = { private: false, default_branch: "main", description: "合成のリポジトリ。実参加者の事例ではない。" };
     else if (target.endsWith("/commits/feature%2Fread")) data = { sha: commit, commit: { tree: { sha: tree } } };
-    else if (target.includes(`/git/trees/${tree}?recursive=1`)) data = { tree: Object.entries(files).map(([path, text]) => ({ path, size: Buffer.byteLength(text), mode: "100644", type: "blob" })), truncated: false };
+    else if (target.endsWith("/commits/updated")) data = { sha: newerCommit, commit: { tree: { sha: newerTree } } };
+    else if (target.includes(`/git/trees/${newerTree}?recursive=1`)) data = { tree: Object.entries(newerFiles).map(([path, text]) => ({ path, size: Buffer.byteLength(text), mode: "100644", type: "blob", sha: createHash("sha1").update(text).digest("hex") })), truncated: false };
+    else if (target.includes(`/git/trees/${tree}?recursive=1`)) data = { tree: Object.entries(files).map(([path, text]) => ({ path, size: Buffer.byteLength(text), mode: "100644", type: "blob", sha: createHash("sha1").update(text).digest("hex") })), truncated: false };
     else throw Error("unexpected GitHub URL " + target);
     await route.fulfill({ status: 200, headers, body: JSON.stringify(data) });
   });
   await context.route("https://raw.githubusercontent.com/**", async route => {
     const target = route.request().url(); requests.push(target);
-    assert.ok(target.includes("/" + commit + "/"));
-    const path = target.split(commit + "/")[1];
-    await route.fulfill({ status: 200, headers: { "access-control-allow-origin": "*", "content-type": "text/plain; charset=utf-8" }, body: files[path] });
+    const selectedCommit = target.includes('/' + newerCommit + '/') ? newerCommit : commit;
+    assert.ok(target.includes('/' + selectedCommit + '/'));
+    const path = target.split(selectedCommit + '/')[1];
+    await route.fulfill({ status: 200, headers: { "access-control-allow-origin": "*", "content-type": "text/plain; charset=utf-8" }, body: (selectedCommit === newerCommit ? newerFiles : files)[path] });
   });
   const page = await context.newPage(), errors = [];
   page.on("pageerror", e => errors.push(e.message));
@@ -64,6 +70,7 @@ try {
   await page.locator('#symbol-list button[data-line="3"]').click();
   assert.equal(await page.locator(".code-line.target .line-number").innerText(), "3");
   assert.ok((await page.locator("#file-links a").getAttribute("href")).endsWith(`/src/main.rs#L3`));
+  assert.ok((await page.locator('#function-guide').innerText()).includes('storage::save'));
   await page.locator('#outgoing button[data-path="src/storage.rs"]').click();
   assert.ok((await page.locator("#incoming").innerText()).includes("src/main.rs"));
   await page.screenshot({ path: join(output, "understand-code-desktop.png"), fullPage: true });
@@ -97,6 +104,37 @@ try {
   assert.equal(check.origin, `https://github.com/example/project/blob/${commit}/src/main.rs#L3`);
   assert.equal(state.checks.at(-1).verdict, "unknown");
   await page.locator(`#check-${check.id} a[href*="${commit}"]`).waitFor();
+  assert.equal(check.source.commit, commit);
+  // 保存済みの固定版へ戻り、別の版を読み、変更箇所と参照先更新を確認する。
+  await page.locator(`#check-${check.id} .code-reference a`).click();
+  await page.waitForFunction(() => document.getElementById('notice').textContent.includes('固定版のコードを開きました'));
+  assert.equal(await page.locator('#file-name').innerText(), 'src/main.rs');
+  assert.equal(await page.locator('.code-line.target .line-number').innerText(), '3');
+  await page.locator('#compare-ref').fill('updated');
+  await page.locator('#compare-version').click();
+  await page.waitForFunction(() => document.getElementById('comparison-result').textContent.includes('変更あり'));
+  assert.ok((await page.locator('#comparison-result').innerText()).includes('追加'));
+  await page.locator('button[data-version-path="src/main.rs"]').click();
+  await page.locator('#symbol-list button[data-line="3"]').click();
+  assert.ok((await page.locator('#function-guide').innerText()).includes('条件に応じて'));
+  await page.locator('#binding-actor').fill('合成・コードを読む人');
+  await page.locator('#binding-reason').fill('比較した版に条件を対応づけて再確認する');
+  const bindingResponse = page.waitForResponse(r => r.request().method() === 'POST');
+  await page.locator('#bind-source').click();
+  const bound = await bindingResponse;
+  assert.equal(bound.status(), 200);
+  const boundState = await bound.json(), boundCheck = boundState.workspace.checks.find(c => c.id === check.id);
+  assert.equal(boundCheck.source.commit, newerCommit);
+  assert.equal(boundCheck.version, 2);
+  assert.equal(boundState.checks.find(c => c.check_id === check.id).verdict, 'unknown');
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.screenshot({ path: join(output, 'understand-version-desktop.png'), fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'version comparison mobile overflow');
+  await page.screenshot({ path: join(output, 'understand-version-mobile.png'), fullPage: true });
+  await page.locator('#back-check').click();
+  await page.locator(`#check-${check.id} .code-reference a`).waitFor();
+  assert.ok((await page.locator(`#check-${check.id}`).innerText()).includes(newerCommit.slice(0,12)));
   await page.goto(url);
   await page.locator("#repository-url").fill("https://github.com/example/project/tree/main");
   await page.locator("#scan").click();
@@ -120,7 +158,7 @@ try {
     await livePage.screenshot({ path: join(output, "understand-live-github-desktop.png"), fullPage: true });
   } catch (error) { liveResult = { status: "not_verified", reason: error.message }; }
   await liveContext.close();
-  console.log(JSON.stringify({ browser: await browser.version(), public_api: "fixed responses", checks: ["commit-pinned GitHub requests", "README and declarations", "source and references", "escaped code", "record export and import", "code to unverified condition", "invalid URLs", "mobile layout"], human_evaluation: "not_conducted" }));
+  console.log(JSON.stringify({ browser: await browser.version(), public_api: "fixed responses", checks: ["commit-pinned GitHub requests", "README and declarations", "source and references", "escaped code", "record export and import", "code to unverified condition", "function guide and candidate calls", "return to pinned code", "version comparison and reference update", "invalid URLs", "mobile layout"], human_evaluation: "not_conducted" }));
   console.log(JSON.stringify({ live_github: liveResult }));
 } finally {
   await browser?.close(); server.kill("SIGTERM"); await rm(temp, { recursive: true, force: true });

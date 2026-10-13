@@ -65,9 +65,60 @@ pub struct Check {
     pub version: u32,
     pub text: String,
     pub origin: String,
+    #[serde(default)]
+    pub source: Option<CodeReference>,
     pub rule: Rule,
     pub dependencies: Vec<String>,
     pub questions: Vec<Question>,
+}
+
+/// 確認事項が参照するコード。実行したコードとの一致を証明する情報ではない。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CodeReference {
+    pub repository: String,
+    pub commit: String,
+    pub path: String,
+    pub line: u32,
+    pub end_line: u32,
+}
+
+fn validate_source(source: &CodeReference) -> io::Result<()> {
+    let parts: Vec<_> = source.repository.split('/').collect();
+    let valid_part = |value: &str| {
+        !value.is_empty()
+            && value != "."
+            && value != ".."
+            && value
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b))
+    };
+    if parts.len() != 2
+        || !parts.iter().all(|v| valid_part(v))
+        || !parts[0]
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        || source.repository.len() > 200
+        || source.commit.len() != 40
+        || !source
+            .commit
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        || source.path.len() > 1024
+        || source
+            .path
+            .split('/')
+            .any(|v| v.is_empty() || v == "." || v == "..")
+        || source.path.chars().any(|c| c.is_control() || c == '\\')
+        || source.line == 0
+        || source.end_line < source.line
+        || source.end_line > 1_000_000
+    {
+        return Err(invalid(
+            "リポジトリ・固定コミット・相対パス・行範囲を確認してください",
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,6 +141,8 @@ pub struct Evidence {
     pub check_id: String,
     pub check_version: u32,
     pub rule: Rule,
+    #[serde(default)]
+    pub source: Option<CodeReference>,
     pub dependencies: BTreeMap<String, String>,
     pub dependency_origins: BTreeMap<String, String>,
     pub manifest: Manifest,
@@ -210,6 +263,10 @@ pub enum Change {
     AddCheck {
         check: Check,
     },
+    BindSource {
+        check_id: String,
+        source: CodeReference,
+    },
     AddQuestion {
         check_id: String,
         question: Question,
@@ -282,6 +339,9 @@ fn validate_check(check: &Check) -> io::Result<()> {
     identifier(&check.id)?;
     nonempty(&check.text, "条件")?;
     nonempty(&check.origin, "条件の出所")?;
+    if let Some(source) = &check.source {
+        validate_source(source)?;
+    }
     if check.version == 0 {
         return Err(invalid("条件の版は1以上です"));
     }
@@ -357,6 +417,9 @@ pub fn validate(workspace: &Workspace) -> io::Result<()> {
         nonempty(value, "実行条件の値")?;
     }
     for e in &workspace.evidence {
+        if let Some(source) = &e.source {
+            validate_source(source)?;
+        }
         if !workspace.checks.iter().any(|c| c.id == e.check_id) || e.check_version == 0 {
             return Err(invalid("根拠が参照する確認事項がありません"));
         }
@@ -403,6 +466,7 @@ pub fn demo_workspace() -> Workspace {
         checks: vec![
             Check {
                 id: "save".into(),
+                source: None,
                 version: 1,
                 text: Condition::demo().text,
                 origin: Condition::demo().origin,
@@ -414,6 +478,7 @@ pub fn demo_workspace() -> Workspace {
             },
             Check {
                 id: "later-view".into(),
+                source: None,
                 version: 1,
                 text: "必要な担当者が、必要な記録を必要な時点で閲覧できる".into(),
                 origin: "Codexによる未採用の条件候補。具体的な利用条件は未回答".into(),
@@ -797,6 +862,9 @@ pub fn view(workspace: Workspace) -> WorkspaceView {
                 .filter(|e| e.check_id == check.id)
                 .map(|e| {
                     let mut invalidated_by = vec![];
+                    if e.source != check.source {
+                        invalidated_by.push("確認事項が参照するコードの版・場所が変わった".into());
+                    }
                     if e.check_version != check.version || e.rule != check.rule {
                         invalidated_by.push(format!(
                             "条件の版または判定規則が変わった（根拠の版{}、現在{}）",
@@ -942,6 +1010,20 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
             workspace.checks.push(check);
             "add_check"
         }
+        Change::BindSource { check_id, source } => {
+            validate_source(&source)?;
+            let i = find_check(&workspace.checks, &check_id)?;
+            let check = &mut workspace.checks[i];
+            if check.source.as_ref() == Some(&source) {
+                return Err(invalid("同じコード参照が既に記録されています"));
+            }
+            check.version = check
+                .version
+                .checked_add(1)
+                .ok_or_else(|| invalid("条件の版の上限です"))?;
+            check.source = Some(source);
+            "bind_source"
+        }
         Change::AddQuestion { check_id, question } => {
             let i = find_check(&workspace.checks, &check_id)?;
             let check = &mut workspace.checks[i];
@@ -1072,6 +1154,7 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
                 check_id,
                 check_version: check.version,
                 rule: check.rule.clone(),
+                source: check.source.clone(),
                 dependencies,
                 dependency_origins,
                 manifest,

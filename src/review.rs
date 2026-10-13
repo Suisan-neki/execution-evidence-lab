@@ -220,10 +220,17 @@ fn handle_connection_mode(
     }
     if request.method == "GET" {
         let resource = match request.path.as_str() {
-            "/" | "/explore" => Some(("text/html; charset=utf-8", explorer_html())),
+            "/" | "/explore" => Some((
+                "text/html; charset=utf-8",
+                explorer_html().replace("__REVIEW_TOKEN__", token),
+            )),
             "/ui/explorer.js" => Some((
                 "text/javascript; charset=utf-8",
                 include_str!("../ui/explorer.js").to_owned(),
+            )),
+            "/ui/comprehension.js" => Some((
+                "text/javascript; charset=utf-8",
+                include_str!("../ui/comprehension.js").to_owned(),
             )),
             "/ui/scanner.js" => Some((
                 "text/javascript; charset=utf-8",

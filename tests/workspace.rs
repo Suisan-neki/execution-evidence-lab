@@ -155,6 +155,7 @@ fn add_local_check(case: &std::path::Path) {
         case,
         Change::AddCheck {
             check: Check {
+                source: None,
                 id: "local-index".into(),
                 version: 1,
                 text: LOCAL_INDEX_CONDITION.into(),
@@ -598,6 +599,7 @@ fn general_case_starts_without_generated_domain_requirements() {
         &case,
         Change::AddCheck {
             check: Check {
+                source: None,
                 id: "notification".into(),
                 version: 1,
                 text: "通知が届く".into(),
@@ -762,4 +764,136 @@ fn review_http_rejects_cross_origin_missing_token_import_and_stale_update() {
     );
     assert_eq!(load(&case).unwrap().revision, 2);
     assert!(http(&case, "GET", "/api/case", "", None, None, None).contains("事例"));
+}
+
+fn code_reference(commit: char) -> CodeReference {
+    CodeReference {
+        repository: "example/project".into(),
+        commit: commit.to_string().repeat(40),
+        path: "src/storage.rs".into(),
+        line: 2,
+        end_line: 8,
+    }
+}
+
+#[test]
+fn code_update_invalidates_results_and_preserves_decision_basis() {
+    let sandbox = Sandbox::new();
+    let case = sandbox.case();
+    apply(
+        &case,
+        Change::BindSource {
+            check_id: "save".into(),
+            source: code_reference('a'),
+        },
+    );
+    let normal = sandbox.trial(Fault::Normal);
+    let old = import(&case, &normal, "save");
+    assert_eq!(old.checks[0].verdict, Verdict::Satisfied);
+    assert_eq!(old.workspace.evidence[0].source, Some(code_reference('a')));
+    apply(
+        &case,
+        Change::Decide {
+            role: Role::Developer,
+            action: DecisionKind::Verify,
+            check_ids: vec!["save".into()],
+            change_reference: None,
+            confidence: None,
+            elapsed_ms: None,
+        },
+    );
+    let updated = apply(
+        &case,
+        Change::BindSource {
+            check_id: "save".into(),
+            source: code_reference('b'),
+        },
+    );
+    assert_eq!(updated.checks[0].verdict, Verdict::Unknown);
+    assert!(!updated.checks[0].evidence[0].applicable);
+    assert!(
+        updated.checks[0].evidence[0]
+            .invalidated_by
+            .iter()
+            .any(|s| s.contains("コード"))
+    );
+    assert_eq!(
+        updated.workspace.evidence[0].source,
+        Some(code_reference('a'))
+    );
+    assert_eq!(
+        updated.workspace.decisions[0].basis[0].verdict,
+        Verdict::Satisfied
+    );
+    // 他の条件のコード参照は変更しない。
+    assert!(updated.workspace.checks[1].source.is_none());
+    let retested = import(&case, &sandbox.trial(Fault::Normal), "save");
+    assert_eq!(retested.checks[0].verdict, Verdict::Satisfied);
+    assert_eq!(
+        retested.workspace.evidence[1].source,
+        Some(code_reference('b'))
+    );
+    assert_eq!(retested.checks[0].evidence.len(), 2);
+}
+
+#[test]
+fn bad_code_reference_and_stale_update_leave_case_unchanged() {
+    let sandbox = Sandbox::new();
+    let case = sandbox.case();
+    let before = load(&case).unwrap().revision;
+    let mut bad = code_reference('a');
+    bad.path = "../secret".into();
+    assert!(
+        change(
+            &case,
+            ChangeRequest {
+                expected_revision: before,
+                actor: "合成試験".into(),
+                reason: "不正な参照を確認".into(),
+                action: Change::BindSource {
+                    check_id: "save".into(),
+                    source: bad
+                },
+            }
+        )
+        .is_err()
+    );
+    assert_eq!(load(&case).unwrap().revision, before);
+    apply(
+        &case,
+        Change::BindSource {
+            check_id: "save".into(),
+            source: code_reference('a'),
+        },
+    );
+    assert!(
+        change(
+            &case,
+            ChangeRequest {
+                expected_revision: before,
+                actor: "合成試験".into(),
+                reason: "古い画面からの更新".into(),
+                action: Change::BindSource {
+                    check_id: "save".into(),
+                    source: code_reference('b')
+                },
+            }
+        )
+        .is_err()
+    );
+    assert_eq!(
+        load(&case).unwrap().checks[0].source,
+        Some(code_reference('a'))
+    );
+}
+
+#[test]
+fn old_workspace_records_load_without_code_reference() {
+    let mut json = serde_json::to_value(demo_workspace()).unwrap();
+    for check in json["checks"].as_array_mut().unwrap() {
+        check.as_object_mut().unwrap().remove("source");
+    }
+    let workspace: Workspace = serde_json::from_value(json).unwrap();
+    validate(&workspace).unwrap();
+    assert!(workspace.checks.iter().all(|c| c.source.is_none()));
 }

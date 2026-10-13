@@ -80,7 +80,7 @@ export async function scanPublicRepository(value, reference = "", progress = () 
   if (!/^[a-f0-9]{40}$/.test(commit.sha) || !/^[a-f0-9]{40}$/.test(commit.commit?.tree?.sha)) throw Error("GitHubのコミット情報を読み取れませんでした。");
   progress("ファイル構成を取得しています");
   const tree = await response(`${api}/git/trees/${commit.commit.tree.sha}?recursive=1`, true);
-  const inventory = tree.tree.filter(f => f.type === "blob").map(({ path, size, mode }) => ({ path, size, mode }));
+  const inventory = tree.tree.filter(f => f.type === "blob").map(({ path, size, mode, sha }) => ({ path, size, mode, sha }));
   const snapshot = { schema: 1, fullName: address.fullName, description: repo.description || "", reference: ref, commit: commit.sha, scannedAt: new Date().toISOString(), truncated: tree.truncated === true, inventory, files: {}, omitted: [] };
   const candidates = inventory.filter(f => readable(f.path) && ["100644", "100755"].includes(f.mode))
     .sort((a, b) => priority(a.path) - priority(b.path) || a.path.localeCompare(b.path));
@@ -103,14 +103,59 @@ export function codeLink(snapshot, path, line = 1) {
   return `https://github.com/${snapshot.fullName}/blob/${snapshot.commit}/${path.split("/").map(encodeURIComponent).join("/")}#L${line}`;
 }
 
-// コメント・文字列の中の宣言や呼び出しを候補にしない。文字数と改行位置は保持する。
-// 完全な構文解析器ではない。Rustのraw文字列や各言語の特殊構文は未対応。
-export function maskCode(text, rust = false) {
-  const pattern = rust
-    ? /\/\*[\s\S]*?\*\/|\/\/[^\n]*|"(?:\\[\s\S]|[^"\\])*"|'(?:\\.|[^'\\\n])'/g
-    : /\/\*[\s\S]*?\*\/|\/\/[^\n]*|#[^\n]*|"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|`(?:\\[\s\S]|[^`\\])*`/g;
-  return text.replace(pattern,
-    match => match.replace(/[^\n]/g, " "));
+// コメント・文字列を空白に置き換え、位置と改行を保つ。未対応構文を意味解析しない。
+export function maskCode(text, rust = false, python = false) {
+  const out = text.split('');
+  function blank(start, end) { for (let j = start; j < end; j++) if (text[j] !== '\n') out[j] = ' '; }
+  let i = 0;
+  while (i < text.length) {
+    const start = i;
+    if ((!python && text.startsWith('//', i)) || (python && text[i] === '#')) {
+      i = text.indexOf('\n', i); if (i < 0) i = text.length; blank(start, i); continue;
+    }
+    if (!python && text.startsWith('/*', i)) {
+      i += 2; let depth = 1;
+      while (i < text.length && depth) {
+        if (rust && text.startsWith('/*', i)) { depth++; i += 2; }
+        else if (text.startsWith('*/', i)) { depth--; i += 2; }
+        else i++;
+      }
+      blank(start, i); continue;
+    }
+    const raw = rust && (text[i] === "r" || text[i] === "b") && /^(?:br|r)(#*)"/.exec(text.slice(i));
+    if (raw && (i === 0 || !/[\w]/.test(text[i - 1]))) {
+      const close = '"' + raw[1], end = text.indexOf(close, i + raw[0].length);
+      i = end < 0 ? text.length : end + close.length; blank(start, i); continue;
+    }
+    const quote = text[i];
+    if (quote === '"' || quote === "'" || (!rust && !python && quote === '`')) {
+      // Rustのライフタイムは文字リテラルとして消さない。
+      if (rust && quote === "'" && !/^'(?:\\.|[^'\\\n])'/.test(text.slice(i))) { i++; continue; }
+      const triple = python && text.startsWith(quote.repeat(3), i);
+      const delimiter = triple ? quote.repeat(3) : quote;
+      i += delimiter.length;
+      while (i < text.length) {
+        if (text[i] === '\\') { i += 2; continue; }
+        if (text.startsWith(delimiter, i)) { i += delimiter.length; break; }
+        i++;
+      }
+      blank(start, Math.min(i, text.length)); continue;
+    }
+    // JSの正規表現のよく使う位置のみ除外。完全な構文解析は行わない。
+    if (!rust && !python && quote === '/' && /(?:^|[=(:,!&|?;{}]|\breturn|=>)\s*$/.test(text.slice(Math.max(0, i - 100), i))) {
+      i++; let bracket = false;
+      while (i < text.length && text[i] !== '\n') {
+        if (text[i] === '\\') { i += 2; continue; }
+        if (text[i] === '[') bracket = true;
+        if (text[i] === ']') bracket = false;
+        if (text[i] === '/' && !bracket) { i++; while (/[a-z]/i.test(text[i] || '0')) i++; break; }
+        i++;
+      }
+      blank(start, i); continue;
+    }
+    i++;
+  }
+  return out.join('');
 }
 
 function normalize(path) {
@@ -127,16 +172,16 @@ function resolvePath(path, specifier, paths) {
   if (!base) return null;
   return [base, ...[".rs", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".py", "/mod.rs", "/index.js", "/index.ts", "/index.tsx", "/__init__.py"].map(ext => base + ext)].find(p => paths.has(p)) || null;
 }
-function symbols(path, text) {
+export function symbols(path, text) {
   if (!SOURCE.test(path)) return [];
-  const masked = maskCode(text, /\.rs$/.test(path)), lines = masked.split("\n"), found = [];
+  const masked = maskCode(text, /\.rs$/.test(path), /\.py$/.test(path)), lines = masked.split("\n"), found = [];
   const pattern = /(?:^|\s)(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([A-Za-z_][\w]*)\s*\(|(?:^|\s)(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(|^\s*(?:async\s+)?def\s+([A-Za-z_][\w]*)\s*\(|(?:^|\s)(?:export\s+)?(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=.*=>/;
   lines.forEach((line, i) => { const m = pattern.exec(line); if (m) found.push({ name: m.slice(1).find(Boolean), line: i + 1 }); });
   return found.map((s, i) => ({ ...s, end: (found[i + 1]?.line || lines.length + 1) - 1 }));
 }
 function imports(path, text, paths, crateName) {
   const edges = [];
-  const clean = maskCode(text, /\.rs$/.test(path));
+  const clean = maskCode(text, /\.rs$/.test(path), /\.py$/.test(path));
   const masked = clean.split("\n");
   text.split("\n").forEach((line, i) => {
     const code = masked[i].trim();

@@ -1,6 +1,7 @@
 "use strict";
 const token = "__REVIEW_TOKEN__";
-let state;
+let state, pendingSource, codeHelpers;
+const codeTools = import('/ui/comprehension.js');
 let renderedChecks = [];
 const $ = (id) => document.getElementById(id);
 const esc = (value) =>
@@ -61,6 +62,7 @@ async function load() {
   const response = await fetch("/api/case");
   const body = await response.json();
   if (!response.ok) throw Error(body.error);
+  codeHelpers = await codeTools;
   state = body;
   render();
 }
@@ -96,6 +98,15 @@ function originMarkup(origin) {
       return `<a href="${esc(url.href)}" target="_blank" rel="noopener noreferrer">${esc(origin)}</a>`;
   } catch { /* 自由記述の出所は文字列として表示する。 */ }
   return esc(origin);
+}
+function checkReference(check) {
+  if (check.source) return check.source;
+  try { return codeHelpers?.referenceFromURL(check.origin); } catch { return null; }
+}
+function codeMarkup(source, checkId, label = '理解画面でコードを読む') {
+  if (!source) return '';
+  const payload = encodeURIComponent(JSON.stringify({ source, check_id: checkId }));
+  return `<p class="code-reference"><a href="/#source=${payload}">${esc(label)}</a><br><span class="muted">${esc(source.repository)} / ${esc(source.path)}：${source.line}〜${source.end_line}行・${esc(source.commit.slice(0, 12))}<br>確認事項の参照コードです。試行で実行したコードとの一致は未確認です。</span></p>`;
 }
 function render() {
   const w = state.workspace;
@@ -148,7 +159,7 @@ function render() {
     .map((v) => {
       const c = w.checks.find((c) => c.id === v.check_id);
       const latest = v.evidence.at(-1);
-      return `<section class="check" id="check-${esc(c.id)}"><div class="row"><h2>${esc(c.text)}</h2><span class="badge ${esc(v.verdict)}">${esc(labels[v.verdict])}</span></div><p class="muted">条件 ${esc(c.id)}・版 ${c.version}／出所：${originMarkup(c.origin)}</p><p class="reason">${esc(v.reason)}</p><p><strong>次の確認の提案</strong><br>${esc(v.next.text)}<br><span class="muted">理由：${esc(v.next.reason)}。この提案から自動実行しません。</span></p>${latest ? `<p class="evidence-scope">${latest.applicable ? "現在の条件に対応する試行" : "以前の条件の試行。現在の判定には使えません"}：${esc(latest.run_id)}<br><a href="#evidence-${esc(latest.id)}">根拠と実行記録を見る</a><br>${evidenceLinks(latest)}</p>${latest.observed.unconfirmed.length ? `<div class="unconfirmed"><strong>この観測では確認していないこと</strong><ul>${latest.observed.unconfirmed.map((text) => `<li>${esc(text)}</li>`).join("")}</ul></div>` : ""}` : ""}${c.questions.map((q) => `<div><p><strong>${esc(q.text)}</strong>${q.answer ? `<br>${esc(q.answer)}<br><span class="muted">出所：${esc(q.origin)}</span>` : "<br>未回答"}</p><label for="answer-${esc(c.id)}-${esc(q.id)}">回答・修正する内容</label><input id="answer-${esc(c.id)}-${esc(q.id)}"><label for="origin-${esc(c.id)}-${esc(q.id)}">回答の出所</label><input id="origin-${esc(c.id)}-${esc(q.id)}"><button class="secondary answer" data-check="${esc(c.id)}" data-question="${esc(q.id)}">回答と出所を保存</button></div>`).join("")}${
+      return `<section class="check" id="check-${esc(c.id)}"><div class="row"><h2>${esc(c.text)}</h2><span class="badge ${esc(v.verdict)}">${esc(labels[v.verdict])}</span></div><p class="muted">条件 ${esc(c.id)}・版 ${c.version}／出所：${originMarkup(c.origin)}</p>${codeMarkup(checkReference(c), c.id)}<p class="reason">${esc(v.reason)}</p><p><strong>次の確認の提案</strong><br>${esc(v.next.text)}<br><span class="muted">理由：${esc(v.next.reason)}。この提案から自動実行しません。</span></p>${latest ? `<p class="evidence-scope">${latest.applicable ? "現在の条件に対応する試行" : "以前の条件の試行。現在の判定には使えません"}：${esc(latest.run_id)}<br><a href="#evidence-${esc(latest.id)}">根拠と実行記録を見る</a><br>${evidenceLinks(latest)}</p>${latest.observed.unconfirmed.length ? `<div class="unconfirmed"><strong>この観測では確認していないこと</strong><ul>${latest.observed.unconfirmed.map((text) => `<li>${esc(text)}</li>`).join("")}</ul></div>` : ""}` : ""}${c.questions.map((q) => `<div><p><strong>${esc(q.text)}</strong>${q.answer ? `<br>${esc(q.answer)}<br><span class="muted">出所：${esc(q.origin)}</span>` : "<br>未回答"}</p><label for="answer-${esc(c.id)}-${esc(q.id)}">回答・修正する内容</label><input id="answer-${esc(c.id)}-${esc(q.id)}"><label for="origin-${esc(c.id)}-${esc(q.id)}">回答の出所</label><input id="origin-${esc(c.id)}-${esc(q.id)}"><button class="secondary answer" data-check="${esc(c.id)}" data-question="${esc(q.id)}">回答と出所を保存</button></div>`).join("")}${
         c.rule === "demo_save"
           ? `<details open><summary>合成データで新しい試行を行う</summary><p class="muted">架空の利用者1件をTCPで送信・ファイル保存します。選んだ故障条件を現在の試験条件として記録します。</p>${[
               ["normal", "正常"],
@@ -231,7 +242,7 @@ function render() {
   $("evidence").innerHTML = w.evidence
     .map(
       (e) =>
-        `<section id="evidence-${esc(e.id)}"><h3>${esc(e.id)}／試行 ${esc(e.manifest.correlation.run_id)}</h3><p>条件 ${esc(e.check_id)}・取り込み時の版 ${e.check_version}</p><table><thead><tr><th>根拠</th><th>観測した内容</th></tr></thead><tbody>${e.events.map((event) => `<tr id="evidence-${esc(e.id)}-events-${event.sequence}"><td>events.jsonl#${event.sequence}<br>${esc(event.source)}／${esc(event.kind)}</td><td>${esc(event.detail)}</td></tr>`).join("")}${(e.adapter?.events ?? []).map((event) => `<tr id="evidence-${esc(e.id)}-adapter-${event.sequence}"><td>adapter-events.jsonl#${event.sequence}<br>${esc(event.kind)}</td><td>${esc(typeof event.detail === "string" ? event.detail : JSON.stringify(event.detail))}</td></tr>`).join("")}</tbody></table><details><summary>条件・コード・入力・環境の記録</summary><pre>${esc(JSON.stringify({ manifest: e.manifest, dependencies: e.dependencies, target: e.adapter?.target }, null, 2))}</pre></details></section>`,
+        `<section id="evidence-${esc(e.id)}"><h3>${esc(e.id)}／試行 ${esc(e.manifest.correlation.run_id)}</h3><p>条件 ${esc(e.check_id)}・取り込み時の版 ${e.check_version}</p>${codeMarkup(e.source, e.check_id, "取り込み当時の参照コードを読む")}<table><thead><tr><th>根拠</th><th>観測した内容</th></tr></thead><tbody>${e.events.map((event) => `<tr id="evidence-${esc(e.id)}-events-${event.sequence}"><td>events.jsonl#${event.sequence}<br>${esc(event.source)}／${esc(event.kind)}</td><td>${esc(event.detail)}</td></tr>`).join("")}${(e.adapter?.events ?? []).map((event) => `<tr id="evidence-${esc(e.id)}-adapter-${event.sequence}"><td>adapter-events.jsonl#${event.sequence}<br>${esc(event.kind)}</td><td>${esc(typeof event.detail === "string" ? event.detail : JSON.stringify(event.detail))}</td></tr>`).join("")}</tbody></table><details><summary>条件・コード・入力・環境の記録</summary><pre>${esc(JSON.stringify({ manifest: e.manifest, dependencies: e.dependencies, target: e.adapter?.target }, null, 2))}</pre></details></section>`,
     )
     .join("");
   for (const [id, value] of drafts) {
@@ -378,19 +389,26 @@ button("add-check", () =>
       version: 1,
       text: $("new-text").value,
       origin: $("new-origin").value,
+      source: pendingSource && $("new-origin").value === pendingSource.url ? pendingSource.reference : null,
       rule: "manual_only",
       dependencies: [],
       questions: [],
     },
   }),
 );
-load().then(() => {
+load().then(async () => {
   if (!location.hash.startsWith("#code=")) return;
   const input = JSON.parse(decodeURIComponent(location.hash.slice(6)));
   if (typeof input.source !== "string" || typeof input.subject !== "string") return;
   const source = new URL(input.source);
   if (source.protocol !== "https:" || source.hostname !== "github.com" || source.username || source.password) return;
-  $("new-origin").value = source.href;
+  const tools = await codeTools;
+  let reference;
+  try { reference = tools.validateCodeReference(input.reference || tools.referenceFromURL(source.href)); }
+  catch { return; }
+  if (tools.sourceURL(reference) !== source.href) return;
+  pendingSource = { reference, url: source.href };
+  $('new-origin').value = source.href;
   $("new-id").value = "code-check-" + state.workspace.revision;
   $("new-text").placeholder = input.subject + "で確かめたい動作を入力してください";
   for (let parent = $("new-text").parentElement; parent; parent = parent.parentElement)

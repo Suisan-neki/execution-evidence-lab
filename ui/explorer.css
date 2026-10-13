@@ -113,3 +113,15 @@ footer { font-size: .75rem; color: var(--muted); margin-top: 28px; }
   .source { max-height: 390px; }
   .source-heading { align-items: flex-start; flex-direction: column; gap: 0; }
 }
+
+.guide { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
+.guide li { margin: 9px 0; font-size: .85rem; }
+.guide-signature { white-space: pre-wrap; }
+.version-row { border-top: 1px solid var(--line); padding: 10px 0; }
+.version-row button { margin: 4px; }
+.version-row p { font-size: .8rem; }
+.diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.diff-grid pre { max-height: 300px; overflow: auto; }
+#code-update input { margin-bottom: 10px; }
+#back-check { display: inline-block; margin: 10px; }
+@media(max-width: 800px) { .diff-grid { grid-template-columns: 1fr; } }
