@@ -67,6 +67,8 @@ r = compareTrials(state(x, y), 'stored', 'old', 'new');
 assert.equal(r.rows.find(x => x.key === 'dependency_keys').status, 'changed');
 assert.equal(r.rows.find(x => x.key === 'dependency.execution-stored').status, 'unknown');
 assert.equal(r.rows.find(x => x.key === 'dependency.authorization').status, 'unknown');
+y.dependencies.constructor = 'declared';y.dependency_origins.constructor = '記入者';
+assert.equal(compareTrials(state(x, y), 'stored', 'old', 'new').rows.find(x => x.key === 'dependency.constructor').status, 'unknown');
 // 対象版・故障条件は比較するが、試行ごとの識別子だけを構成変更としない。
 const ad = evidence('old'), bd = evidence('new');
 const target = { repository: 'example/project', revision: 'a'.repeat(40), expectedBlobs: { 'app.js': 'blob' }, adapterSha256: 'sha', node: 'v26', fault: 'normal', scope: 'local' };

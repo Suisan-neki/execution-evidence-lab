@@ -71,10 +71,11 @@ export function compareTrials(state, checkId, beforeId, afterId) {
   }
   const keys = [...new Set([...Object.keys(old.dependencies), ...Object.keys(next.dependencies)])].sort();
   add('dependency_keys', '宣言した依存先の一覧', Object.keys(old.dependencies).sort(), Object.keys(next.dependencies).sort());
+  const own = (object, key) => object && Object.hasOwn(object, key) ? object[key] : undefined;
   for (const key of keys) {
     // 固定版実行の依存値はJSON。同じ値のキー順だけを変更扱いにしない。
-    add('dependency.' + key, '依存先：' + key, old.dependencies[key], next.dependencies[key], { parse: key.startsWith('execution-') });
-    add('dependency_origin.' + key, '依存先の値の出所：' + key, old.dependency_origins?.[key], next.dependency_origins?.[key]);
+    add('dependency.' + key, '依存先：' + key, own(old.dependencies, key), own(next.dependencies, key), { parse: key.startsWith('execution-') });
+    add('dependency_origin.' + key, '依存先の値の出所：' + key, own(old.dependency_origins, key), own(next.dependency_origins, key));
   }
   const summary = ({ record, result }) => ({ evidence_id: record.id, run_id: result.run_id,
     check_version: record.check_version, source: record.source ?? null, execution_source: record.execution?.recipe.source ?? null,
