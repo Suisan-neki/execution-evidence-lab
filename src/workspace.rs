@@ -53,6 +53,7 @@ pub enum Rule {
     LocalIndexUploaded,
     ManualOnly,
     ObservedAssertion,
+    ReportedAssertion,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -155,6 +156,8 @@ pub struct Evidence {
     pub observation: Option<Criterion>,
     #[serde(default)]
     pub execution: Option<ExecutionTrace>,
+    #[serde(default)]
+    pub reported: Option<crate::reported::ReportedTrace>,
     pub dependencies: BTreeMap<String, String>,
     pub dependency_origins: BTreeMap<String, String>,
     pub manifest: Manifest,
@@ -269,6 +272,14 @@ pub struct ChangeRequest {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Change {
+    ConfigureReportedObservation {
+        check_id: String,
+        criterion: Criterion,
+    },
+    ImportReported {
+        condition: Condition,
+        trace: crate::reported::ReportedTrace,
+    },
     AddStatement {
         statement: Statement,
     },
@@ -374,15 +385,23 @@ fn validate_check(check: &Check) -> io::Result<()> {
             "この判定規則に対応する条件文と一致しません。別の業務条件にはmanual_onlyを使ってください",
         ));
     }
-    if check.rule == Rule::ObservedAssertion {
+    if matches!(
+        check.rule,
+        Rule::ObservedAssertion | Rule::ReportedAssertion
+    ) {
         let criterion = check
             .observation
             .as_ref()
             .ok_or_else(|| invalid("判定する観測名と対象が必要です"))?;
         crate::execution::validate_criterion(criterion)?;
-        if check.source.is_none() {
+        if check.rule == Rule::ObservedAssertion && check.source.is_none() {
             return Err(invalid("固定版のコード参照が必要です"));
         }
+    }
+    if check.rule == Rule::ReportedAssertion
+        && !check.dependencies.contains(&format!("report-{}", check.id))
+    {
+        return Err(invalid("報告された構成を照合する依存先が必要です"));
     }
     if check.rule == Rule::ObservedAssertion
         && !check
@@ -416,7 +435,7 @@ fn validate_check(check: &Check) -> io::Result<()> {
             "fault",
             "command",
         ],
-        Rule::ManualOnly | Rule::ObservedAssertion => &[],
+        Rule::ManualOnly | Rule::ObservedAssertion | Rule::ReportedAssertion => &[],
     };
     if required
         .iter()
@@ -469,7 +488,24 @@ pub fn validate(workspace: &Workspace) -> io::Result<()> {
             crate::execution::validate_trace(trace, &e.manifest)?;
         }
         if let Some(adapter) = &e.adapter {
-            validate_adapter(&e.manifest, adapter)?;
+            crate::adapters::vitalsensing::validate(&e.manifest, adapter)?;
+        }
+        if let Some(trace) = &e.reported {
+            crate::reported::validate(trace)?;
+            if e.rule != Rule::ReportedAssertion
+                || e.execution.is_some()
+                || e.adapter.is_some()
+                || trace.correlation != e.manifest.correlation
+                || trace.source != e.source
+                || e.manifest.mode != "reported_observation"
+                || e.manifest.condition.id != e.check_id
+                || e.manifest.condition.version != e.check_version
+                || e.observation.is_none()
+            {
+                return Err(invalid("報告観測と根拠の条件・版・出所が一致しません"));
+            }
+        } else if e.rule == Rule::ReportedAssertion {
+            return Err(invalid("報告観測の記録がありません"));
         }
     }
     Ok(())
@@ -586,11 +622,12 @@ fn lock(directory: &Path) -> io::Result<WriteLock> {
         })?;
     Ok(WriteLock(path))
 }
-fn save_revision(directory: &Path, workspace: &Workspace) -> io::Result<()> {
+pub(crate) fn save_revision(directory: &Path, workspace: &Workspace) -> io::Result<()> {
     validate(workspace)?;
-    if serde_json::to_vec(workspace)
+    if serde_json::to_vec_pretty(workspace)
         .map_err(io::Error::other)?
         .len() as u64
+        + 1
         > MAX_DOCUMENT
     {
         return Err(invalid(
@@ -639,6 +676,11 @@ pub fn initialize(
     Ok(view(workspace))
 }
 pub fn load(directory: &Path) -> io::Result<Workspace> {
+    if directory.join("restore.pending").exists() {
+        return Err(invalid(
+            "復元が完了していません。復元元と新しい保存先を確認してください",
+        ));
+    }
     let mut latest = None;
     for entry in fs::read_dir(directory.join("revisions"))? {
         let entry = entry?;
@@ -681,41 +723,6 @@ fn validate_events(manifest: &Manifest, events: &[Event]) -> io::Result<()> {
     }
     Ok(())
 }
-fn validate_adapter(manifest: &Manifest, trace: &AdapterTrace) -> io::Result<()> {
-    let correlation: Correlation =
-        serde_json::from_value(trace.target["correlation"].clone()).map_err(io::Error::other)?;
-    if correlation != manifest.correlation
-        || trace.target["repository"] != "Medliss-share/vitalsensing"
-    {
-        return Err(invalid(
-            "アダプターの対象・版・試行識別子が対応していません",
-        ));
-    }
-    let expected: BTreeMap<String, String> =
-        serde_json::from_value(trace.target["expectedBlobs"].clone()).map_err(io::Error::other)?;
-    let targets: BTreeMap<String, BTreeMap<String, String>> =
-        serde_json::from_str(include_str!("../adapters/vitalsensing-targets.json"))
-            .map_err(io::Error::other)?;
-    let pinned = trace.target["revision"]
-        .as_str()
-        .and_then(|revision| targets.get(revision))
-        .ok_or_else(|| invalid("アダプターの対象版が固定情報にありません"))?;
-    if &expected != pinned
-        || trace.target["adapterSha256"]
-            .as_str()
-            .is_none_or(|s| s.len() != 64 || !s.bytes().all(|b| b.is_ascii_hexdigit()))
-    {
-        return Err(invalid("対象ファイルの固定情報が一致しません"));
-    }
-    for (i, event) in trace.events.iter().enumerate() {
-        if event.sequence != i as u64 + 1 || event.correlation != manifest.correlation {
-            return Err(invalid(
-                "アダプターの出来事が別の試行に属するか、順序が不正です",
-            ));
-        }
-    }
-    Ok(())
-}
 fn document<T: serde::de::DeserializeOwned>(path: &Path) -> io::Result<T> {
     if fs::metadata(path)?.len() > MAX_DOCUMENT {
         return Err(invalid("取り込むファイルが4MiBを超えています"));
@@ -737,7 +744,7 @@ fn read_trace(directory: &Path, manifest: &Manifest) -> io::Result<Option<Adapte
         .collect::<Result<Vec<AdapterEvent>, _>>()
         .map_err(io::Error::other)?;
     let trace = AdapterTrace { target, events };
-    validate_adapter(manifest, &trace)?;
+    crate::adapters::vitalsensing::validate(manifest, &trace)?;
     Ok(Some(trace))
 }
 fn dependency_values(
@@ -809,6 +816,12 @@ fn observed(evidence: &Evidence) -> Assessment {
         next_action: String::new(),
     };
     match evidence.rule {
+        Rule::ReportedAssertion => {
+            if let (Some(trace), Some(criterion)) = (&evidence.reported, &evidence.observation) {
+                return crate::reported::assess(trace, &evidence.manifest.condition, criterion);
+            }
+            result.reason = "報告観測と判定する観測名・対象がありません".into();
+        }
         Rule::DemoSave => {
             result = assess(&evidence.manifest, &evidence.events);
             result.condition_id = evidence.check_id.clone();
@@ -827,80 +840,7 @@ fn observed(evidence: &Evidence) -> Assessment {
                 "この条件に対応する判定規則は未定義。プロセス終了や別条件の成立から判断しない"
                     .into();
         }
-        Rule::LocalIndexUploaded => {
-            result.unconfirmed = [
-                "実S3への保存",
-                "実DynamoDBの状態",
-                "iOSの表示",
-                "管理画面での閲覧",
-                "医療業務の利用条件",
-            ]
-            .map(String::from)
-            .to_vec();
-            if let Some(trace) = &evidence.adapter {
-                let issued: Vec<_> = trace
-                    .events
-                    .iter()
-                    .filter(|e| e.kind == "upload_target_issued" && e.detail["statusCode"] == 200)
-                    .filter(|e| e.detail["key"].as_str().is_some_and(|key| !key.is_empty()))
-                    .collect();
-                if issued.len() != 1 {
-                    result.reason = "この試行の対象キーを一件に特定できない".into();
-                    return result;
-                }
-                let positive: Vec<_> = trace
-                    .events
-                    .iter()
-                    .filter(|e| {
-                        e.kind == "index_updated"
-                            && e.detail["status"] == "uploaded"
-                            && e.detail["key"] == issued[0].detail["key"]
-                    })
-                    .collect();
-                let negative: Vec<_> = trace
-                    .events
-                    .iter()
-                    .filter(|e| {
-                        e.kind == "index_failed" && e.detail["key"] == issued[0].detail["key"]
-                    })
-                    .collect();
-                let mut referenced = vec![issued[0]];
-                referenced.extend(positive.iter().chain(&negative).copied());
-                referenced.extend(trace.events.iter().filter(|e| {
-                    e.kind == "index_failed" && e.detail["key"].as_str().is_none_or(str::is_empty)
-                }));
-                referenced.sort_by_key(|e| e.sequence);
-                result.evidence = referenced
-                    .iter()
-                    .map(|e| format!("adapter-events.jsonl#{}", e.sequence))
-                    .collect();
-                let ambiguous_failure = trace.events.iter().any(|e| {
-                    e.kind == "index_failed" && e.detail["key"].as_str().is_none_or(str::is_empty)
-                });
-                let invalid_order = positive
-                    .iter()
-                    .chain(&negative)
-                    .any(|e| e.sequence <= issued[0].sequence);
-                if invalid_order || ambiguous_failure {
-                    result.reason =
-                        "対象の発行と更新記録の順序が食い違うか、失敗記録の対象キーを特定できない"
-                            .into();
-                } else if !positive.is_empty() && !negative.is_empty() {
-                    result.reason = "同じ試行の索引更新の成功・失敗記録が食い違う".into();
-                } else if !positive.is_empty() {
-                    result.verdict = Verdict::Satisfied;
-                    result.reason = "このローカル試行で模擬索引のuploadedへの更新を観測した".into();
-                } else if !negative.is_empty() {
-                    result.verdict = Verdict::NotSatisfied;
-                    result.reason = "模擬索引の更新前の人工失敗を観測した".into();
-                } else {
-                    result.reason =
-                        "uploadedへの更新を確かめる観測がない。更新失敗とは断定しない".into();
-                }
-            } else {
-                result.reason = "固定版アダプターの対象情報と出来事がない".into();
-            }
-        }
+        Rule::LocalIndexUploaded => return crate::adapters::vitalsensing::assess(evidence, result),
     }
     result
 }
@@ -1114,6 +1054,102 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
             .ok_or_else(|| invalid("確認事項がありません"))
     };
     let operation = match request.action {
+        Change::ConfigureReportedObservation {
+            check_id,
+            criterion,
+        } => {
+            crate::execution::validate_criterion(&criterion)?;
+            let i = find_check(&workspace.checks, &check_id)?;
+            let check = &mut workspace.checks[i];
+            if check.rule == Rule::ReportedAssertion
+                && check.observation.as_ref() == Some(&criterion)
+            {
+                return Err(invalid("同じ報告観測規則が既に記録されています"));
+            }
+            check.version = check
+                .version
+                .checked_add(1)
+                .ok_or_else(|| invalid("条件の版の上限です"))?;
+            check.rule = Rule::ReportedAssertion;
+            check.observation = Some(criterion);
+            let key = format!("report-{}", check.id);
+            if !check.dependencies.contains(&key) {
+                check.dependencies.push(key);
+            }
+            "configure_reported_observation"
+        }
+        Change::ImportReported { condition, trace } => {
+            crate::reported::validate(&trace)?;
+            let i = find_check(&workspace.checks, &condition.id)?;
+            let check = &workspace.checks[i];
+            if check.rule != Rule::ReportedAssertion
+                || check.version != condition.version
+                || check.text != condition.text
+                || check.origin != condition.origin
+                || condition.kind != ConditionKind::Custom
+                || check.source != trace.source
+            {
+                return Err(invalid(
+                    "報告を取り込む条件・版・出所・参照コードが現在と一致しません",
+                ));
+            }
+            if workspace.evidence.iter().any(|e| {
+                e.check_id == check.id && e.manifest.correlation.run_id == trace.correlation.run_id
+            }) {
+                return Err(invalid("同じ試行がこの条件へ既に取り込まれています"));
+            }
+            let key = format!("report-{}", check.id);
+            let value = serde_json::to_string(&serde_json::json!({"producer": trace.producer, "origin": trace.origin, "source": trace.source, "context": trace.context})).map_err(io::Error::other)?;
+            context_value(&value)?;
+            let mut dependencies: BTreeMap<String, String> = check
+                .dependencies
+                .iter()
+                .filter_map(|k| workspace.context.get(k).map(|v| (k.clone(), v.clone())))
+                .collect();
+            dependencies.insert(key.clone(), value.clone());
+            let dependency_origins = dependencies
+                .keys()
+                .map(|k| {
+                    (
+                        k.clone(),
+                        if k == &key {
+                            "外部からの報告。基盤が実行・照合した値ではない".into()
+                        } else {
+                            "記入者が事例に宣言した値".into()
+                        },
+                    )
+                })
+                .collect();
+            let mut manifest =
+                crate::experiment::make_manifest(trace.correlation.clone(), condition)?;
+            manifest.mode = "reported_observation".into();
+            manifest.initial_storage =
+                "外部からの報告。基盤での初期化・隔離は実施していない".into();
+            manifest.observation_scope =
+                "報告された観測名・対象・結果のみ。実行経路・実環境の状態は未確認".into();
+            manifest.previous_run = workspace
+                .evidence
+                .iter()
+                .rfind(|e| e.check_id == check.id)
+                .map(|e| e.manifest.correlation.run_id.clone());
+            workspace.evidence.push(Evidence {
+                id: format!("evidence-{}", workspace.evidence.len() + 1),
+                check_id: check.id.clone(),
+                check_version: check.version,
+                rule: check.rule.clone(),
+                source: check.source.clone(),
+                observation: check.observation.clone(),
+                execution: None,
+                reported: Some(trace),
+                dependencies,
+                dependency_origins,
+                manifest,
+                events: vec![],
+                adapter: None,
+            });
+            workspace.context.insert(key, value);
+            "import_reported"
+        }
         Change::AddStatement { statement } => {
             workspace.statements.push(statement);
             "add_statement"
@@ -1322,6 +1358,7 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
                 source: check.source.clone(),
                 observation: check.observation.clone(),
                 execution,
+                reported: None,
                 dependencies,
                 dependency_origins,
                 manifest,

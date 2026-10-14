@@ -27,6 +27,10 @@ const HELP: &str = "execution-evidence-lab
   case execute CASE_DIR RECIPE_JSON --repository-root DIR --mode local|bubblewrap --actor TEXT --reason TEXT
   case run CASE_DIR --actor TEXT --reason TEXT [--condition save] [--fault CONDITION]
   case export CASE_DIR --output NEW_DIR
+  case backup CASE_DIR --output NEW_JSON
+  case restore NEW_CASE_DIR BACKUP_JSON
+  case compare CASE_DIR --before EVIDENCE_ID --after EVIDENCE_ID --condition CHECK_ID
+  api CASE_DIR --token-file NEW_FILE [--port 8765] [--repository-root DIR --execution-mode local|bubblewrap]
   explore [--port 8765]
   review CASE_DIR [--port 8765] [--repository-root DIR --execution-mode local|bubblewrap]
 
@@ -84,6 +88,35 @@ fn run(args: &[String]) -> io::Result<()> {
     match command.as_str() {
         "help" | "--help" | "-h" if args.len() == 1 => println!("{HELP}"),
         "case" => case_command(&args[1..])?,
+        "api" if args.len() >= 2 => {
+            let opts = options(
+                &args[2..],
+                &[
+                    "--port",
+                    "--token-file",
+                    "--repository-root",
+                    "--execution-mode",
+                ],
+            )?;
+            let port = opts.get("--port").map_or(Ok(8765), |v| {
+                v.parse::<u16>()
+                    .map_err(|_| invalid("ポートは0〜65535です"))
+            })?;
+            let token_file = opts
+                .get("--token-file")
+                .ok_or_else(|| invalid("新規の--token-fileが必要です"))?;
+            let execution = match (opts.get("--repository-root"), opts.get("--execution-mode")) {
+                (None, None) => None,
+                (Some(root), Some(mode)) => Some((PathBuf::from(root), mode.parse()?)),
+                _ => return Err(invalid("実行にはリポジトリと方式の両方が必要です")),
+            };
+            review::serve_api(
+                PathBuf::from(&args[1]),
+                port,
+                PathBuf::from(token_file),
+                execution,
+            )?;
+        }
         "repo" if args.len() == 4 && args[1] == "prepare" => {
             let recipe = execution_evidence_lab::recording::read_json(&PathBuf::from(&args[3]))?;
             execution_evidence_lab::execution::prepare_repository(
@@ -326,6 +359,35 @@ fn case_command(args: &[String]) -> io::Result<()> {
             )?)
         }
         "show" if args.len() == 2 => print_view(workspace::view(workspace::load(&directory)?)),
+        "backup" => {
+            let opts = options(&args[2..], &["--output"])?;
+            execution_evidence_lab::recording::write_json_new(
+                &PathBuf::from(required(&opts, "--output")?),
+                &execution_evidence_lab::backup::snapshot(&directory)?,
+            )
+        }
+        "restore" if args.len() == 3 => print_view(execution_evidence_lab::backup::restore(
+            &directory,
+            &execution_evidence_lab::backup::read(&PathBuf::from(&args[2]))?,
+        )?),
+        "compare" => {
+            let opts = options(&args[2..], &["--before", "--after", "--condition"])?;
+            let w = workspace::load(&directory)?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&execution_evidence_lab::comparison::compare(
+                    w.clone(),
+                    execution_evidence_lab::comparison::CompareRequest {
+                        expected_revision: w.revision,
+                        check_id: required(&opts, "--condition")?,
+                        before_id: required(&opts, "--before")?,
+                        after_id: required(&opts, "--after")?
+                    }
+                )?)
+                .map_err(io::Error::other)?
+            );
+            Ok(())
+        }
         "apply" if args.len() == 3 => {
             let request: ChangeRequest =
                 execution_evidence_lab::recording::read_json(&PathBuf::from(&args[2]))?;
