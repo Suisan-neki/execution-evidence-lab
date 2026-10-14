@@ -20,7 +20,7 @@ jobs:
       - run: cargo build --locked
       - run: node tools/pinned-demo.mjs evaluations/ci-external
       - run: node tools/reproduce-methods.mjs evaluations/ci-methods
-      - run: node tools/backend-demo.mjs evaluations/ci-backend
+      - run: node tools/backend-demo.mjs evaluations/ci-backend --live
       - run: npm run test:reader
       - run: npm ci --ignore-scripts
       - run: npx playwright install --with-deps chromium

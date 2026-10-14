@@ -43,6 +43,7 @@ const SCRIPT: &str = r#"
 import fs from 'node:fs';
 import {scanPublicRepository,validateSnapshot,analyze,readSource} from './scanner.js';
 import {explainFunction,callersOf} from './comprehension.js';
+try {
 const request=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
 let snapshot;
 if(request.operation==='read') snapshot=await scanPublicRepository(request.url,request.reference);
@@ -55,6 +56,7 @@ const callers=guide ? callersOf(model,request.path,guide.range.start) : null;
 const result=JSON.stringify({schema_version:1,snapshot,model,guide,callers,limits:'作者の説明と簡易解析。実行経路・業務上の意味は未確認。未読の範囲と候補を確認してください。'});
 if(Buffer.byteLength(result)>8*1024*1024) throw Error('解析結果は8MiB以内です。対象を分けてください。');
 process.stdout.write(result);
+} catch(error) { process.stderr.write(String(error.message)); process.exitCode=1; }
 "#;
 fn node() -> io::Result<PathBuf> {
     for directory in std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()) {
@@ -96,11 +98,27 @@ pub fn read(request: ReaderRequest) -> io::Result<Value> {
     fs::write(path.join("request.json"), bytes)?;
     let stdout = fs::File::create(path.join("output.json"))?;
     let stderr = fs::File::create(path.join("error.txt"))?;
+    let mut command = Command::new(node()?);
+    command.env_clear();
+    // 信頼する解析処理に、ホストが設定した接続経路とCAだけを渡す。
+    for name in [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "no_proxy",
+        "NODE_EXTRA_CA_CERTS",
+        "NODE_USE_ENV_PROXY",
+    ] {
+        if let Some(value) = std::env::var_os(name) {
+            command.env(name, value);
+        }
+    }
     let mut child = Child(
-        Command::new(node()?)
+        command
             .args([Path::new("reader.mjs"), Path::new("request.json")])
             .current_dir(&path)
-            .env_clear()
             .stdin(Stdio::null())
             .stdout(stdout)
             .stderr(stderr)

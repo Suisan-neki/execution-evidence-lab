@@ -52,6 +52,13 @@ try {
  assert.throws(()=>execFileSync(binary,['case','restore',join(output,'restored'),join(output,'backup.json')],{stdio:'pipe'}));
  const cliComparison=JSON.parse(execFileSync(binary,['case','compare',casePath,'--before','evidence-1','--after','evidence-3','--condition','delivered'],{encoding:'utf8'}));assert.deepEqual(cliComparison,comparison);
  const cliBackup=join(output,'cli-backup.json');execFileSync(binary,['case','backup',casePath,'--output',cliBackup]);assert.deepEqual(JSON.parse(await readFile(cliBackup,'utf8')),saved);
- const result={schema_version:1,case_revision:state.workspace.revision,checks:['versioned API','token and origin','generic reported fail/pass/missing/conflict/incomplete','foreign correlation rejected','stale revision rejected','historical decision basis','Rust comparison via API and CLI','static repository analysis API','reads during stalled connection','all-revision backup and restore','existing restore target rejected'],scope:'synthetic inputs; no arbitrary application execution or human evaluation',comparison};
+ let liveReader=null;
+ if(process.argv.includes('--live')) {
+  const response=await fetch(url+'/api/v1/repository',{method:'POST',headers,body:JSON.stringify({operation:'read',url:'https://github.com/Suisan-neki/execution-evidence-lab',reference:'63c8dac0789ed712f267a9956f5f012c645aea88'})});
+  const body=await response.json();assert.equal(response.status,200,body.error);
+  assert.equal(body.snapshot.commit,'63c8dac0789ed712f267a9956f5f012c645aea88');
+  liveReader={commit:body.snapshot.commit,inventory:body.snapshot.inventory.length,read_files:Object.keys(body.snapshot.files).length};
+ }
+ const result={schema_version:1,live_reader:liveReader,case_revision:state.workspace.revision,checks:['versioned API','token and origin','generic reported fail/pass/missing/conflict/incomplete','foreign correlation rejected','stale revision rejected','historical decision basis','Rust comparison via API and CLI','static repository analysis API','reads during stalled connection','all-revision backup and restore','existing restore target rejected'],scope:'synthetic inputs; no arbitrary application execution or human evaluation',comparison};
  await writeFile(join(output,'result.json'),JSON.stringify(result,null,2));await writeFile(join(output,'analysis.json'),JSON.stringify(analysis,null,2));console.log(JSON.stringify({output,checks:result.checks,human_evaluation:'not_conducted'}));
 } finally {socket?.destroy();server.kill('SIGTERM');await rm(tokenPath,{force:true});}
