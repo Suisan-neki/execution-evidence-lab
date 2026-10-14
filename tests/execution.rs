@@ -98,6 +98,7 @@ impl Fixture {
                 subject: "record-1".into(),
             },
             timeout_ms: 1500,
+            trial: None,
         }
     }
     fn run(&self, runtime: Runtime, scenario: &str) -> RunResult {

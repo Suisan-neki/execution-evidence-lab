@@ -19,6 +19,8 @@ fn accept_until(listener: &TcpListener) -> io::Result<Option<TcpStream>> {
     loop {
         match listener.accept() {
             Ok((stream, _)) => {
+                // macOSでは待ち受け側のノンブロッキング設定が受け付けた接続へ引き継がれる。
+                stream.set_nonblocking(false)?;
                 stream.set_read_timeout(Some(IO_TIMEOUT))?;
                 stream.set_write_timeout(Some(IO_TIMEOUT))?;
                 return Ok(Some(stream));

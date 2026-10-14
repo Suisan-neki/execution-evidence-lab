@@ -13,6 +13,7 @@ pub mod recording;
 pub mod reported;
 pub mod review;
 pub mod review_execution;
+pub mod trial;
 pub mod workspace;
 
 #[cfg(test)]
