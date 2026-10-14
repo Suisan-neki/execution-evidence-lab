@@ -11,6 +11,11 @@ use std::{
     io::{self, Read, Write},
     net::{TcpListener, TcpStream},
     path::{Path, PathBuf},
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    thread,
     time::Duration,
 };
 
@@ -100,10 +105,15 @@ fn read_request(stream: &mut TcpStream) -> io::Result<Request> {
     let length = headers
         .get("content-length")
         .map_or(Ok(0), |s| s.parse::<usize>().map_err(io::Error::other))?;
-    if length > MAX_BODY {
+    let limit = if method == "POST" && path == "/api/v1/repository" {
+        8 * 1024 * 1024
+    } else {
+        MAX_BODY
+    };
+    if length > limit {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "入力は1MiB以内です",
+            format!("入力は{limit}バイト以内です"),
         ));
     }
     let mut body = bytes[header_end..].to_vec();
@@ -140,6 +150,7 @@ fn respond(stream: &mut TcpStream, status: u16, content_type: &str, body: &[u8])
         403 => "Forbidden",
         404 => "Not Found",
         409 => "Conflict",
+        503 => "Service Unavailable",
         _ => "Internal Server Error",
     };
     write!(
@@ -212,9 +223,23 @@ fn handle_connection_mode(
         );
     }
     let origin = format!("http://{host}");
+    let versioned = request.path.starts_with("/api/v1/");
+    if versioned
+        && request.path != "/api/v1/capabilities"
+        && request.headers.get("x-review-token").map(String::as_str) != Some(token)
+    {
+        return json(
+            stream,
+            403,
+            &serde_json::json!({"error":"APIの操作トークンが必要です"}),
+        );
+    }
     if request.method == "POST"
-        && (request.headers.get("origin") != Some(&origin)
-            || request.headers.get("x-review-token").map(String::as_str) != Some(token)
+        && ((if versioned {
+            request.headers.get("origin").is_some_and(|v| v != &origin)
+        } else {
+            request.headers.get("origin") != Some(&origin)
+        }) || request.headers.get("x-review-token").map(String::as_str) != Some(token)
             || request.headers.get("content-type").map(String::as_str) != Some("application/json"))
     {
         return json(
@@ -229,6 +254,19 @@ fn handle_connection_mode(
             400,
             &serde_json::json!({"error": "GETに本文は指定できません"}),
         );
+    }
+    if request.method == "GET" && request.path == "/api/v1/capabilities" {
+        return json(
+            stream,
+            200,
+            &serde_json::json!({"schema_version":1,"api_version":"v1","scope":"localhost","routes":["case","change","compare","backup","execution","execute","repository"],"reported_observations":true,"limits":{"request_bytes":MAX_BODY,"backup_bytes":crate::backup::MAX_BACKUP,"reader_request_bytes":8*1024*1024,"reader_seconds":30,"reader_output_bytes":8*1024*1024},"understanding":"作者の説明と静的解析。実行経路・業務上の意味は未確認"}),
+        );
+    }
+    if request.method == "POST" && request.path == "/api/v1/repository" {
+        let result = serde_json::from_slice::<crate::reader::ReaderRequest>(&request.body)
+            .map_err(io::Error::other)
+            .and_then(crate::reader::read);
+        return result_response(stream, result);
     }
     if request.method == "GET" {
         let resource = match request.path.as_str() {
@@ -265,7 +303,21 @@ fn handle_connection_mode(
             &serde_json::json!({"error": "テストの事例を開いていません"}),
         );
     };
-    match (request.method.as_str(), request.path.as_str()) {
+    let api_path = if versioned {
+        request.path.replacen("/api/v1/", "/api/", 1)
+    } else {
+        request.path.clone()
+    };
+    match (request.method.as_str(), api_path.as_str()) {
+        ("GET", "/api/backup") => result_response(stream, crate::backup::snapshot(directory)),
+        ("POST", "/api/compare") => {
+            let result = serde_json::from_slice::<crate::comparison::CompareRequest>(&request.body)
+                .map_err(io::Error::other)
+                .and_then(|request| {
+                    crate::comparison::compare(workspace::load(directory)?, request)
+                });
+            result_response(stream, result)
+        }
         ("GET", "/review") => respond(
             stream,
             200,
@@ -361,11 +413,11 @@ fn result_response<T: serde::Serialize>(
 }
 pub fn serve(directory: PathBuf, port: u16) -> io::Result<()> {
     workspace::load(&directory)?;
-    serve_mode(Some(directory), port, None)
+    serve_mode(Some(directory), port, None, None)
 }
 
 pub fn serve_explorer(port: u16) -> io::Result<()> {
-    serve_mode(None, port, None)
+    serve_mode(None, port, None, None)
 }
 
 pub fn serve_with_execution(
@@ -375,18 +427,41 @@ pub fn serve_with_execution(
     mode: crate::execution::ExecutionMode,
 ) -> io::Result<()> {
     let controller = Controller::new(directory.clone(), repository_root, mode)?;
-    serve_mode(Some(directory), port, Some(controller))
+    serve_mode(Some(directory), port, Some(controller), None)
+}
+pub fn serve_api(
+    directory: PathBuf,
+    port: u16,
+    token_file: PathBuf,
+    execution: Option<(PathBuf, crate::execution::ExecutionMode)>,
+) -> io::Result<()> {
+    workspace::load(&directory)?;
+    let controller = execution
+        .map(|(root, mode)| Controller::new(directory.clone(), root, mode))
+        .transpose()?;
+    serve_mode(Some(directory), port, controller, Some(token_file))
 }
 
 fn serve_mode(
     directory: Option<PathBuf>,
     port: u16,
     controller: Option<Controller>,
+    token_file: Option<PathBuf>,
 ) -> io::Result<()> {
     let mut bytes = [0; 24];
     File::open("/dev/urandom")?.read_exact(&mut bytes)?;
     let token = bytes.iter().map(|b| format!("{b:02x}")).collect::<String>();
     let listener = TcpListener::bind(("127.0.0.1", port))?;
+    if let Some(path) = token_file {
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(path)?;
+        file.write_all(token.as_bytes())?;
+        file.sync_all()?;
+    }
     println!("理解: http://{}\n終了: Ctrl+C。", listener.local_addr()?);
     if let Some(directory) = &directory {
         println!(
@@ -395,17 +470,49 @@ fn serve_mode(
             directory.display()
         );
     }
+    struct Active(Arc<AtomicUsize>);
+    impl Drop for Active {
+        fn drop(&mut self) {
+            self.0.fetch_sub(1, Ordering::SeqCst);
+        }
+    }
+    let active = Arc::new(AtomicUsize::new(0));
     for stream in listener.incoming() {
-        match stream.and_then(|mut stream| {
-            handle_connection_mode(
+        let mut stream = match stream {
+            Ok(stream) => stream,
+            Err(e) => {
+                eprintln!("接続エラー: {e}");
+                continue;
+            }
+        };
+        if active.fetch_add(1, Ordering::SeqCst) >= 16 {
+            active.fetch_sub(1, Ordering::SeqCst);
+            let _ = json(
                 &mut stream,
-                directory.as_deref(),
-                &token,
-                controller.as_ref(),
-            )
-        }) {
-            Ok(()) => (),
-            Err(error) => eprintln!("レビューの接続エラー: {error}"),
+                503,
+                &serde_json::json!({"error":"接続の上限です。後で再試行してください"}),
+            );
+            continue;
+        }
+        let guard = Active(active.clone());
+        let directory = directory.clone();
+        let token = token.clone();
+        let controller = controller.clone();
+        if let Err(e) = thread::Builder::new()
+            .name("backend-request".into())
+            .spawn(move || {
+                let _guard = guard;
+                if let Err(e) = handle_connection_mode(
+                    &mut stream,
+                    directory.as_deref(),
+                    &token,
+                    controller.as_ref(),
+                ) {
+                    eprintln!("接続エラー: {e}");
+                }
+            })
+        {
+            eprintln!("接続の受付エラー: {e}");
         }
     }
     Ok(())

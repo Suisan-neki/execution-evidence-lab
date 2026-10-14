@@ -42,7 +42,7 @@ cargo run -- case init cases/general --template general --id general-001 --title
 cargo run -- review cases/general
 ```
 
-空の事例から条件・出所を追加する。初期条件や回答を自動で作らない。追加した条件の判定方法は未定義なので、外部プロセスの終了だけでは成立にしない。一般の観測入力と判定規則の拡張は残る作業。
+空の事例から条件・出所を追加する。初期条件や回答を自動で作らない。追加した条件の判定方法は未定義なので、外部プロセスの終了だけでは成立にしない。言語に依存しない報告観測の取り込みと、API・CLIによる比較・全履歴のバックアップと復元に対応する。[汎用バックエンドv1](docs/backend-api.md)に操作と限界を記載した。
 
 [確認手順と反例の再現](docs/method-reproduction.md)は`cargo build --locked`後に`npm run test:methods`で実行できる。13事例で通常のチェックリストの参照実装と照合する。利用者評価や研究手法の優位性は未検証。
 
@@ -129,3 +129,14 @@ npm run test:external
 合成のGitリポジトリでコードの改修と再試験を通し、正常・失敗・観測欠落・食い違いを同じ事例に残す。画面では、コード参照のある条件から観測名・対象と試験設定を保存できる。`cargo run -- review CASE_DIR --repository-root LOCAL_REPOSITORY --execution-mode local`で起動した場合は、指定したリポジトリの固定版を画面から実行し、結果へ進める。通常のreviewは外部実行を有効にしない。Node.js/Python向けの観測部品を追加した。結果から固定版・起動ファイル・観測の行へ戻れる。
 
 実行方式はlocalかLinuxのbubblewrapを明示する。localはOSによる隔離ではない。bubblewrapを起動できなければローカルへ切り替えない。対象プログラムの報告と独立した状態の確認、実AWS・iOSとの照合は別に必要。[接続手順と限界](docs/pinned-execution.md)を参照。
+
+## 汎用バックエンドのAPI
+
+2026-10-14の方針によりバックエンドを優先する。`api CASE_DIR --token-file NEW_FILE`でlocalhostのv1 APIを起動できる。事例の更新、外部からの報告観測、固定版実行、コード読取と静的解析、試行比較、全履歴の取得を画面なしで扱う。画面の追加は根拠の表示に留める。
+
+```bash
+cargo build --locked
+npm run test:backend
+```
+
+合成のPython接続例から、報告→判定→判断→再試験→比較→バックアップ→復元を確認する。Node.js/Pythonの固定版実行と、言語を問わない外部からの報告を区別する。APIの入力・出力・上限と残る条件は[バックエンドの手順](docs/backend-api.md)。
