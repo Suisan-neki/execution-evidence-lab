@@ -24,7 +24,11 @@ pub fn validate(backup: &Backup) -> io::Result<()> {
     if backup.schema_version != 1
         || backup.revisions.is_empty()
         || backup.revisions.len() > 1000
-        || serde_json::to_vec(backup).map_err(io::Error::other)?.len() as u64 > MAX_BACKUP
+        || serde_json::to_vec_pretty(backup)
+            .map_err(io::Error::other)?
+            .len() as u64
+            + 1
+            > MAX_BACKUP
     {
         return Err(invalid("バックアップは形式1・1〜1000版・32MiB以内です"));
     }
@@ -38,7 +42,11 @@ pub fn validate(backup: &Backup) -> io::Result<()> {
                     || h.actor.trim().is_empty()
                     || h.reason.trim().is_empty()
             })
-            || serde_json::to_vec(w).map_err(io::Error::other)?.len() > 4 * 1024 * 1024
+            || serde_json::to_vec_pretty(w)
+                .map_err(io::Error::other)?
+                .len()
+                + 1
+                > 4 * 1024 * 1024
         {
             return Err(invalid("バックアップの事例・版・更新履歴が一致しません"));
         }

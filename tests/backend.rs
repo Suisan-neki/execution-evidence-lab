@@ -335,3 +335,17 @@ fn backup_keeps_archived_policy_explanations_and_rejects_foreign_basis() {
         "foreign".into();
     assert!(backup::validate(&archive).is_err());
 }
+
+#[test]
+fn oversized_restore_is_rejected_before_creating_a_target() {
+    let c = case();
+    let mut archive = backup::snapshot(&c.0).unwrap();
+    for i in 0..20 {
+        archive.revisions[0]
+            .context
+            .insert(format!("large-{i}"), "x".repeat(220000));
+    }
+    let target = c.0.with_file_name("oversized-restore");
+    assert!(backup::restore(&target, &archive).is_err());
+    assert!(!target.exists());
+}
