@@ -65,6 +65,7 @@ try {
   await alert.locator('.dads-notification-banner').waitFor();
   const fetchError = await alert.innerText();
   assert.match(fetchError, /操作を完了できませんでした/);
+  assert.match(fetchError, /見つかりません/, '存在しないリポジトリとしての失敗ではない');
   assert.equal(await page.locator('#steps').isHidden(), true);
   log('取得の失敗を表示した:', fetchError.replace(/\s+/g, ' '));
   await shot('fetch-failure');

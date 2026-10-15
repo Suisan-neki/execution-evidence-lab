@@ -122,15 +122,24 @@ fn github_token() -> io::Result<Option<String>> {
             "EEL_GITHUB_TOKEN_FILE に指定したファイルを読めません",
         )
     })?;
+    parse_token(&text).map(Some)
+}
+/// GitHubのトークンは長さや形式が変わるため、中身は解釈しない。
+/// 要求ヘッダーへ入れるので、空白・改行・制御文字だけを拒否する。
+fn parse_token(text: &str) -> io::Result<String> {
     let token = text.trim();
-    if token.is_empty() || token.len() > 256 || !token.bytes().all(|b| b.is_ascii_graphic()) {
+    if token.is_empty() || token.len() > MAX_TOKEN || !token.bytes().all(|b| b.is_ascii_graphic()) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "EEL_GITHUB_TOKEN_FILE の内容を確認してください",
+            format!(
+                "EEL_GITHUB_TOKEN_FILE の内容を確認してください。空白・改行を含まない{MAX_TOKEN}文字以内の1行にしてください"
+            ),
         ));
     }
-    Ok(Some(token.to_owned()))
+    Ok(token.to_owned())
 }
+const MAX_TOKEN: usize = 4096;
+
 pub(crate) fn node() -> io::Result<PathBuf> {
     for directory in std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()) {
         let path = directory.join("node");
@@ -269,4 +278,34 @@ pub fn read(request: ReaderRequest) -> io::Result<Value> {
         _ => 16 * 1024 * 1024,
     };
     run_script(SCRIPT, &bytes, Duration::from_secs(30), limit)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_token;
+
+    #[test]
+    fn long_opaque_tokens_are_accepted_and_header_breaking_text_is_rejected() {
+        // GitHub Actionsのトークンは2026年10月から500文字前後のJWT形式になった。
+        let long = format!(
+            "ghs_12345_{}.{}.{}",
+            "a".repeat(200),
+            "b-c_".repeat(60),
+            "d".repeat(80)
+        );
+        assert_eq!(parse_token(&format!("{long}\n")).unwrap(), long);
+        assert_eq!(
+            parse_token("ghs_0123456789abcdef").unwrap(),
+            "ghs_0123456789abcdef"
+        );
+        for bad in [
+            "",
+            "  \n",
+            "ghs_a\r\nX-Injected: 1",
+            "ghs_a b",
+            &"x".repeat(4097),
+        ] {
+            assert!(parse_token(bad).is_err(), "{bad:?}");
+        }
+    }
 }
