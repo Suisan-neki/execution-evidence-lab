@@ -36,6 +36,8 @@ macOS 26.3.1、Rust 1.99.0、Node.js 24.10.0、Python 3.14.5、git 2.50.1、Play
 
 試行は4回で、すべて試験用の保存先の `case/runs` に残った。
 
+同じ試験は、GitHub Actions（Ubuntu、Node.js 22）でもコミット `4c769d1` で最後まで成功した（[実行記録](https://github.com/Suisan-neki/execution-evidence-lab/actions/runs/38667474510)）。CIではActionsのトークンを `EEL_GITHUB_TOKEN_FILE` で渡す。
+
 ## そのほかの確認
 
 | 確認 | 結果 |
@@ -60,4 +62,3 @@ macOS 26.3.1、Rust 1.99.0、Node.js 24.10.0、Python 3.14.5、git 2.50.1、Play
 - bubblewrap方式とネットワークの遮断。この環境では使えなかった。
 - 依存パッケージを持つ対象、Python・Node.js以外の言語の実行、複数の利用者による同時編集。
 - AIの接続先が実際に応答する場合の説明の質。今回はAIを設定しない状態と、接続に失敗する状態だけを確かめた。
-- GitHub Actionsでの `npm run test:app`。CIの設定は追加したが、このPRのCIの結果はまだない。
