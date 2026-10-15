@@ -1084,6 +1084,69 @@ pub fn assess_run(
     }
 }
 
+/// 管理用ディレクトリ `base/owner/repo` へ固定コミットを追加で取得する。
+/// checkoutや対象コードの起動は行わず、既存の取得済みコミットも消さない。
+pub fn fetch_commit(base: &Path, repository: &str, commit: &str) -> io::Result<PathBuf> {
+    crate::workspace::validate_source(&CodeReference {
+        repository: repository.into(),
+        commit: commit.into(),
+        path: "README.md".into(),
+        line: 1,
+        end_line: 1,
+    })?;
+    let destination = base.join(repository);
+    let origin = format!("https://github.com/{repository}.git");
+    if !destination.exists() {
+        fs::create_dir_all(&destination)?;
+        git(&destination, &["init", "-q", "--bare"])?;
+        git(&destination, &["remote", "add", "origin", &origin])?;
+    } else if !expected_origin(
+        repository,
+        &git_text(&destination, &["remote", "get-url", "origin"])?,
+    ) {
+        return Err(invalid("管理用ディレクトリのoriginが一致しません"));
+    }
+    let present = git_text(
+        &destination,
+        &[
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            &format!("{commit}^{{commit}}"),
+        ],
+    )
+    .is_ok_and(|found| found == commit);
+    if !present {
+        git(
+            &destination,
+            &[
+                "-c",
+                "credential.helper=",
+                "-c",
+                "credential.interactive=false",
+                "fetch",
+                "--depth=1",
+                "--no-tags",
+                "origin",
+                commit,
+            ],
+        )?;
+        if git_text(
+            &destination,
+            &["rev-parse", "--verify", &format!("{commit}^{{commit}}")],
+        )? != commit
+        {
+            return Err(invalid("取得したコミットが指定と一致しません"));
+        }
+        // 取得したコミットをgcで消さないよう参照を残す。
+        git(
+            &destination,
+            &["update-ref", &format!("refs/eel/{commit}"), commit],
+        )?;
+    }
+    fs::canonicalize(destination)
+}
+
 /// 公開GitHubの固定コミットを取得する。checkoutや対象コードの起動は行わない。
 pub fn prepare_repository(destination: &Path, recipe: &Recipe) -> io::Result<()> {
     validate_recipe(recipe)?;

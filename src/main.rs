@@ -31,6 +31,7 @@ const HELP: &str = "execution-evidence-lab
   case restore NEW_CASE_DIR BACKUP_JSON
   case compare CASE_DIR --before EVIDENCE_ID --after EVIDENCE_ID --condition CHECK_ID
   api CASE_DIR --token-file NEW_FILE [--port 8765] [--repository-root DIR --execution-mode local|bubblewrap]
+  app DATA_DIR [--port 8765] [--execution-mode local|bubblewrap]
   explore [--port 8765]
   review CASE_DIR [--port 8765] [--repository-root DIR --execution-mode local|bubblewrap]
 
@@ -127,6 +128,19 @@ fn run(args: &[String]) -> io::Result<()> {
                 "固定コミットを取得しました: {}。checkoutと対象コードの実行は行っていません。",
                 args[2]
             );
+        }
+        "app" if args.len() >= 2 => {
+            let opts = options(&args[2..], &["--port", "--execution-mode"])?;
+            let port = opts.get("--port").map_or(Ok(8765), |value| {
+                value
+                    .parse::<u16>()
+                    .map_err(|_| invalid("ポートは0〜65535です"))
+            })?;
+            let mode = opts.get("--execution-mode").map_or(
+                Ok(execution_evidence_lab::execution::ExecutionMode::Local),
+                |m| m.parse(),
+            )?;
+            review::serve_app(PathBuf::from(&args[1]), port, mode)?;
         }
         "explore" => {
             let opts = options(&args[1..], &["--port"])?;
