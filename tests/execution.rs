@@ -99,6 +99,9 @@ impl Fixture {
             },
             timeout_ms: 1500,
             trial: None,
+            launch: Default::default(),
+            python: None,
+            server: None,
         }
     }
     fn run(&self, runtime: Runtime, scenario: &str) -> RunResult {
