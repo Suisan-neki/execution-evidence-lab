@@ -134,6 +134,8 @@ impl Fixture {
             launch: Default::default(),
             python: None,
             server: None,
+            containers: None,
+            http: None,
         };
         git(&self.root, &["checkout", "-q", &self.commits[commit]]);
         execute(
@@ -170,6 +172,7 @@ fn check(
         method,
         expect,
         text: text.map(Into::into),
+        target: None,
     }
 }
 fn saved(fault: TrialFault, readback: bool) -> TrialSpec {
@@ -446,6 +449,8 @@ fn invalid_specs_are_rejected_before_running() {
             launch: Default::default(),
             python: None,
             server: None,
+            containers: None,
+            http: None,
         };
         assert!(validate_recipe(&recipe).is_err());
     }

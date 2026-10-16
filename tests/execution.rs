@@ -102,6 +102,8 @@ impl Fixture {
             launch: Default::default(),
             python: None,
             server: None,
+            containers: None,
+            http: None,
         }
     }
     fn run(&self, runtime: Runtime, scenario: &str) -> RunResult {

@@ -179,6 +179,8 @@ impl Fixture {
                 args: server_args.iter().map(|a| (*a).into()).collect(),
                 ready_timeout_ms: 5000,
             }),
+            containers: None,
+            http: None,
         }
     }
     fn run(&self, recipe: Recipe) -> io::Result<RunResult> {
@@ -219,6 +221,7 @@ fn check(
         method,
         expect,
         text: text.map(Into::into),
+        target: None,
     }
 }
 const SERVE: &[&str] = &["serve", PORT, "received"];
