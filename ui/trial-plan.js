@@ -11,6 +11,9 @@ export const FAULTS = [
   { id: 'network_unavailable', label: '外部への通信を遮断する', needs_storage: false, how: 'Linuxのbubblewrap方式で、ネットワークを持たない環境で起動する。local方式では使えない' },
   { id: 'storage_directory_read_only', label: '保存先のディレクトリを書き込み不可にする', needs_storage: true, how: '試行の前に、基盤が保存先のディレクトリを空で作り、書き込み権限を外す。ディレクトリへ書き込めないことを基盤が確かめてから起動する' },
   { id: 'server_not_started', label: '待つプロセス（受信側など）を起動しない', needs_server: true, how: '待つプロセスを起動せず、操作するプロセスだけを動かす。割り当てたポートが応答しないことを基盤が確かめる' },
+  { id: 'database_stopped', label: 'データベースのコンテナを止める', needs_containers: true, how: 'コンテナが準備できたあと、データベースの役割のコンテナを止める。止まったことを確かめてから操作する' },
+  { id: 'database_unreachable', label: '対象とデータベースの間の通信を切る', needs_containers: true, how: 'コンテナが準備できたあと、データベースを試験用ネットワークから外す。外れたことを確かめてから操作する' },
+  { id: 'volume_read_only', label: '保存先のボリュームを読み取り専用にする', needs_containers: true, how: 'コンテナが準備できたあと、データベースの保存先ボリュームを読み取り専用で載せ直す。書き込めないことを確かめる' },
 ];
 
 function dependencies(model) {
@@ -146,7 +149,7 @@ export function plan(snapshot, model) {
     test_commands: testCommands(snapshot, model, deps),
     examples: cramExamples(model),
     dependencies: deps,
-    faults: FAULTS.map(f => ({ ...f, applicable: f.id === 'network_unavailable' ? (sends.length ? 'bubblewrap方式（Linux）でだけ使える。送信の記述がある' : '送信の記述が見つからないため、効果を確かめにくい。bubblewrap方式（Linux）でだけ使える') : f.needs_server ? '待つプロセスを指定したときに使える' : f.id === 'storage_directory_read_only' ? 'ディレクトリを含む保存先のパス（例: received/file）を指定したときに使える' : f.needs_storage ? '保存先のパスを指定したときに使える' : '使える' })),
+    faults: FAULTS.map(f => ({ ...f, applicable: f.id === 'network_unavailable' ? (sends.length ? 'bubblewrap方式（Linux）でだけ使える。送信の記述がある' : '送信の記述が見つからないため、効果を確かめにくい。bubblewrap方式（Linux）でだけ使える') : f.needs_server ? '待つプロセスを指定したときに使える' : f.needs_containers ? '試験専用のコンテナを指定したときに使える' : f.id === 'storage_directory_read_only' ? 'ディレクトリを含む保存先のパス（例: received/file）を指定したときに使える' : f.needs_storage ? '保存先のパスを指定したときに使える' : '使える' })),
     observation: [
       { method: 'exit_code', label: '終了コード', source: '対象プログラムの報告' },
       { method: 'stdout', label: '標準出力', source: '対象プログラムの報告' },

@@ -21,7 +21,7 @@ cargo run -- app data/app --execution-mode local
 3. 実際に試す。正常な試行と、書き込み不可などの実際の故障を入れた試行を、利用者が押したときだけ実行する。
 4. 結果を確認する。条件ごとの期待と観測、判定、確かめていないことを表示する。修正後のコミットで再試験し、前後を比べる。
 
-URLを入力しただけでは対象のコードを実行しない。実行できるのは、Node.jsとPythonの対象。Pythonでは、固定コミットで指定した依存先と、受信側のように先に起動して待つプロセスを使える（[pynetdicomでの検証](docs/validation-dicom-2026-10-16.md)）。依存先のインストールやビルドは行わない。`--execution-mode local` はOSによる隔離ではないため、信頼できない対象には使わない。使い方・判定の規則・環境変数は[理解と試験の画面](docs/understand-and-test.md)、画面の部品は[デザインシステムの適用](docs/design-system.md)。
+URLを入力しただけでは対象のコードを実行しない。実行できるのは、Node.jsとPythonの対象。Pythonでは、固定コミットで指定した依存先と、受信側のように先に起動して待つプロセスを使える（[pynetdicomでの検証](docs/validation-dicom-2026-10-16.md)）。依存先のインストールやビルドは行わない。ダイジェスト付きのコンテナで OpenEMR と Orthanc を試験専用に起動できる（[コンテナでの検証](docs/validation-container-2026-10-16.md)）。Dockerが使えないときはほかの方式へ切り替えない。`--execution-mode local` はOSによる隔離ではないため、信頼できない対象には使わない。使い方・判定の規則・環境変数は[理解と試験の画面](docs/understand-and-test.md)、画面の部品は[デザインシステムの適用](docs/design-system.md)。
 
 ## GitHubのコードを理解する
 
