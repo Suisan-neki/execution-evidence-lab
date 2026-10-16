@@ -70,6 +70,9 @@ pub struct Recipe {
     pub input: serde_json::Value,
     pub criterion: Criterion,
     pub timeout_ms: u64,
+    /// 判定条件・故障・保存先の読み出しを指定する試験案。旧形式の設定にはない。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trial: Option<crate::trial::TrialSpec>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -128,6 +131,8 @@ pub struct ExecutionTrace {
     pub mode: String,
     pub stdout_excerpt: String,
     pub stderr_excerpt: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trial: Option<crate::trial::TrialOutcome>,
 }
 struct ChildGuard(std::process::Child);
 impl Drop for ChildGuard {
@@ -187,6 +192,9 @@ pub fn validate_recipe(recipe: &Recipe) -> io::Result<()> {
         return Err(invalid(
             "試験設定の形式・入力サイズ・待機上限を確認してください",
         ));
+    }
+    if let Some(trial) = &recipe.trial {
+        crate::trial::validate(trial, relative)?;
     }
     Ok(())
 }
@@ -325,8 +333,14 @@ fn inventory(root: &Path, recipe: &Recipe) -> io::Result<(String, Vec<SnapshotFi
             lines,
         });
     }
+    let readback = recipe
+        .trial
+        .as_ref()
+        .and_then(|t| t.readback.as_ref())
+        .map(|r| r.entrypoint.as_str());
     if !files.iter().any(|f| f.path == recipe.source.path)
         || !files.iter().any(|f| f.path == recipe.entrypoint)
+        || readback.is_some_and(|path| !files.iter().any(|f| f.path == path))
     {
         return Err(invalid(
             "参照ファイルまたは起動ファイルが固定コミットにありません",
@@ -401,12 +415,52 @@ fn snapshot_unchanged(root: &Path, snapshot: &Path, files: &[SnapshotFile]) -> b
     })
 }
 
+/// PATHの先頭がpyenv等のシェルスクリプトでも、環境変数を消した試行で動く実体を使う。
 fn runtime_path(runtime: &Runtime) -> io::Result<PathBuf> {
-    let name = match runtime {
-        Runtime::Node => "node",
-        Runtime::Python3 => "python3",
+    let (name, probe): (_, &[&str]) = match runtime {
+        Runtime::Node => ("node", &["-p", "process.execPath"]),
+        Runtime::Python3 => ("python3", &["-c", "import sys; print(sys.executable)"]),
     };
-    executable(name)
+    let candidate = executable(name)?;
+    // ホストが用意した実行環境に実体の場所だけを尋ねる。対象のコードは渡さない。
+    let resolved = Command::new(&candidate)
+        .args(probe)
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| PathBuf::from(s.trim()))
+        .filter(|p| p.is_absolute() && p.is_file());
+    match resolved {
+        Some(path) => fs::canonicalize(path),
+        None => Ok(candidate),
+    }
+}
+pub fn runtime_available(runtime: &Runtime) -> Result<(PathBuf, String), String> {
+    let program = runtime_path(runtime).map_err(|e| e.to_string())?;
+    let output = Command::new(&program)
+        .arg("--version")
+        .env_clear()
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| format!("{}を起動できません: {e}", program.display()))?;
+    if !output.status.success() {
+        return Err(format!(
+            "{}は環境変数なしで起動できません: {}",
+            program.display(),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let version = String::from_utf8_lossy(if output.stdout.is_empty() {
+        &output.stderr
+    } else {
+        &output.stdout
+    })
+    .trim()
+    .to_owned();
+    Ok((program, version))
 }
 fn executable(name: &str) -> io::Result<PathBuf> {
     let paths = std::env::var_os("PATH").ok_or_else(|| invalid("PATHを確認してください"))?;
@@ -560,6 +614,13 @@ pub fn assess_trace(
         result.reason = "試行・観測・固定版の対応を照合できない".into();
         return result;
     }
+    if let Some(spec) = &trace.recipe.trial {
+        let Some(outcome) = &trace.trial else {
+            result.reason = "試験案はあるが、判定条件ごとの結果が保存されていない".into();
+            return result;
+        };
+        return crate::trial::assess(manifest, spec, outcome, trace.snapshot_unchanged);
+    }
     if !trace.snapshot_unchanged {
         result.reason = "試行用の固定版が開始時と終了時で異なり、結果の適用先を確認できない".into();
         return result;
@@ -622,18 +683,19 @@ pub fn execute_with_mode(
     mode: ExecutionMode,
 ) -> io::Result<RunResult> {
     validate_recipe(&recipe)?;
+    if mode == ExecutionMode::Local
+        && recipe
+            .trial
+            .as_ref()
+            .is_some_and(|t| t.fault == crate::trial::TrialFault::NetworkUnavailable)
+    {
+        return Err(invalid(
+            "local方式では通信を遮断できません。Linuxのbubblewrap方式で試してください",
+        ));
+    }
     let root = fs::canonicalize(repository_root)?;
     let (tree, files) = inventory(&root, &recipe)?;
-    let program = runtime_path(&recipe.runtime)?;
-    let runtime_version = String::from_utf8_lossy(
-        &Command::new(&program)
-            .arg("--version")
-            .env_clear()
-            .output()?
-            .stdout,
-    )
-    .trim()
-    .to_owned();
+    let (program, runtime_version) = runtime_available(&recipe.runtime).map_err(invalid)?;
     let (directory, correlation) = new_run_directory(output)?;
     let directory = fs::canonicalize(directory)?;
     let snapshot = directory.join("source");
@@ -644,7 +706,22 @@ pub fn execute_with_mode(
     if recipe.source.end_line as usize > source_text.lines().count() {
         return Err(invalid("コード参照の行範囲が固定版を超えています"));
     }
-    write_json_new(&work.join("input.json"), &recipe.input)?;
+    // 試行ごとに新しい架空の値を使い、既存のデータと区別する。
+    let test_value = format!("eel-test-{}", correlation.run_id.trim_start_matches("run-"));
+    let substitute = |args: &[String]| -> Vec<String> {
+        args.iter()
+            .map(|a| crate::trial::substitute(a, &test_value))
+            .collect()
+    };
+    let args = substitute(&recipe.args);
+    write_json_new(
+        &work.join("input.json"),
+        &crate::trial::substitute_json(&recipe.input, &test_value),
+    )?;
+    let fault = match &recipe.trial {
+        Some(spec) => Some(crate::trial::apply_fault(spec, &work)?),
+        None => None,
+    };
     let mut manifest = make_manifest(correlation.clone(), condition)?;
     manifest.mode = "pinned_execution".into();
     manifest.timeout_ms = recipe.timeout_ms;
@@ -662,101 +739,24 @@ pub fn execute_with_mode(
             program.to_string_lossy().into_owned(),
             recipe.entrypoint.clone(),
         ],
-        recipe.args.clone(),
+        args.clone(),
     ]
     .concat();
     write_json_new(&directory.join("manifest.json"), &manifest)?;
     write_json_new(&directory.join("recipe.json"), &recipe)?;
     let recorder = Recorder::new(&directory, correlation.clone())?;
-    let mut command;
-    let (observation_path, input_path, work_path);
-    if mode == ExecutionMode::Bubblewrap {
-        if !cfg!(target_os = "linux") {
-            return Err(invalid(
-                "bubblewrapはLinuxだけに対応します。ローカルへ自動で切り替えません",
-            ));
-        }
-        command = Command::new(executable("bwrap")?);
-        command.args([
-            "--unshare-all",
-            "--new-session",
-            "--die-with-parent",
-            "--cap-drop",
-            "ALL",
-        ]);
-        for system in ["/usr", "/lib", "/lib64"] {
-            if Path::new(system).exists() {
-                command.args(["--ro-bind", system, system]);
-            }
-        }
-        let runtime_root = program
-            .parent()
-            .and_then(Path::parent)
-            .ok_or_else(|| invalid("ランタイムの場所を確認してください"))?;
-        if !program.starts_with("/usr") {
-            command.arg("--ro-bind").arg(runtime_root).arg(runtime_root);
-        }
-        command
-            .args([
-                "--proc",
-                "/proc",
-                "--dev",
-                "/dev",
-                "--tmpfs",
-                "/tmp",
-                "--ro-bind",
-            ])
-            .arg(&snapshot)
-            .arg("/source")
-            .arg("--bind")
-            .arg(&work)
-            .args(["/work", "--chdir", "/work", "--"])
-            .arg(&program)
-            .arg(Path::new("/source").join(&recipe.entrypoint));
-        observation_path = PathBuf::from("/work/observations.jsonl");
-        input_path = PathBuf::from("/work/input.json");
-        work_path = PathBuf::from("/work");
-        // 固定版は読み取り専用。workだけを共有し、外部ネットワークを分離する。
-    } else {
-        command = Command::new(&program);
-        command.arg(snapshot.join(&recipe.entrypoint));
-        observation_path = work.join("observations.jsonl");
-        input_path = work.join("input.json");
-        work_path = work.clone();
-    }
+    let launch = Launch {
+        mode,
+        program: &program,
+        snapshot: &snapshot,
+        work: &work,
+        correlation: &correlation,
+    };
+    let mut command = launch.command(&recipe.entrypoint, &args)?;
     command
-        .args(&recipe.args)
-        .current_dir(&work)
-        .env_clear()
-        .env("PATH", program.parent().unwrap_or(Path::new("/usr/bin")))
-        .env("PYTHONDONTWRITEBYTECODE", "1")
-        .env("HOME", &work_path)
-        .env(
-            "TMPDIR",
-            if mode == ExecutionMode::Bubblewrap {
-                Path::new("/tmp")
-            } else {
-                &work
-            },
-        )
-        .env("EEL_RUN_ID", &correlation.run_id)
-        .env("EEL_RECORD_ID", &correlation.record_id)
-        .env("EEL_ATTEMPT_ID", &correlation.attempt_id)
-        .env("EEL_OBSERVATIONS", &observation_path)
-        .env("EEL_INPUT", &input_path)
-        .env("EEL_WORK_DIR", &work_path)
-        .env(
-            "EEL_SOURCE_ROOT",
-            if mode == ExecutionMode::Bubblewrap {
-                Path::new("/source")
-            } else {
-                &snapshot
-            },
-        )
-        .stdin(Stdio::null())
         .stdout(File::create(directory.join("stdout.txt"))?)
         .stderr(File::create(directory.join("stderr.txt"))?);
-    let mut child = ChildGuard(command.spawn()?);
+    let child = ChildGuard(command.spawn()?);
     recorder.record(
         Source::Process,
         EventKind::ProcessStarted,
@@ -767,26 +767,12 @@ pub fn execute_with_mode(
             recipe.entrypoint
         ),
     )?;
-    let started = Instant::now();
-    let mut timed_out = false;
-    let mut output_limit = false;
-    let status = loop {
-        if let Some(status) = child.0.try_wait()? {
-            break status;
-        }
-        output_limit = ["stdout.txt", "stderr.txt"]
-            .iter()
-            .any(|p| fs::metadata(directory.join(p)).is_ok_and(|m| m.len() > MAX_TRACE));
-        if started.elapsed() >= Duration::from_millis(recipe.timeout_ms) || output_limit {
-            timed_out = !output_limit;
-            child.0.kill()?;
-            break child.0.wait()?;
-        }
-        thread::sleep(Duration::from_millis(5));
-    };
-    output_limit |= ["stdout.txt", "stderr.txt"]
-        .iter()
-        .any(|p| fs::metadata(directory.join(p)).is_ok_and(|m| m.len() > MAX_TRACE));
+    let (status, timed_out, output_limit) = wait(
+        child,
+        &directory,
+        ["stdout.txt", "stderr.txt"],
+        recipe.timeout_ms,
+    )?;
     recorder.record(
         Source::Process,
         if timed_out {
@@ -796,21 +782,101 @@ pub fn execute_with_mode(
         },
         format!("{status}、出力上限超過={output_limit}"),
     )?;
+    let completed = !timed_out && !output_limit;
+    let readback = match recipe.trial.as_ref().and_then(|t| t.readback.as_ref()) {
+        Some(spec) if completed => {
+            let readback_args = substitute(&spec.args);
+            let mut command = launch.command(&spec.entrypoint, &readback_args)?;
+            command
+                .stdout(File::create(directory.join("readback-stdout.txt"))?)
+                .stderr(File::create(directory.join("readback-stderr.txt"))?);
+            let child = ChildGuard(command.spawn()?);
+            recorder.record(
+                Source::Process,
+                EventKind::ProcessStarted,
+                format!(
+                    "読み出し: pid={}、起動ファイル{}",
+                    child.0.id(),
+                    spec.entrypoint
+                ),
+            )?;
+            let (status, timed_out, output_limit) = wait(
+                child,
+                &directory,
+                ["readback-stdout.txt", "readback-stderr.txt"],
+                recipe.timeout_ms,
+            )?;
+            recorder.record(
+                Source::Process,
+                if timed_out {
+                    EventKind::ProcessTimedOut
+                } else {
+                    EventKind::ProcessExited
+                },
+                format!("読み出し: {status}、出力上限超過={output_limit}"),
+            )?;
+            Some(crate::trial::Phase {
+                command: [
+                    vec![
+                        program.to_string_lossy().into_owned(),
+                        spec.entrypoint.clone(),
+                    ],
+                    readback_args,
+                ]
+                .concat(),
+                exit_code: status.code(),
+                timed_out,
+                output_limit,
+                stdout_excerpt: excerpt(&directory.join("readback-stdout.txt"), 8192)?,
+                stderr_excerpt: excerpt(&directory.join("readback-stderr.txt"), 8192)?,
+            })
+        }
+        _ => None,
+    };
     let (observations, mut diagnostics, observation_read) =
         load_observations(&work.join("observations.jsonl"), &correlation, &files);
-    let excerpt = |path: &Path| -> io::Result<String> {
-        let mut bytes = vec![];
-        File::open(path)?.take(8192).read_to_end(&mut bytes)?;
-        Ok(String::from_utf8_lossy(&bytes).into_owned())
-    };
-    let stdout_excerpt = excerpt(&directory.join("stdout.txt"))?;
-    let stderr_excerpt = excerpt(&directory.join("stderr.txt"))?;
+    let stdout_excerpt = excerpt(&directory.join("stdout.txt"), 8192)?;
+    let stderr_excerpt = excerpt(&directory.join("stderr.txt"), 8192)?;
     if !status.success() {
         diagnostics.push(format!(
             "起動・実行・終了を確認できませんでした: {}",
             stderr_excerpt.chars().take(2000).collect::<String>()
         ));
     }
+    let trial = match (&recipe.trial, fault) {
+        (Some(spec), Some((fault_applied, fault_effective))) => {
+            let (state, state_text) = crate::trial::read_state(spec, &work, &test_value);
+            let stdout = excerpt(&directory.join("stdout.txt"), MAX_TRACE as usize)?;
+            let stderr = excerpt(&directory.join("stderr.txt"), MAX_TRACE as usize)?;
+            let readback_stdout = match &readback {
+                Some(_) => excerpt(&directory.join("readback-stdout.txt"), MAX_TRACE as usize)?,
+                None => String::new(),
+            };
+            let results = crate::trial::evaluate(
+                spec,
+                &test_value,
+                &crate::trial::Outputs {
+                    exit_code: status.code(),
+                    completed,
+                    stdout: &stdout,
+                    stderr: &stderr,
+                    readback: readback.as_ref().map(|p| (p, readback_stdout.as_str())),
+                    state: state.as_ref(),
+                    state_text: state_text.as_deref(),
+                },
+            );
+            Some(crate::trial::TrialOutcome {
+                test_value: test_value.clone(),
+                fault: spec.fault,
+                fault_applied,
+                fault_effective,
+                readback,
+                state,
+                results,
+            })
+        }
+        _ => None,
+    };
     let unchanged = snapshot_unchanged(&root, &snapshot, &files);
     let trace = ExecutionTrace {
         schema_version: 1,
@@ -830,6 +896,7 @@ pub fn execute_with_mode(
         mode: mode.label().into(),
         stdout_excerpt,
         stderr_excerpt,
+        trial,
     };
     write_json_new(&directory.join("execution.json"), &trace)?;
     // 観測は複製して取り込める。状態の答え合わせはこの判定へ混ぜない。
@@ -843,6 +910,148 @@ pub fn execute_with_mode(
     }
     out.sync_all()?;
     finish_run(directory, manifest, Truth::NotInspected)
+}
+
+fn excerpt(path: &Path, limit: usize) -> io::Result<String> {
+    let mut bytes = vec![];
+    File::open(path)?
+        .take(limit as u64)
+        .read_to_end(&mut bytes)?;
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+fn wait(
+    mut child: ChildGuard,
+    directory: &Path,
+    outputs: [&str; 2],
+    timeout_ms: u64,
+) -> io::Result<(std::process::ExitStatus, bool, bool)> {
+    let started = Instant::now();
+    let mut timed_out = false;
+    let mut output_limit = false;
+    let status = loop {
+        if let Some(status) = child.0.try_wait()? {
+            break status;
+        }
+        output_limit = outputs
+            .iter()
+            .any(|p| fs::metadata(directory.join(p)).is_ok_and(|m| m.len() > MAX_TRACE));
+        if started.elapsed() >= Duration::from_millis(timeout_ms) || output_limit {
+            timed_out = !output_limit;
+            child.0.kill()?;
+            break child.0.wait()?;
+        }
+        thread::sleep(Duration::from_millis(5));
+    };
+    output_limit |= outputs
+        .iter()
+        .any(|p| fs::metadata(directory.join(p)).is_ok_and(|m| m.len() > MAX_TRACE));
+    Ok((status, timed_out, output_limit))
+}
+
+struct Launch<'a> {
+    mode: ExecutionMode,
+    program: &'a Path,
+    snapshot: &'a Path,
+    work: &'a Path,
+    correlation: &'a Correlation,
+}
+impl Launch<'_> {
+    /// 試行用の環境変数だけを渡して起動する。標準入出力の接続は呼び出し側で行う。
+    fn command(&self, entrypoint: &str, args: &[String]) -> io::Result<Command> {
+        let mut command;
+        let (observation_path, input_path, work_path);
+        if self.mode == ExecutionMode::Bubblewrap {
+            if !cfg!(target_os = "linux") {
+                return Err(invalid(
+                    "bubblewrapはLinuxだけに対応します。ローカルへ自動で切り替えません",
+                ));
+            }
+            command = Command::new(executable("bwrap")?);
+            command.args([
+                "--unshare-all",
+                "--new-session",
+                "--die-with-parent",
+                "--cap-drop",
+                "ALL",
+            ]);
+            for system in ["/usr", "/lib", "/lib64"] {
+                if Path::new(system).exists() {
+                    command.args(["--ro-bind", system, system]);
+                }
+            }
+            let runtime_root = self
+                .program
+                .parent()
+                .and_then(Path::parent)
+                .ok_or_else(|| invalid("ランタイムの場所を確認してください"))?;
+            if !self.program.starts_with("/usr") {
+                command.arg("--ro-bind").arg(runtime_root).arg(runtime_root);
+            }
+            command
+                .args([
+                    "--proc",
+                    "/proc",
+                    "--dev",
+                    "/dev",
+                    "--tmpfs",
+                    "/tmp",
+                    "--ro-bind",
+                ])
+                .arg(self.snapshot)
+                .arg("/source")
+                .arg("--bind")
+                .arg(self.work)
+                .args(["/work", "--chdir", "/work", "--"])
+                .arg(self.program)
+                .arg(Path::new("/source").join(entrypoint));
+            observation_path = PathBuf::from("/work/observations.jsonl");
+            input_path = PathBuf::from("/work/input.json");
+            work_path = PathBuf::from("/work");
+            // 固定版は読み取り専用。workだけを共有し、外部ネットワークを分離する。
+        } else {
+            command = Command::new(self.program);
+            command.arg(self.snapshot.join(entrypoint));
+            observation_path = self.work.join("observations.jsonl");
+            input_path = self.work.join("input.json");
+            work_path = self.work.to_path_buf();
+        }
+        let bubblewrap = self.mode == ExecutionMode::Bubblewrap;
+        command
+            .args(args)
+            .current_dir(self.work)
+            .env_clear()
+            .env(
+                "PATH",
+                self.program.parent().unwrap_or(Path::new("/usr/bin")),
+            )
+            .env("PYTHONDONTWRITEBYTECODE", "1")
+            .env("HOME", &work_path)
+            .env(
+                "TMPDIR",
+                if bubblewrap {
+                    Path::new("/tmp")
+                } else {
+                    self.work
+                },
+            )
+            .env("EEL_RUN_ID", &self.correlation.run_id)
+            .env("EEL_RECORD_ID", &self.correlation.record_id)
+            .env("EEL_ATTEMPT_ID", &self.correlation.attempt_id)
+            .env("EEL_OBSERVATIONS", &observation_path)
+            .env("EEL_INPUT", &input_path)
+            .env("EEL_WORK_DIR", &work_path)
+            .env(
+                "EEL_SOURCE_ROOT",
+                if bubblewrap {
+                    Path::new("/source")
+                } else {
+                    self.snapshot
+                },
+            )
+            .stdin(Stdio::null());
+        Ok(command)
+    }
 }
 
 pub fn execute(
@@ -873,6 +1082,69 @@ pub fn assess_run(
     } else {
         Ok(crate::assessment::assess(manifest, events))
     }
+}
+
+/// 管理用ディレクトリ `base/owner/repo` へ固定コミットを追加で取得する。
+/// checkoutや対象コードの起動は行わず、既存の取得済みコミットも消さない。
+pub fn fetch_commit(base: &Path, repository: &str, commit: &str) -> io::Result<PathBuf> {
+    crate::workspace::validate_source(&CodeReference {
+        repository: repository.into(),
+        commit: commit.into(),
+        path: "README.md".into(),
+        line: 1,
+        end_line: 1,
+    })?;
+    let destination = base.join(repository);
+    let origin = format!("https://github.com/{repository}.git");
+    if !destination.exists() {
+        fs::create_dir_all(&destination)?;
+        git(&destination, &["init", "-q", "--bare"])?;
+        git(&destination, &["remote", "add", "origin", &origin])?;
+    } else if !expected_origin(
+        repository,
+        &git_text(&destination, &["remote", "get-url", "origin"])?,
+    ) {
+        return Err(invalid("管理用ディレクトリのoriginが一致しません"));
+    }
+    let present = git_text(
+        &destination,
+        &[
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            &format!("{commit}^{{commit}}"),
+        ],
+    )
+    .is_ok_and(|found| found == commit);
+    if !present {
+        git(
+            &destination,
+            &[
+                "-c",
+                "credential.helper=",
+                "-c",
+                "credential.interactive=false",
+                "fetch",
+                "--depth=1",
+                "--no-tags",
+                "origin",
+                commit,
+            ],
+        )?;
+        if git_text(
+            &destination,
+            &["rev-parse", "--verify", &format!("{commit}^{{commit}}")],
+        )? != commit
+        {
+            return Err(invalid("取得したコミットが指定と一致しません"));
+        }
+        // 取得したコミットをgcで消さないよう参照を残す。
+        git(
+            &destination,
+            &["update-ref", &format!("refs/eel/{commit}"), commit],
+        )?;
+    }
+    fs::canonicalize(destination)
 }
 
 /// 公開GitHubの固定コミットを取得する。checkoutや対象コードの起動は行わない。

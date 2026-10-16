@@ -19,7 +19,10 @@ export function repositoryAddress(value) {
 
 async function response(url, json = false) {
   let r;
-  try { r = await fetch(url, { credentials: "omit", signal: AbortSignal.timeout(20000), headers: json ? { Accept: "application/vnd.github+json" } : {} }); }
+  // サーバーで動かすときだけ、基盤が渡したGitHubの認証情報をAPIへの要求に付ける。画面には渡さない。
+  const token = url.startsWith("https://api.github.com/") ? globalThis.process?.env?.EEL_GITHUB_TOKEN : undefined;
+  const headers = { ...(json ? { Accept: "application/vnd.github+json" } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+  try { r = await fetch(url, { credentials: "omit", signal: AbortSignal.timeout(20000), headers }); }
   catch { throw Error("GitHubに接続できませんでした。ネットワークを確認して再実行してください。"); }
   if (!r.ok) {
     if (r.status === 403 || r.status === 429) throw Error("GitHubの公開APIの利用上限、またはアクセス制限に達しました。時間を置いて再実行してください。");
@@ -29,12 +32,15 @@ async function response(url, json = false) {
   return json ? r.json() : r;
 }
 
-function readable(path) {
-  return !SKIP.test(path) && (SOURCE.test(path) || /(^|\/)(readme[^/]*\.md|Cargo\.toml|package\.json|pyproject\.toml|requirements\.txt)$/i.test(path));
+const README = /(^|\/)readme(\.[a-z]+)*$/i;
+const MANIFEST = /(^|\/)(Cargo\.toml|package\.json|pyproject\.toml|requirements[^/]*\.txt|setup\.py|setup\.cfg|Makefile|tox\.ini|pytest\.ini)$/;
+export function readable(path) {
+  return !SKIP.test(path) && (SOURCE.test(path) || README.test(path) || MANIFEST.test(path)
+    || /^\.github\/workflows\/[^/]+\.ya?ml$/.test(path) || /(^|\/)tests?\/[^/]+\.t$/.test(path));
 }
 function priority(path) {
-  if (/^readme[^/]*\.md$/i.test(path)) return 0;
-  if (/^(Cargo\.toml|package\.json|pyproject\.toml)$/.test(path)) return 1;
+  if (README.test(path) && !path.includes("/")) return 0;
+  if (MANIFEST.test(path) && !path.includes("/")) return 1;
   if (/(^|\/)(main\.(rs|py|[jt]sx?)|lib\.rs|server\.[cm]?[jt]s|app\.[jt]sx?|index\.[cm]?[jt]sx?)$/.test(path)) return 2;
   if (/(^|\/)(test[s]?|__tests__|tools)(\/|\.)/.test(path) || /\.(test|spec)\./.test(path)) return 5;
   return SOURCE.test(path) ? 3 : 4;
@@ -242,6 +248,10 @@ export function analyze(snapshot) {
     return { path, text, symbols: symbols(path, text), imports: edges, bindings, role: role(path) };
   });
   const entries = files.filter(f => /(^|\/)(main\.(rs|py)|server\.[cm]?[jt]s|app\.[jt]sx?|index\.[cm]?[jt]sx?)$/.test(f.path)).map(f => ({ path: f.path, line: f.symbols.find(s => s.name === "main")?.line || 1, reason: /main\.rs$/.test(f.path) ? "Rustの実行入口に使われるファイル" : "名前から選んだ入口の候補" }));
+  for (const f of files.filter(f => /\.py$/.test(f.path) && !entries.some(e => e.path === f.path))) {
+    const index = f.text.split("\n").findIndex(l => /^if\s+__name__\s*==\s*["']__main__["']\s*:/.test(l));
+    if (index >= 0) entries.push({ path: f.path, line: index + 1, reason: "直接起動したときに動く記述（if __name__ == '__main__'）があるファイル" });
+  }
   const scripts = [];
   for (const f of files.filter(f => /(^|\/)package\.json$/.test(f.path))) {
     try {
@@ -254,8 +264,9 @@ export function analyze(snapshot) {
 }
 
 export function role(path) {
-  if (/readme/i.test(path)) return "プロジェクトの説明";
-  if (/(Cargo\.toml|package\.json|pyproject\.toml|requirements\.txt)$/.test(path)) return "起動設定・依存パッケージ";
+  if (README.test(path)) return "プロジェクトの説明";
+  if (MANIFEST.test(path)) return "起動設定・依存パッケージ";
+  if (/^\.github\/workflows\//.test(path)) return "自動テスト・配布の設定";
   if (/(^|\/)(test[s]?|__tests__|tools)(\/|\.)/.test(path) || /\.(test|spec)\./.test(path)) return "テスト・補助処理";
   if (/\.rs$/.test(path)) return "Rustのコード";
   if (/\.[cm]?[jt]sx?$/.test(path)) return "JavaScript / TypeScriptのコード";

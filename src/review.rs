@@ -34,6 +34,28 @@ pub fn explorer_html() -> String {
         .replace("__EXPLORER_STYLE__", include_str!("../ui/explorer.css"))
 }
 
+/// 理解と試験の画面。デジタル庁デザインシステムのCSSを同じ応答に含める。
+pub fn app_html(token: &str) -> String {
+    include_str!("../ui/app.html")
+        .replace(
+            "__APP_STYLE__",
+            &[
+                include_str!("../ui/dads/tokens.css"),
+                include_str!("../ui/dads/components.css"),
+                include_str!("../ui/app.css"),
+            ]
+            .concat(),
+        )
+        .replace("__REVIEW_TOKEN__", token)
+}
+
+/// 画面版で使う、読取記録の保存先とAIの設定。
+#[derive(Clone)]
+pub struct App {
+    pub store: crate::understanding::Store,
+    pub ai: Option<crate::ai::Config>,
+}
+
 struct Request {
     method: String,
     path: String,
@@ -181,7 +203,7 @@ struct DemoRequest {
 
 /// 任意ファイルへのアクセスや任意コマンド実行は公開しない。変更JSONのimportはCLI専用。
 pub fn handle_connection(mut stream: TcpStream, directory: &Path, token: &str) -> io::Result<()> {
-    handle_connection_mode(&mut stream, Some(directory), token, None)
+    handle_connection_mode(&mut stream, Some(directory), token, None, None)
 }
 
 pub fn handle_connection_with_execution(
@@ -190,7 +212,23 @@ pub fn handle_connection_with_execution(
     token: &str,
     controller: &Controller,
 ) -> io::Result<()> {
-    handle_connection_mode(&mut stream, Some(directory), token, Some(controller))
+    handle_connection_mode(&mut stream, Some(directory), token, Some(controller), None)
+}
+
+pub fn handle_connection_app(
+    mut stream: TcpStream,
+    directory: &Path,
+    token: &str,
+    controller: &Controller,
+    app: &App,
+) -> io::Result<()> {
+    handle_connection_mode(
+        &mut stream,
+        Some(directory),
+        token,
+        Some(controller),
+        Some(app),
+    )
 }
 
 fn handle_connection_mode(
@@ -198,6 +236,7 @@ fn handle_connection_mode(
     directory: Option<&Path>,
     token: &str,
     controller: Option<&Controller>,
+    app: Option<&App>,
 ) -> io::Result<()> {
     let request = match read_request(stream) {
         Ok(request) => request,
@@ -259,8 +298,66 @@ fn handle_connection_mode(
         return json(
             stream,
             200,
-            &serde_json::json!({"schema_version":1,"api_version":"v1","scope":"localhost","routes":["case","change","compare","backup","execution","execute","repository"],"reported_observations":true,"limits":{"request_bytes":MAX_BODY,"backup_bytes":crate::backup::MAX_BACKUP,"reader_request_bytes":8*1024*1024,"reader_seconds":30,"reader_output_bytes":8*1024*1024},"understanding":"作者の説明と静的解析。実行経路・業務上の意味は未確認"}),
+            &serde_json::json!({"schema_version":1,"api_version":"v1","scope":"localhost","routes":if app.is_some() {serde_json::json!(["case","change","compare","backup","execution","execute","repository","understand","prepare","ai"])} else {serde_json::json!(["case","change","compare","backup","execution","execute","repository"])},"reported_observations":true,"limits":{"request_bytes":MAX_BODY,"backup_bytes":crate::backup::MAX_BACKUP,"reader_request_bytes":8*1024*1024,"reader_seconds":30,"reader_output_bytes":8*1024*1024},"understanding":"作者の説明と静的解析。実行経路・業務上の意味は未確認"}),
         );
+    }
+    if let Some(app) = app {
+        match (request.method.as_str(), request.path.as_str()) {
+            ("GET", "/") => {
+                return respond(
+                    stream,
+                    200,
+                    "text/html; charset=utf-8",
+                    app_html(token).as_bytes(),
+                );
+            }
+            ("GET", "/review") => {
+                return respond(
+                    stream,
+                    200,
+                    "text/html; charset=utf-8",
+                    "<!doctype html><html lang=\"ja\"><meta charset=\"utf-8\"><title>検証用の例</title><body><p>保存の練習用デモ（検証用の例）は、この画面とは別の事例で動きます。次のコマンドで別に起動してください。</p><pre>cargo run -- case init demo-case\ncargo run -- review demo-case --port 8766</pre><p><a href=\"/\">理解と試験の画面へ戻る</a></p></body></html>".as_bytes(),
+                );
+            }
+            ("GET", "/ui/app.js") => {
+                return respond(
+                    stream,
+                    200,
+                    "text/javascript; charset=utf-8",
+                    include_str!("../ui/app.js").as_bytes(),
+                );
+            }
+            ("POST", "/api/v1/understand") => {
+                let result = serde_json::from_slice::<crate::understanding::UnderstandRequest>(
+                    &request.body,
+                )
+                .map_err(io::Error::other)
+                .and_then(|r| app.store.handle(r));
+                return result_response(stream, result);
+            }
+            ("GET", "/api/v1/ai") => {
+                return json(stream, 200, &crate::ai::status(app.ai.as_ref()));
+            }
+            ("POST", "/api/v1/ai") => {
+                let result = serde_json::from_slice::<crate::ai::AiRequest>(&request.body)
+                    .map_err(io::Error::other)
+                    .and_then(|r| crate::ai::explain(app.ai.as_ref(), &app.store, r));
+                return result_response(stream, result);
+            }
+            ("POST", "/api/v1/prepare") => {
+                let result = controller
+                    .ok_or_else(|| io::Error::other("実行の設定がありません"))
+                    .and_then(|c| {
+                        serde_json::from_slice::<crate::review_execution::PrepareRequest>(
+                            &request.body,
+                        )
+                        .map_err(io::Error::other)
+                        .and_then(|r| c.prepare(r))
+                    });
+                return result_response(stream, result);
+            }
+            _ => {}
+        }
     }
     if request.method == "POST" && request.path == "/api/v1/repository" {
         let result = serde_json::from_slice::<crate::reader::ReaderRequest>(&request.body)
@@ -413,11 +510,43 @@ fn result_response<T: serde::Serialize>(
 }
 pub fn serve(directory: PathBuf, port: u16) -> io::Result<()> {
     workspace::load(&directory)?;
-    serve_mode(Some(directory), port, None, None)
+    serve_mode(Some(directory), port, None, None, None)
 }
 
 pub fn serve_explorer(port: u16) -> io::Result<()> {
-    serve_mode(None, port, None, None)
+    serve_mode(None, port, None, None, None)
+}
+
+/// 理解と試験の画面を起動する。データの保存先に、事例・読取記録・取得したリポジトリ・試行を置く。
+pub fn serve_app(
+    data: PathBuf,
+    port: u16,
+    mode: crate::execution::ExecutionMode,
+) -> io::Result<()> {
+    std::fs::create_dir_all(&data)?;
+    let case = data.join("case");
+    if !case.exists() {
+        workspace::initialize(
+            &case,
+            workspace::empty_workspace("app".into(), "期待する動作と試験の記録".into()),
+            "基盤",
+            "画面の初回起動で、空の事例を作成した",
+        )?;
+    }
+    workspace::load(&case)?;
+    let controller = Controller::managed(case.clone(), data.join("repositories"), mode)?;
+    let app = App {
+        store: crate::understanding::Store::new(data.join("snapshots"))?,
+        ai: crate::ai::Config::from_env(),
+    };
+    println!(
+        "データの保存先: {}\nAIによる説明: {}",
+        data.display(),
+        crate::ai::status(app.ai.as_ref())["message"]
+            .as_str()
+            .unwrap_or_default()
+    );
+    serve_mode(Some(case), port, Some(controller), None, Some(app))
 }
 
 pub fn serve_with_execution(
@@ -427,7 +556,7 @@ pub fn serve_with_execution(
     mode: crate::execution::ExecutionMode,
 ) -> io::Result<()> {
     let controller = Controller::new(directory.clone(), repository_root, mode)?;
-    serve_mode(Some(directory), port, Some(controller), None)
+    serve_mode(Some(directory), port, Some(controller), None, None)
 }
 pub fn serve_api(
     directory: PathBuf,
@@ -439,7 +568,7 @@ pub fn serve_api(
     let controller = execution
         .map(|(root, mode)| Controller::new(directory.clone(), root, mode))
         .transpose()?;
-    serve_mode(Some(directory), port, controller, Some(token_file))
+    serve_mode(Some(directory), port, controller, Some(token_file), None)
 }
 
 fn serve_mode(
@@ -447,6 +576,7 @@ fn serve_mode(
     port: u16,
     controller: Option<Controller>,
     token_file: Option<PathBuf>,
+    app: Option<App>,
 ) -> io::Result<()> {
     let mut bytes = [0; 24];
     File::open("/dev/urandom")?.read_exact(&mut bytes)?;
@@ -462,8 +592,19 @@ fn serve_mode(
         file.write_all(token.as_bytes())?;
         file.sync_all()?;
     }
-    println!("理解: http://{}\n終了: Ctrl+C。", listener.local_addr()?);
-    if let Some(directory) = &directory {
+    if app.is_some() {
+        println!(
+            "理解と試験の画面: http://{}\n期待・試行・判断の記録の保存先: {}\n終了: Ctrl+C。",
+            listener.local_addr()?,
+            directory
+                .as_ref()
+                .map(|d| d.display().to_string())
+                .unwrap_or_default()
+        );
+    } else {
+        println!("理解: http://{}\n終了: Ctrl+C。", listener.local_addr()?);
+    }
+    if let (Some(directory), None) = (&directory, &app) {
         println!(
             "テストと判断の記録: http://{}/review\n事例は{}へ保存します。",
             listener.local_addr()?,
@@ -498,6 +639,7 @@ fn serve_mode(
         let directory = directory.clone();
         let token = token.clone();
         let controller = controller.clone();
+        let app = app.clone();
         if let Err(e) = thread::Builder::new()
             .name("backend-request".into())
             .spawn(move || {
@@ -507,6 +649,7 @@ fn serve_mode(
                     directory.as_deref(),
                     &token,
                     controller.as_ref(),
+                    app.as_ref(),
                 ) {
                     eprintln!("接続エラー: {e}");
                 }

@@ -4,10 +4,11 @@
   "type": "module",
   "scripts": {
     "test:ui": "node tools/review-smoke.mjs && node tools/explorer-smoke.mjs && node tools/external-smoke.mjs && node tools/execution-ui-smoke.mjs",
-    "test:reader": "node tools/scanner-tests.mjs && node tools/comprehension-tests.mjs && node tools/call-navigation-tests.mjs",
+    "test:reader": "node tools/scanner-tests.mjs && node tools/comprehension-tests.mjs && node tools/call-navigation-tests.mjs && node tools/understanding-tests.mjs",
     "test:methods": "node tools/reproduce-methods.mjs",
     "test:external": "node tools/pinned-demo.mjs",
-    "test:backend": "node tools/backend-demo.mjs"
+    "test:backend": "node tools/backend-demo.mjs",
+    "test:app": "node tools/app-smoke.mjs"
   },
   "devDependencies": {
     "playwright": "1.62.1"

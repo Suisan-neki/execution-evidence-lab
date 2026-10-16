@@ -28,10 +28,37 @@ pub enum Role {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StatementKind {
+    /// 人が自分の言葉で書いた期待・発言。
     Statement,
     CodeFact,
+    /// コード・テスト・解析からの提案。人の決定ではない。
     Proposal,
     Unanswered,
+    /// 技術者による、期待と実装・確認方法の対応づけの説明。
+    Implementation,
+    /// 期待・説明・結果の食い違いの指摘。
+    Discrepancy,
+    /// 結果や説明への質問・異論・補足。
+    Comment,
+}
+
+/// 記録を読んだ人が、その時点の条件の版で内容を確認したこと。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Confirmation {
+    pub actor: String,
+    pub role: Role,
+    pub revision: u64,
+    pub check_versions: BTreeMap<String, u32>,
+    pub note: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Resolution {
+    pub actor: String,
+    pub revision: u64,
+    pub text: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,6 +71,23 @@ pub struct Statement {
     pub origin: String,
     #[serde(default)]
     pub check_ids: Vec<String>,
+    /// 実装の対応づけで示すコード。固定コミットの行を指す。
+    #[serde(default)]
+    pub source: Option<CodeReference>,
+    /// 結果への質問・異論の対象となる根拠。
+    #[serde(default)]
+    pub evidence_id: Option<String>,
+    /// 以下は保存時に基盤が記入する。送られた値は使わない。
+    #[serde(default)]
+    pub recorded_by: String,
+    #[serde(default)]
+    pub recorded_revision: u64,
+    #[serde(default)]
+    pub check_versions: BTreeMap<String, u32>,
+    #[serde(default)]
+    pub confirmations: Vec<Confirmation>,
+    #[serde(default)]
+    pub resolution: Option<Resolution>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -220,6 +264,31 @@ pub struct EvidenceView {
     pub observed: Assessment,
     pub applicable: bool,
     pub invalidated_by: Vec<String>,
+    /// 試験案を使った試行の要約。旧形式の試行にはない。
+    #[serde(default)]
+    pub summary: Option<crate::trial::Summary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConfirmationStatus {
+    /// 誰も確認していない。
+    Unconfirmed,
+    /// 一方の役割だけが現在の条件の版で確認した。
+    PartlyConfirmed,
+    /// 運用担当と開発者の両方が、現在の条件の版で確認した。
+    BothConfirmed,
+    /// 確認後に条件が変わり、再確認が必要。
+    Outdated,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatementView {
+    pub id: String,
+    pub status: ConfirmationStatus,
+    pub status_label: String,
+    pub current_roles: Vec<Role>,
+    pub open: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -258,6 +327,8 @@ pub struct CheckView {
 pub struct WorkspaceView {
     pub workspace: Workspace,
     pub checks: Vec<CheckView>,
+    #[serde(default)]
+    pub statements: Vec<StatementView>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -282,6 +353,17 @@ pub enum Change {
     },
     AddStatement {
         statement: Statement,
+    },
+    /// 記録を読んだ人が、現在の条件の版で内容を確認する。
+    ConfirmStatement {
+        statement_id: String,
+        role: Role,
+        note: String,
+    },
+    /// 指摘・質問への対応を残す。元の記録は消さない。
+    ResolveStatement {
+        statement_id: String,
+        text: String,
     },
     AddCheck {
         check: Check,
@@ -468,6 +550,28 @@ pub fn validate(workspace: &Workspace) -> io::Result<()> {
         {
             return Err(invalid("記録が参照する確認事項がありません"));
         }
+        if let Some(source) = &s.source {
+            validate_source(source)?;
+        }
+        if s.evidence_id
+            .as_ref()
+            .is_some_and(|id| !workspace.evidence.iter().any(|e| &e.id == id))
+        {
+            return Err(invalid("記録が参照する試行の根拠がありません"));
+        }
+        if matches!(s.kind, StatementKind::Discrepancy | StatementKind::Comment)
+            && s.check_ids.is_empty()
+            && s.evidence_id.is_none()
+        {
+            return Err(invalid("指摘・質問には対象の確認事項か試行結果が必要です"));
+        }
+        for c in &s.confirmations {
+            nonempty(&c.actor, "確認者")?;
+        }
+        if let Some(r) = &s.resolution {
+            nonempty(&r.actor, "対応者")?;
+            nonempty(&r.text, "対応")?;
+        }
     }
     for c in &workspace.checks {
         validate_check(c)?;
@@ -541,6 +645,13 @@ pub fn demo_workspace() -> Workspace {
             text: "保存処理の記録と、誰が後で閲覧できるかを別の確認事項にする".into(),
             origin: "Codexが作った練習用の案。CASE-001の本人・運用担当の発言ではない".into(),
             check_ids: vec!["save".into(), "later-view".into()],
+            source: None,
+            evidence_id: None,
+            recorded_by: String::new(),
+            recorded_revision: 0,
+            check_versions: BTreeMap::new(),
+            confirmations: vec![],
+            resolution: None,
         }],
         context: BTreeMap::new(),
         checks: vec![
@@ -849,6 +960,10 @@ fn external_suggestion(evidence: &Evidence) -> Option<SuggestedAction> {
     use crate::execution::ObservationRead;
     let trace = evidence.execution.as_ref()?;
     let criterion = evidence.observation.as_ref()?;
+    // 試験案では0以外の終了コードも期待になりうる。判定条件ごとの結果から次の確認を決める。
+    if trace.recipe.trial.is_some() {
+        return None;
+    }
     let (kind, reason, text) = if trace.timed_out
         || trace.output_limit
         || trace.exit_code != Some(0)
@@ -895,6 +1010,68 @@ fn external_suggestion(evidence: &Evidence) -> Option<SuggestedAction> {
     Some(SuggestedAction { kind, reason, text })
 }
 
+fn check_versions(workspace: &Workspace, ids: &[String]) -> BTreeMap<String, u32> {
+    workspace
+        .checks
+        .iter()
+        .filter(|c| ids.contains(&c.id))
+        .map(|c| (c.id.clone(), c.version))
+        .collect()
+}
+fn find_statement<'a>(workspace: &'a Workspace, id: &str) -> io::Result<&'a Statement> {
+    workspace
+        .statements
+        .iter()
+        .find(|s| s.id == id)
+        .ok_or_else(|| invalid("記録がありません"))
+}
+
+/// 確認の状態は、人が記入した確認だけから求める。解析や試行の結果から補わない。
+fn statement_view(workspace: &Workspace, statement: &Statement) -> StatementView {
+    let current = check_versions(workspace, &statement.check_ids);
+    let current_roles: Vec<Role> = [Role::Operator, Role::Developer, Role::Other]
+        .into_iter()
+        .filter(|role| {
+            statement
+                .confirmations
+                .iter()
+                .any(|c| &c.role == role && c.check_versions == current)
+        })
+        .collect();
+    let both = current_roles.contains(&Role::Operator) && current_roles.contains(&Role::Developer);
+    let (status, status_label) = if both {
+        (
+            ConfirmationStatus::BothConfirmed,
+            "運用担当と開発者の両方が、現在の条件の版で確認した".to_owned(),
+        )
+    } else if !current_roles.is_empty() {
+        (
+            ConfirmationStatus::PartlyConfirmed,
+            "一方の担当だけが確認した。もう一方の確認は未記入".to_owned(),
+        )
+    } else if !statement.confirmations.is_empty() {
+        (
+            ConfirmationStatus::Outdated,
+            "確認した後に条件が変わった。現在の版では未確認".to_owned(),
+        )
+    } else {
+        (
+            ConfirmationStatus::Unconfirmed,
+            "まだ誰も確認していない".to_owned(),
+        )
+    };
+    StatementView {
+        id: statement.id.clone(),
+        status,
+        status_label,
+        current_roles,
+        open: matches!(
+            statement.kind,
+            StatementKind::Discrepancy | StatementKind::Comment | StatementKind::Unanswered
+        ) && statement.resolution.is_none(),
+    }
+}
+
 pub fn view(workspace: Workspace) -> WorkspaceView {
     let checks = workspace
         .checks
@@ -933,6 +1110,10 @@ pub fn view(workspace: Workspace) -> WorkspaceView {
                         observed: observed(e),
                         applicable: invalidated_by.is_empty(),
                         invalidated_by,
+                        summary: e
+                            .execution
+                            .as_ref()
+                            .and_then(|t| crate::trial::summarize(t, &e.manifest.command)),
                     }
                 })
                 .collect();
@@ -1033,7 +1214,16 @@ pub fn view(workspace: Workspace) -> WorkspaceView {
             }
         })
         .collect();
-    WorkspaceView { workspace, checks }
+    let statements = workspace
+        .statements
+        .iter()
+        .map(|s| statement_view(&workspace, s))
+        .collect();
+    WorkspaceView {
+        workspace,
+        checks,
+        statements,
+    }
 }
 
 pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceView> {
@@ -1150,9 +1340,73 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
             workspace.context.insert(key, value);
             "import_reported"
         }
-        Change::AddStatement { statement } => {
+        Change::AddStatement { mut statement } => {
+            if !statement.confirmations.is_empty() || statement.resolution.is_some() {
+                return Err(invalid(
+                    "確認・対応は記録の追加後に、それぞれの人が記入します",
+                ));
+            }
+            let next = workspace.revision + 1;
+            statement.recorded_by = request.actor.clone();
+            statement.recorded_revision = next;
+            statement.check_versions = check_versions(&workspace, &statement.check_ids);
             workspace.statements.push(statement);
             "add_statement"
+        }
+        Change::ConfirmStatement {
+            statement_id,
+            role,
+            note,
+        } => {
+            let versions = {
+                let s = find_statement(&workspace, &statement_id)?;
+                check_versions(&workspace, &s.check_ids)
+            };
+            let next = workspace.revision + 1;
+            let actor = request.actor.clone();
+            let i = workspace
+                .statements
+                .iter()
+                .position(|s| s.id == statement_id)
+                .ok_or_else(|| invalid("記録がありません"))?;
+            let statement = &mut workspace.statements[i];
+            if statement
+                .confirmations
+                .iter()
+                .any(|c| c.actor == actor && c.role == role && c.check_versions == versions)
+            {
+                return Err(invalid("同じ人が同じ版で既に確認しています"));
+            }
+            statement.confirmations.push(Confirmation {
+                actor,
+                role,
+                revision: next,
+                check_versions: versions,
+                note,
+            });
+            "confirm_statement"
+        }
+        Change::ResolveStatement { statement_id, text } => {
+            nonempty(&text, "対応")?;
+            find_statement(&workspace, &statement_id)?;
+            let next = workspace.revision + 1;
+            let statement = workspace
+                .statements
+                .iter_mut()
+                .find(|s| s.id == statement_id)
+                .ok_or_else(|| invalid("記録がありません"))?;
+            if !matches!(
+                statement.kind,
+                StatementKind::Discrepancy | StatementKind::Comment | StatementKind::Unanswered
+            ) {
+                return Err(invalid("対応を残せるのは指摘・質問・未回答の記録です"));
+            }
+            statement.resolution = Some(Resolution {
+                actor: request.actor.clone(),
+                revision: next,
+                text,
+            });
+            "resolve_statement"
         }
         Change::AddCheck { check } => {
             if check.version != 1 {

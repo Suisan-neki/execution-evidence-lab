@@ -59,8 +59,16 @@ pub fn compare(workspace: Workspace, request: CompareRequest) -> io::Result<Tria
     if a.id == b.id || a.manifest.correlation.run_id == b.manifest.correlation.run_id {
         return Err(invalid("二つの異なる試行を選んでください"));
     }
-    let av = serde_json::to_value(a).map_err(io::Error::other)?;
-    let bv = serde_json::to_value(b).map_err(io::Error::other)?;
+    // 試行ごとに変わる架空の値は、比較の前に共通の表記へ戻す。
+    let masked = |e: &Evidence| -> io::Result<Value> {
+        let mut text = serde_json::to_string(e).map_err(io::Error::other)?;
+        if let Some(outcome) = e.execution.as_ref().and_then(|t| t.trial.as_ref()) {
+            text = text.replace(&outcome.test_value, crate::trial::TEST_VALUE);
+        }
+        serde_json::from_str(&text).map_err(io::Error::other)
+    };
+    let av = masked(a)?;
+    let bv = masked(b)?;
     let mut differences = vec![];
     let mut add = |key: String, old: Option<Value>, new: Option<Value>| {
         let status = if old.is_none() || new.is_none() {
@@ -104,7 +112,15 @@ pub fn compare(workspace: Workspace, request: CompareRequest) -> io::Result<Tria
             continue;
         }
         let fields: &[&str] = match parent {
-            "execution" => &["recipe", "tree", "runtime_path", "runtime_version", "mode"],
+            "execution" => &[
+                "recipe",
+                "tree",
+                "runtime_path",
+                "runtime_version",
+                "mode",
+                "exit_code",
+                "trial",
+            ],
             "reported" => &["producer", "origin", "source", "context"],
             _ => &["target"],
         };

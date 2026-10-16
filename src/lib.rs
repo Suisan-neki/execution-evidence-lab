@@ -1,4 +1,5 @@
 pub mod adapters;
+pub mod ai;
 pub mod assessment;
 pub mod backup;
 pub mod capture;
@@ -13,6 +14,8 @@ pub mod recording;
 pub mod reported;
 pub mod review;
 pub mod review_execution;
+pub mod trial;
+pub mod understanding;
 pub mod workspace;
 
 #[cfg(test)]

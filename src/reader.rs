@@ -25,6 +25,29 @@ pub enum ReaderRequest {
         snapshot: Value,
         path: String,
     },
+    /// 読取と同時に概要を作る。
+    Open {
+        url: String,
+        reference: String,
+    },
+    Overview {
+        snapshot: Value,
+    },
+    /// 質問・選んだ関数に関係する箇所を集める。必要な未読ファイルを最大8件読む。
+    Inquire {
+        snapshot: Value,
+        question: String,
+        path: Option<String>,
+        line: Option<u32>,
+    },
+    Function {
+        snapshot: Value,
+        path: String,
+        line: u32,
+    },
+    Plan {
+        snapshot: Value,
+    },
 }
 struct Temporary(PathBuf);
 impl Drop for Temporary {
@@ -43,22 +66,81 @@ const SCRIPT: &str = r#"
 import fs from 'node:fs';
 import {scanPublicRepository,validateSnapshot,analyze,readSource} from './scanner.js';
 import {explainFunction,callersOf} from './comprehension.js';
+import {overview} from './overview.js';
+import {inquire,functionDetail} from './inquiry.js';
+import {plan} from './trial-plan.js';
 try {
 const request=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
 let snapshot;
-if(request.operation==='read') snapshot=await scanPublicRepository(request.url,request.reference);
+if(request.operation==='read'||request.operation==='open') snapshot=await scanPublicRepository(request.url,request.reference);
 else snapshot=validateSnapshot(request.snapshot);
 snapshot=validateSnapshot(snapshot);
 if(request.operation==='file') await readSource(snapshot,request.path);
-const model=analyze(snapshot);
-const guide=request.path && request.line ? explainFunction(model,request.path,request.line) : null;
-const callers=guide ? callersOf(model,request.path,guide.range.start) : null;
-const result=JSON.stringify({schema_version:1,snapshot,model,guide,callers,limits:'作者の説明と簡易解析。実行経路・業務上の意味は未確認。未読の範囲と候補を確認してください。'});
-if(Buffer.byteLength(result)>8*1024*1024) throw Error('解析結果は8MiB以内です。対象を分けてください。');
+let output;
+const limits='作者の説明と簡易解析。実行経路・業務上の意味は未確認。未読の範囲と候補を確認してください。';
+if(['read','analyze','file'].includes(request.operation)) {
+  const model=analyze(snapshot);
+  const guide=request.path && request.line ? explainFunction(model,request.path,request.line) : null;
+  const callers=guide ? callersOf(model,request.path,guide.range.start) : null;
+  output={schema_version:1,snapshot,model,guide,callers,limits};
+} else if(request.operation==='inquire') {
+  const focus=request.path && request.line ? {path:request.path,line:request.line} : null;
+  let result=inquire(snapshot,analyze(snapshot),request.question,focus), loaded=[], failed=[];
+  for(let round=0;round<2 && result.needed_files.length && loaded.length<8;round++) {
+    const before=loaded.length;
+    for(const path of result.needed_files.filter(p=>!(p in snapshot.files))) {
+      if(loaded.length>=8) break;
+      try { await readSource(snapshot,path); loaded.push(path); } catch(e) { failed.push({path,reason:e.message}); }
+    }
+    if(loaded.length===before) break;
+    result=inquire(snapshot,analyze(snapshot),request.question,focus);
+  }
+  output={schema_version:1,snapshot,result:{...result,loaded_files:loaded,failed_files:failed}};
+} else if(request.operation==='function') {
+  let detail=functionDetail(analyze(snapshot),request.path,request.line);
+  const loaded=[];
+  if(!detail.found && detail.needed_files?.length) { for(const p of detail.needed_files.slice(0,2)) { await readSource(snapshot,p); loaded.push(p); } detail=functionDetail(analyze(snapshot),request.path,request.line); }
+  output={schema_version:1,snapshot,result:{...detail,loaded_files:loaded}};
+} else if(request.operation==='plan') {
+  output={schema_version:1,snapshot,result:plan(snapshot,analyze(snapshot))};
+} else {
+  output={schema_version:1,snapshot,result:overview(snapshot,analyze(snapshot))};
+}
+const result=JSON.stringify(output);
+if(Buffer.byteLength(result)>16*1024*1024) throw Error('解析結果は16MiB以内です。対象を分けてください。');
 process.stdout.write(result);
 } catch(error) { process.stderr.write(String(error.message)); process.exitCode=1; }
 "#;
-fn node() -> io::Result<PathBuf> {
+/// GitHubのAPIの利用上限を広げるための認証情報。サーバーの起動者が指定したファイルだけから読む。
+fn github_token() -> io::Result<Option<String>> {
+    let Some(path) = std::env::var_os("EEL_GITHUB_TOKEN_FILE") else {
+        return Ok(None);
+    };
+    let text = fs::read_to_string(&path).map_err(|e| {
+        io::Error::new(
+            e.kind(),
+            "EEL_GITHUB_TOKEN_FILE に指定したファイルを読めません",
+        )
+    })?;
+    parse_token(&text).map(Some)
+}
+/// GitHubのトークンは長さや形式が変わるため、中身は解釈しない。
+/// 要求ヘッダーへ入れるので、空白・改行・制御文字だけを拒否する。
+fn parse_token(text: &str) -> io::Result<String> {
+    let token = text.trim();
+    if token.is_empty() || token.len() > MAX_TOKEN || !token.bytes().all(|b| b.is_ascii_graphic()) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "EEL_GITHUB_TOKEN_FILE の内容を確認してください。空白・改行を含まない{MAX_TOKEN}文字以内の1行にしてください"
+            ),
+        ));
+    }
+    Ok(token.to_owned())
+}
+const MAX_TOKEN: usize = 4096;
+
+pub(crate) fn node() -> io::Result<PathBuf> {
     for directory in std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()) {
         let path = directory.join("node");
         if path.is_file() {
@@ -70,32 +152,47 @@ fn node() -> io::Result<PathBuf> {
         "読取APIにはNode.js 22以上が必要です",
     ))
 }
-pub fn read(request: ReaderRequest) -> io::Result<Value> {
-    let bytes = serde_json::to_vec(&request).map_err(io::Error::other)?;
-    if bytes.len() > 8 * 1024 * 1024 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "読取APIの入力は8MiB以内です",
-        ));
-    }
+
+const MODULES: [(&str, &str); 6] = [
+    ("scanner.js", include_str!("../ui/scanner.js")),
+    ("comprehension.js", include_str!("../ui/comprehension.js")),
+    (
+        "call-navigation.js",
+        include_str!("../ui/call-navigation.js"),
+    ),
+    ("overview.js", include_str!("../ui/overview.js")),
+    ("inquiry.js", include_str!("../ui/inquiry.js")),
+    ("trial-plan.js", include_str!("../ui/trial-plan.js")),
+];
+
+/// 基盤に組み込んだスクリプトだけをNode.jsで動かす。対象リポジトリのコードは渡さない。
+pub(crate) fn run_script(
+    script: &str,
+    request: &[u8],
+    timeout: Duration,
+    output_limit: u64,
+) -> io::Result<Value> {
     let (path, _) = new_run_directory(&std::env::temp_dir().join("eel-reader"))?;
     let _directory = Temporary(path.clone());
-    for (name, contents) in [
-        ("scanner.js", include_str!("../ui/scanner.js")),
-        ("comprehension.js", include_str!("../ui/comprehension.js")),
-        (
-            "call-navigation.js",
-            include_str!("../ui/call-navigation.js"),
-        ),
-        ("reader.mjs", SCRIPT),
-    ] {
+    for (name, contents) in MODULES {
         fs::write(path.join(name), contents)?;
     }
+    fs::write(path.join("reader.mjs"), script)?;
     write_json_new(
         &path.join("package.json"),
         &serde_json::json!({"type":"module"}),
     )?;
-    fs::write(path.join("request.json"), bytes)?;
+    {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        // 認証情報を含む場合があるため、本人だけが読める権限で書く。
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(path.join("request.json"))?;
+        file.write_all(request)?;
+    }
     let stdout = fs::File::create(path.join("output.json"))?;
     let stderr = fs::File::create(path.join("error.txt"))?;
     let mut command = Command::new(node()?);
@@ -115,6 +212,9 @@ pub fn read(request: ReaderRequest) -> io::Result<Value> {
             command.env(name, value);
         }
     }
+    if let Some(token) = github_token()? {
+        command.env("EEL_GITHUB_TOKEN", token);
+    }
     let mut child = Child(
         command
             .args([Path::new("reader.mjs"), Path::new("request.json")])
@@ -129,13 +229,13 @@ pub fn read(request: ReaderRequest) -> io::Result<Value> {
         if let Some(status) = child.0.try_wait()? {
             break status;
         }
-        if started.elapsed() > Duration::from_secs(30) {
+        if started.elapsed() > timeout {
             return Err(io::Error::new(
                 io::ErrorKind::TimedOut,
-                "コード読取が30秒の待機上限に達しました",
+                format!("コード読取が{}秒の待機上限に達しました", timeout.as_secs()),
             ));
         }
-        if fs::metadata(path.join("output.json"))?.len() > 8 * 1024 * 1024
+        if fs::metadata(path.join("output.json"))?.len() > output_limit
             || fs::metadata(path.join("error.txt"))?.len() > 128 * 1024
         {
             return Err(io::Error::new(
@@ -154,11 +254,58 @@ pub fn read(request: ReaderRequest) -> io::Result<Value> {
                 .collect::<String>(),
         ));
     }
-    if fs::metadata(path.join("output.json"))?.len() > 8 * 1024 * 1024 {
+    if fs::metadata(path.join("output.json"))?.len() > output_limit {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "読取結果は8MiB以内です",
+            "読取結果の上限に達しました",
         ));
     }
     crate::recording::read_json(&path.join("output.json"))
+}
+
+pub fn read(request: ReaderRequest) -> io::Result<Value> {
+    let bytes = serde_json::to_vec(&request).map_err(io::Error::other)?;
+    if bytes.len() > 8 * 1024 * 1024 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "読取APIの入力は8MiB以内です",
+        ));
+    }
+    let limit = match request {
+        ReaderRequest::Read { .. } | ReaderRequest::Analyze { .. } | ReaderRequest::File { .. } => {
+            8 * 1024 * 1024
+        }
+        _ => 16 * 1024 * 1024,
+    };
+    run_script(SCRIPT, &bytes, Duration::from_secs(30), limit)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_token;
+
+    #[test]
+    fn long_opaque_tokens_are_accepted_and_header_breaking_text_is_rejected() {
+        // GitHub Actionsのトークンは2026年10月から500文字前後のJWT形式になった。
+        let long = format!(
+            "ghs_12345_{}.{}.{}",
+            "a".repeat(200),
+            "b-c_".repeat(60),
+            "d".repeat(80)
+        );
+        assert_eq!(parse_token(&format!("{long}\n")).unwrap(), long);
+        assert_eq!(
+            parse_token("ghs_0123456789abcdef").unwrap(),
+            "ghs_0123456789abcdef"
+        );
+        for bad in [
+            "",
+            "  \n",
+            "ghs_a\r\nX-Injected: 1",
+            "ghs_a b",
+            &"x".repeat(4097),
+        ] {
+            assert!(parse_token(bad).is_err(), "{bad:?}");
+        }
+    }
 }
