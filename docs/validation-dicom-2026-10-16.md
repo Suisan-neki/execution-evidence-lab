@@ -37,6 +37,8 @@ macOS 26.3.1（Apple M4）、Rust 1.99.0、Node.js 24.10.0、Python 3.14.5、Pla
 
 送信側の終了コード0は、保存の成功を意味しなかった。保存を確かめたのは、基盤による保存先の読み出しと、別のプロセスによる読み出し。
 
+同じ試験は、GitHub Actions（Ubuntu）でもコミット `0b4712f` で同じ結果になった（[実行記録](https://github.com/Suisan-neki/execution-evidence-lab/actions/runs/38879861096)）。
+
 生成した配布情報は `pynetdicom` と `pydicom` の2件で、記録に残った。試行の記録は試験用の一時ディレクトリに保存し、既存の `cases/` と `data/` は使っていない。
 
 ## そのほかの確認
