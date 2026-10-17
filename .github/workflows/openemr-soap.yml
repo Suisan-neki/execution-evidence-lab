@@ -1,0 +1,40 @@
+name: OpenEMR synthetic SOAP workflow
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  soap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install 1.99.0 --profile minimal
+      - run: cargo build --locked
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.19.0
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - name: Save and reload four SOAP fields, stop the DB and retry
+        run: |
+          umask 077
+          printf '%s' '{"username":"eel-operator","password":"eel-pass-trial"}' > "$RUNNER_TEMP/openemr-secrets.json"
+          EEL_BROWSER_SECRETS_FILE="$RUNNER_TEMP/openemr-secrets.json" node tools/openemr-soap-smoke.mjs
+      - name: Review actual SOAP observations through the shared OpenEMR service diagram
+        run: node tools/target-architecture-smoke.mjs openemr-soap
+      - name: Keep synthetic SOAP workflow evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: openemr-soap
+          path: |
+            evaluations/ci-openemr-soap/**/*.json
+            evaluations/ci-openemr-soap/**/*.png
+            evaluations/ci-openemr-soap/**/*.log
+            test-results/architecture-openemr-soap-*.png
+          if-no-files-found: ignore
+          retention-days: 7

@@ -6,21 +6,21 @@ import os from 'node:os';
 import path from 'node:path';
 import {chromium} from 'playwright';
 const root=path.resolve(import.meta.dirname,'..'),binary=process.env.REVIEW_BINARY||path.join(root,'target/debug/execution-evidence-lab');
-const target=process.argv[2]||'presets';assert(['presets','ohif','monai'].includes(target));
+const target=process.argv[2]||'presets';assert(['presets','ohif','monai','openemr-soap'].includes(target));
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'eel-target-diagram-'));
-const casePath=target==='presets'?path.join(temp,'case'):process.env.EEL_TARGET_ARCHITECTURE_CASE||path.join(root,target==='ohif'?'evaluations/ci-ohif/case':'evaluations/ci-monai-workflow/case');
+const casePath=target==='presets'?path.join(temp,'case'):process.env.EEL_TARGET_ARCHITECTURE_CASE||path.join(root,target==='ohif'?'evaluations/ci-ohif/case':target==='monai'?'evaluations/ci-monai-workflow/case':'evaluations/ci-openemr-soap/case');
 function cli(args){const r=spawnSync(binary,args,{encoding:'utf8',maxBuffer:64*1024*1024});assert.equal(r.status,0,r.stderr);return JSON.parse(r.stdout);}
 let state;
 function change(action){const file=path.join(temp,'change.json');fs.writeFileSync(file,JSON.stringify({expected_revision:state.workspace.revision,actor:'合成の画面試験',reason:'実行済みの観測と構成図の対応を確認する',action}));state=cli(['case','apply',casePath,file]);}
 let model;
 if(target==='presets')state=cli(['case','init',casePath,'--template','general','--id','preset-ui','--title','合成の対象切替試験','--actor','合成','--reason','図の保存を確認']);
 else{
- state=cli(['case','show',casePath]);model=JSON.parse(fs.readFileSync(path.join(root,`examples/${target==='ohif'?'ohif-browser':'monai-workflow'}/architecture.json`)));
+ state=cli(['case','show',casePath]);model=JSON.parse(fs.readFileSync(path.join(root,`examples/${target==='ohif'?'ohif-browser':target==='monai'?'monai-workflow':'openemr-browser'}/architecture.json`)));
  change({op:'add_architecture_model',model});
  const ohif={browser:['list-ui','canvas'],query:['list-http','list-id'],frames:['image-http','image-bytes'],orthanc:['server-pixels']};
  const monai={fixture:'input',input_read:'input',preprocess:'preprocess',train:'train',reference_inference:'train',checkpoint_save:'checkpoint',checkpoint_load:'checkpoint',inference:'inference',result_save:'result',readback:'reader'};
  for(const e of state.workspace.evidence){
-  const pairs=target==='ohif'?Object.entries(ohif).flatMap(([object,observations])=>observations.map(id=>[object,{kind:'evidence',evidence_id:e.id,observation_id:id}])):[[monai[e.observation.subject],{kind:'reported_evidence',evidence_id:e.id,...e.observation}]];
+  const pairs=target==='openemr-soap'?e.execution.recipe.trial.checks.map(c=>[{browser_text:'browser',browser_response:'https',database_rows:'db'}[c.method],{kind:'evidence',evidence_id:e.id,observation_id:c.id}]):target==='ohif'?Object.entries(ohif).flatMap(([object,observations])=>observations.map(id=>[object,{kind:'evidence',evidence_id:e.id,observation_id:id}])):[[monai[e.observation.subject],{kind:'reported_evidence',evidence_id:e.id,...e.observation}]];
   for(const [object,t] of pairs)change({op:'add_architecture_link',link:{id:`test-${state.workspace.architecture_links.length}`,model_id:model.id,model_version:model.version,object_id:object,target:t}});
  }
 }
@@ -53,8 +53,8 @@ try{
   const views=(await data()).links;
   for(const [run,evs] of groups){
    await page.getByLabel('図に対応づける試行').selectOption(evs[0].id);
-   const fault=target==='ohif'?evs[0].execution.recipe.trial.fault:evs[0].reported.context.fault;
-   for(const object of target==='ohif'?['browser','orthanc','store']:['train','checkpoint','inference','reader']){
+   const fault=target==='monai'?evs[0].reported.context.fault:evs[0].execution.recipe.trial.fault;
+   for(const object of target==='ohif'?['browser','orthanc','store']:target==='monai'?['train','checkpoint','inference','reader']:['browser','db','app']){
     const links=views.filter(v=>v.link.object_id===object&&evs.some(e=>e.id===v.link.target.evidence_id));
     let expected=links.length&&links.every(v=>v.applicable)?links.some(v=>v.observed==='fail')?'fail':links.some(v=>v.observed==null||v.observed==='not_observed')?'unknown':'pass':'unknown';
     const node=page.locator(`likec4-view [data-eel-object="${object}"]`);await node.waitFor();
@@ -65,9 +65,9 @@ try{
     const evidence=evs.find(e=>e.observation.subject==='inference'),link=views.find(v=>v.link.target.evidence_id===evidence.id);
     assert.equal(link.observed,'not_observed');
    }
-   const object=target==='ohif'?'browser':fault==='checkpoint_corrupt'?'checkpoint':fault==='interrupted'?'train':'inference';
+   const object=target==='openemr-soap'?'db':target==='ohif'?'browser':fault==='checkpoint_corrupt'?'checkpoint':fault==='interrupted'?'train':'inference';
    await page.locator(`likec4-view [data-eel-object="${object}"]`).click();
-   const criterion=target==='ohif'?'canvas':fault==='checkpoint_corrupt'?'monai.stage／checkpoint_load':fault==='interrupted'?'monai.stage／train':'monai.stage／inference';
+   const criterion=target==='openemr-soap'?'soap-subjective-row':target==='ohif'?'canvas':fault==='checkpoint_corrupt'?'monai.stage／checkpoint_load':fault==='interrupted'?'monai.stage／train':'monai.stage／inference';
    await page.locator('#details-body section.record-action').filter({hasText:criterion}).getByRole('button',{name:'試験結果と証拠を見る'}).click();
    const dialog=page.getByRole('dialog');await dialog.waitFor();
    if(target==='monai'){assert.match(await dialog.innerText(),/対象の実行経路の独立した証明ではありません/);if(fault==='checkpoint_corrupt')assert.match(await dialog.getByLabel('選択した観測条件').innerText(),/期待と異なる/);if(fault==='interrupted')assert.match(await dialog.innerText(),/この段階の成功・失敗の報告はありません/);}
@@ -83,7 +83,7 @@ try{
   await page.locator('#details-body').getByText('この段階の報告がないとき、誰が追加確認する？',{exact:true}).waitFor();
   await page.locator('#details-body').getByRole('button',{name:'試験結果と証拠を見る'}).first().click();await page.getByRole('dialog').getByRole('button',{name:'元の構成図へ戻る'}).click();
   // The UI can create the new reported target as well as the execution target.
-  const option=await page.getByLabel('試行と観測条件').locator('option').evaluateAll((options,target)=>options.map(o=>o.value).find(v=>target!=='monai'||JSON.parse(v).subject==='inference'),target);
+  const option=await page.getByLabel('試行と観測条件').locator('option').evaluateAll((options,target)=>options.map(o=>o.value).find(v=>target==='monai'?JSON.parse(v).subject==='inference':target==='openemr-soap'?JSON.parse(v).observation_id==='soap-subjective-row':true),target);
   await page.getByLabel('試行と観測条件').selectOption(option);
   const before=(await data()).links.length;
   await page.getByRole('button',{name:'この観測を対応づける'}).click();await page.getByText('対応づけを記録しました。',{exact:true}).waitFor();
