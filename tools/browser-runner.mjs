@@ -18,7 +18,7 @@ async function steps(list,phase){
    else if(step.action==='fill'){const value=step.value.source==='secret'?secrets[step.value.key]:replace(step.value.value);if(typeof value!=='string')throw Error('試験用の認証情報が未設定');const locator=target(step.target);if(step.value.source==='secret')masks.push(locator);await locator.fill(value,options);}
    else if(step.action==='click'){await target(step.target).click(options);}
    else if(step.action==='select'){await target(step.target).selectOption(replace(step.value),options);}
-   else if(step.action==='read_text'){const locator=target(step.target);await locator.waitFor({...options,state:'visible'});const text=await locator.innerText(options);if(text.length>8192)throw Error('表示の文字列が上限を超えた');r.text=redact(text);}
+   else if(step.action==='read_text'){const base=target(step.target);const locator=step.contains?base.filter({hasText:replace(step.contains)}):base;await locator.waitFor({...options,state:'visible'});const text=await locator.innerText(options);if(text.length>8192)throw Error('表示の文字列が上限を超えた');r.text=redact(text);}
    else throw Error('未対応の操作');
    r.completed=true;r.detail='操作を完了した。保存の成功を示す記録とは別';
    if(!(step.action==='fill'&&step.value.source==='secret')){const name=`${phase}-${step.id}.png`;await page.screenshot({path:path.join(dir,name),timeout:remaining(),mask:[...masks,...page.frames().map(f=>f.locator('input[type=password]'))],animations:'disabled'});r.screenshot='browser/'+name;}

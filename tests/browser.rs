@@ -166,3 +166,11 @@ fn display_does_not_establish_database_success_and_mixed_http_responses_are_unkn
         Observed::NotObserved
     );
 }
+
+#[test]
+fn validates_the_pinned_openemr_recipe_without_running_it() {
+    let recipe: execution_evidence_lab::execution::Recipe =
+        serde_json::from_str(include_str!("../examples/openemr-browser/recipe.json")).unwrap();
+    execution_evidence_lab::execution::validate_recipe(&recipe).unwrap();
+    assert_eq!(recipe.browser.as_ref().unwrap().database.len(), 2);
+}

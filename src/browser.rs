@@ -34,11 +34,25 @@ pub enum Input {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Action {
-    Goto { path: String },
-    Fill { target: Target, value: Input },
-    Click { target: Target },
-    Select { target: Target, value: String },
-    ReadText { target: Target },
+    Goto {
+        path: String,
+    },
+    Fill {
+        target: Target,
+        value: Input,
+    },
+    Click {
+        target: Target,
+    },
+    Select {
+        target: Target,
+        value: String,
+    },
+    ReadText {
+        target: Target,
+        #[serde(default)]
+        contains: Option<String>,
+    },
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Step {
@@ -187,7 +201,11 @@ pub fn validate(spec: &BrowserSpec, containers: &ContainerSpec) -> io::Result<()
                         Input::Secret { key } => id(key),
                     }
             }
-            Action::Click { target: t } | Action::ReadText { target: t } => target(t),
+            Action::Click { target: t } => target(t),
+            Action::ReadText {
+                target: t,
+                contains,
+            } => target(t) && contains.as_ref().is_none_or(|s| bounded(s)),
             Action::Select { target: t, value } => target(t) && bounded(value),
         };
         if !valid {
