@@ -1,0 +1,613 @@
+{
+  "snapshot": {
+    "schema": 1,
+    "fullName": "example/project",
+    "description": "架空のアプリ",
+    "reference": "main",
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "truncated": true,
+    "files": {
+      "README.md": "# Example\n\n架空のGoアプリケーションについて説明するための文章です。\n"
+    },
+    "inventory": [
+      {
+        "path": "README.md",
+        "mode": "100644",
+        "size": 95
+      },
+      {
+        "path": "cmd/run.go",
+        "mode": "100644",
+        "size": 10
+      }
+    ],
+    "omitted": [
+      {
+        "path": "cmd/run.go",
+        "reason": "初回の読取範囲外"
+      }
+    ]
+  },
+  "model": {
+    "files": [
+      {
+        "path": "README.md",
+        "text": "# Example\n\n架空のGoアプリケーションについて説明するための文章です。\n",
+        "symbols": [],
+        "imports": [],
+        "bindings": [],
+        "role": "プロジェクトの説明"
+      }
+    ],
+    "entries": [],
+    "scripts": [],
+    "inventory": [
+      {
+        "path": "README.md",
+        "mode": "100644",
+        "size": 95
+      },
+      {
+        "path": "cmd/run.go",
+        "mode": "100644",
+        "size": 10
+      }
+    ],
+    "inventory_truncated": true,
+    "edges": []
+  },
+  "overview": {
+    "schema_version": 1,
+    "repository": "example/project",
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "reference": "main",
+    "read": {
+      "inventory": 2,
+      "files_read": 1,
+      "unread": [
+        {
+          "path": "cmd/run.go",
+          "reason": "初回の読取範囲外"
+        }
+      ],
+      "truncated": true
+    },
+    "languages": [
+      {
+        "name": "Go",
+        "files": 1,
+        "execution": "Go の実行は未対応。理解と試験計画だけを表示する",
+        "executable": false
+      }
+    ],
+    "purpose": [
+      {
+        "text": "架空のアプリ",
+        "kind": "author",
+        "origin": "GitHubのリポジトリ説明（作者の記入）",
+        "refs": []
+      },
+      {
+        "text": "架空のGoアプリケーションについて説明するための文章です。",
+        "refs": [
+          {
+            "path": "README.md",
+            "line": 3,
+            "end_line": 3
+          }
+        ],
+        "kind": "author",
+        "origin": "README.md（作者の説明）"
+      }
+    ],
+    "start": [],
+    "components": [],
+    "behaviors": [],
+    "flows": [],
+    "tests": [],
+    "unknown": [
+      {
+        "text": "GitHubのファイル一覧が途中で切れている。一覧にないファイルがある可能性がある",
+        "kind": "code",
+        "refs": []
+      },
+      {
+        "text": "読み取っていないファイルが 1 件ある。必要に応じて読み込む",
+        "kind": "code",
+        "refs": []
+      },
+      {
+        "text": "README やコメントの説明が、現在のコードの動作と一致するかは確かめていない",
+        "kind": "inference",
+        "refs": []
+      },
+      {
+        "text": "処理の関係は、名前と参照宣言から作った呼び出し候補。実際にどの経路が実行されるかは、試験で確かめる必要がある",
+        "kind": "inference",
+        "refs": []
+      },
+      {
+        "text": "外部サービス、実行環境の設定、利用者の権限、保存先の実際の状態は、コードを読むだけでは確かめられない",
+        "kind": "inference",
+        "refs": []
+      }
+    ],
+    "kinds": {
+      "author": "作者の説明（README・コメント等）。コードで確かめていない",
+      "code": "コードの記述から確認した事実",
+      "inference": "解析による推測。実行して確かめていない"
+    },
+    "limits": "コードの記述から作った説明です。実行していないため、実際の動作・到達・成否は試験で確かめる必要があります。"
+  },
+  "plan": {
+    "schema_version": 1,
+    "repository": "example/project",
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "languages": [
+      {
+        "name": "Go",
+        "files": 1,
+        "execution": "Go の実行は未対応。理解と試験計画だけを表示する",
+        "executable": false
+      }
+    ],
+    "executable": false,
+    "unsupported_reason": "Go の実行は未対応。理解と試験計画だけを表示する",
+    "entries": [],
+    "options": [],
+    "storage": [],
+    "tests": [],
+    "test_commands": [],
+    "examples": [],
+    "dependencies": [],
+    "faults": [
+      {
+        "id": "normal",
+        "label": "故障なし（通常時）",
+        "needs_storage": false,
+        "applicable": "使える"
+      },
+      {
+        "id": "storage_read_only",
+        "label": "保存先を書き込み不可にする",
+        "needs_storage": true,
+        "how": "試行の前に、基盤が保存先へ空のファイルを作り、書き込み権限を外す。書き込めないことを基盤が確かめてから対象を起動する",
+        "applicable": "保存先のパスを指定したときに使える"
+      },
+      {
+        "id": "storage_is_directory",
+        "label": "保存先に同名のディレクトリを置く",
+        "needs_storage": true,
+        "how": "試行の前に、基盤が保存先と同じ名前のディレクトリを作る。ファイルとして開けない状態になる",
+        "applicable": "保存先のパスを指定したときに使える"
+      },
+      {
+        "id": "skip_state_read",
+        "label": "基盤による保存先の読み出しを止める（観測の欠落）",
+        "needs_storage": false,
+        "how": "対象は通常どおり動かし、試行後に基盤が保存先を読み出す処理だけを止める。観測がないときに成功と扱わないかを確かめる",
+        "applicable": "使える"
+      },
+      {
+        "id": "network_unavailable",
+        "label": "外部への通信を遮断する",
+        "needs_storage": false,
+        "how": "Linuxのbubblewrap方式で、ネットワークを持たない環境で起動する。local方式では使えない",
+        "applicable": "送信の記述が見つからないため、効果を確かめにくい。bubblewrap方式（Linux）でだけ使える"
+      },
+      {
+        "id": "storage_directory_read_only",
+        "label": "保存先のディレクトリを書き込み不可にする",
+        "needs_storage": true,
+        "how": "試行の前に、基盤が保存先のディレクトリを空で作り、書き込み権限を外す。ディレクトリへ書き込めないことを基盤が確かめてから起動する",
+        "applicable": "ディレクトリを含む保存先のパス（例: received/file）を指定したときに使える"
+      },
+      {
+        "id": "server_not_started",
+        "label": "待つプロセス（受信側など）を起動しない",
+        "needs_server": true,
+        "how": "待つプロセスを起動せず、操作するプロセスだけを動かす。割り当てたポートが応答しないことを基盤が確かめる",
+        "applicable": "待つプロセスを指定したときに使える"
+      },
+      {
+        "id": "database_stopped",
+        "label": "データベースのコンテナを止める",
+        "needs_containers": true,
+        "how": "コンテナが準備できたあと、データベースの役割のコンテナを止める。止まったことを確かめてから操作する",
+        "applicable": "試験専用のコンテナを指定したときに使える"
+      },
+      {
+        "id": "database_unreachable",
+        "label": "対象とデータベースの間の通信を切る",
+        "needs_containers": true,
+        "how": "コンテナが準備できたあと、データベースを試験用ネットワークから外す。外れたことを確かめてから操作する",
+        "applicable": "試験専用のコンテナを指定したときに使える"
+      },
+      {
+        "id": "volume_read_only",
+        "label": "保存先のボリュームを読み取り専用にする",
+        "needs_containers": true,
+        "how": "コンテナが準備できたあと、データベースの保存先ボリュームを読み取り専用で載せ直す。書き込めないことを確かめる",
+        "applicable": "試験専用のコンテナを指定したときに使える"
+      }
+    ],
+    "observation": [
+      {
+        "method": "exit_code",
+        "label": "終了コード",
+        "source": "対象プログラムの報告"
+      },
+      {
+        "method": "stdout",
+        "label": "標準出力",
+        "source": "対象プログラムの報告"
+      },
+      {
+        "method": "stderr",
+        "label": "標準エラー（エラー表示）",
+        "source": "対象プログラムの報告"
+      },
+      {
+        "method": "stored_file",
+        "label": "保存先の内容",
+        "source": "基盤が保存先を直接読み出した結果"
+      },
+      {
+        "method": "readback_output",
+        "label": "後からの読み出し",
+        "source": "別のプロセスで対象の読み出し機能を動かした結果"
+      },
+      {
+        "method": "server_output",
+        "label": "待つプロセスの出力",
+        "source": "待つプロセス（受信側など）の出力"
+      }
+    ],
+    "missing": [
+      {
+        "text": "実行できる入口が見つからない。この基盤は Python 3 と Node.js（JavaScript）だけを実行できる",
+        "kind": "code"
+      },
+      {
+        "text": "試行で使う引数。試験用の値を入れる場所には {{test_value}} と書く",
+        "kind": "inference"
+      },
+      {
+        "text": "保存先のパス（試行用の作業ディレクトリからの相対パス）。保存先を指定しないと、基盤による保存先の読み出しと保存先の故障は使えない",
+        "kind": "inference"
+      },
+      {
+        "text": "後から読み出すコマンド（任意）。書き込みとは別のプロセスで読み出せるかを確かめる",
+        "kind": "inference"
+      },
+      {
+        "text": "先に起動して待つプロセス（任意）。受信サーバーのように待ち受けるプロセスは、引数のポートを {{port}} と書くと、基盤が 127.0.0.1 の空いているポートを割り当てる",
+        "kind": "inference"
+      }
+    ],
+    "isolation": "対象は試行ごとに新しい作業ディレクトリで動く。固定コミットのファイルは読み取り専用で複製し、環境変数は消し、HOMEも作業ディレクトリにする。local方式はOSによる隔離を行わないため、対象が絶対パスで書き込む処理は止められない",
+    "origin": "コード・テストからの提案。人が確認して保存するまで、期待や判定条件の決定ではない"
+  },
+  "functions": [],
+  "questions": [
+    {
+      "question": "保存できなかったらどうなる？",
+      "result": {
+        "schema_version": 1,
+        "question": "保存できなかったらどうなる？",
+        "intents": [
+          {
+            "id": "storage",
+            "label": "保存・書き込み"
+          },
+          {
+            "id": "failure",
+            "label": "失敗したときの扱い"
+          }
+        ],
+        "terms": [],
+        "findings": [],
+        "functions": [],
+        "missing": [
+          {
+            "text": "読み取った 1 件のファイルに、「保存・書き込み」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          },
+          {
+            "text": "読み取った 1 件のファイルに、「失敗したときの扱い」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "needed_files": [],
+        "unread_files": 1,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          },
+          {
+            "text": "読み取っていないファイルが 1 件あり、そこに該当する処理がある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "入力と設定を調べたい",
+      "result": {
+        "schema_version": 1,
+        "question": "入力と設定を調べたい",
+        "intents": [
+          {
+            "id": "input",
+            "label": "入力"
+          },
+          {
+            "id": "config",
+            "label": "設定"
+          }
+        ],
+        "terms": [],
+        "findings": [],
+        "functions": [],
+        "options": [],
+        "missing": [
+          {
+            "text": "読み取った 1 件のファイルに、「入力」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          },
+          {
+            "text": "読み取った 1 件のファイルに、「設定」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "needed_files": [],
+        "unread_files": 1,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          },
+          {
+            "text": "読み取っていないファイルが 1 件あり、そこに該当する処理がある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "送信と読み出しのテスト",
+      "result": {
+        "schema_version": 1,
+        "question": "送信と読み出しのテスト",
+        "intents": [
+          {
+            "id": "send",
+            "label": "送信・通知"
+          },
+          {
+            "id": "read",
+            "label": "読み出し・表示"
+          },
+          {
+            "id": "test",
+            "label": "既存のテスト"
+          }
+        ],
+        "terms": [],
+        "findings": [],
+        "functions": [],
+        "tests": [],
+        "missing": [
+          {
+            "text": "読み取った 1 件のファイルに、「送信・通知」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          },
+          {
+            "text": "読み取った 1 件のファイルに、「読み出し・表示」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "needed_files": [],
+        "unread_files": 1,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          },
+          {
+            "text": "読み取っていないファイルが 1 件あり、そこに該当する処理がある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "main はどこ？",
+      "result": {
+        "schema_version": 1,
+        "question": "main はどこ？",
+        "intents": [],
+        "terms": [
+          "main"
+        ],
+        "findings": [],
+        "functions": [],
+        "missing": [
+          {
+            "text": "「main」を含む記述は、読み取った範囲に見つからなかった",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "needed_files": [],
+        "unread_files": 1,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          },
+          {
+            "text": "読み取っていないファイルが 1 件あり、そこに該当する処理がある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "起動方法",
+      "result": {
+        "schema_version": 1,
+        "question": "起動方法",
+        "intents": [
+          {
+            "id": "start",
+            "label": "起動方法"
+          }
+        ],
+        "terms": [],
+        "findings": [],
+        "functions": [],
+        "missing": [],
+        "needed_files": [],
+        "unread_files": 1,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          },
+          {
+            "text": "読み取っていないファイルが 1 件あり、そこに該当する処理がある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "？？？",
+      "result": {
+        "schema_version": 1,
+        "question": "？？？",
+        "intents": [],
+        "terms": [],
+        "findings": [],
+        "functions": [],
+        "missing": [
+          {
+            "text": "質問から、調べる観点（保存・失敗・送信・入力・表示・起動・テスト・設定）や関数名を読み取れなかった。関数名や「保存」「失敗」などの語を含めてください",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "needed_files": [],
+        "unread_files": 1,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          },
+          {
+            "text": "読み取っていないファイルが 1 件あり、そこに該当する処理がある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    }
+  ]
+}

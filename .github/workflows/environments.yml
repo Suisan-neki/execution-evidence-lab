@@ -1,0 +1,52 @@
+name: Pinned target environments
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  environment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [ohif-build, monai-cpu]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install 1.99.0 --profile minimal
+      - run: cargo build --locked
+      - run: python3 tools/environment-runner-tests.py
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.19.0
+      - name: Build or infer, distinguish failures and retain dependency evidence
+        run: node tools/environment-smoke.mjs ${{ matrix.target }}
+      - name: Prepare the pinned browser for OHIF
+        if: matrix.target == 'ohif-build'
+        run: |
+          npm ci --ignore-scripts
+          npx playwright install --with-deps chromium
+      - name: Observe OHIF list and images, reject image requests and retry
+        if: matrix.target == 'ohif-build'
+        run: node tools/ohif-smoke.mjs
+      - name: Read OHIF evidence and missing observations through its diagram
+        if: matrix.target == 'ohif-build'
+        run: npm run test:architecture-targets -- ohif
+      - name: Keep synthetic environment records
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: environment-${{ matrix.target }}
+          path: |
+            evaluations/ci-environments/**/*.json
+            evaluations/ci-environments/**/*.log
+            evaluations/ci-environments/**/*.npy
+            evaluations/ci-ohif/**/*.json
+            evaluations/ci-ohif/**/*.png
+            evaluations/ci-ohif/**/*.log
+            test-results/architecture-ohif-*.png
+          if-no-files-found: ignore
+          retention-days: 7

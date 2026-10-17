@@ -76,3 +76,25 @@ ad.adapter = { target: { ...target, correlation: { run_id: 'old' } } };bd.adapte
 assert.equal(compareTrials(state(ad, bd), 'stored', 'old', 'new').changed_count, 0);
 bd.adapter.target.fault = 'failure';assert.equal(compareTrials(state(ad, bd), 'stored', 'old', 'new').rows.find(x => x.key === 'adapter.fault').status, 'changed');
 console.log('trial comparison: scoped pairs, observed versus applicable, missing records, nullable input, unordered objects, multiple changes, adapters and immutable state passed');
+
+// 現在のコンテナ・ブラウザー設定とMONAI等の報告を古い比較から落とさない。
+const cx = pinned(a), cy = pinned(b);
+cx.execution.recipe.container = { services: [{ id: 'db', image: 'pinned-a' }] };
+cy.execution.recipe.container = { services: [{ id: 'db', image: 'pinned-b' }] };
+cx.execution.recipe.trial = { fault: 'normal' };cy.execution.recipe.trial = { fault: 'stop_database' };
+r = compareTrials(state(cx, cy), 'stored', 'old', 'new');
+for (const key of ['recipe.container', 'recipe.trial']) assert.equal(r.rows.find(row => row.key === key).status, 'changed');
+const rx = evidence('old'), ry = evidence('new');
+for (const record of [rx, ry]) {
+  record.rule = 'reported_assertion';record.observation = { assertion: 'monai.stage', subject: 'train' };
+  record.reported = { producer: 'synthetic', origin: 'synthetic report', source, context: { fault: 'normal' } };
+  record.dependencies['report-stored'] = '{"a":1,"b":2}';
+}
+ry.dependencies['report-stored'] = '{"b":2,"a":1}';
+assert.equal(compareTrials(state(rx, ry), 'stored', 'old', 'new').rows.find(row => row.key === 'dependency.report-stored').status, 'same');
+ry.reported.context.fault = 'interrupted';ry.observation.subject = 'inference';
+r = compareTrials(state(rx, ry), 'stored', 'old', 'new');
+for (const key of ['observation', 'reported.context']) assert.equal(r.rows.find(row => row.key === key).status, 'changed');
+delete ry.reported;
+assert.equal(compareTrials(state(rx, ry), 'stored', 'old', 'new').rows.find(row => row.key === 'reported.context').status, 'unknown');
+console.log('current target comparison: container, browser trial, reported context and missing reports passed');

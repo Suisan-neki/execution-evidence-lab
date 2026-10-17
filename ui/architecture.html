@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="review-token" content="__REVIEW_TOKEN__" />
+    <title>構成と試験結果を確認する</title>
+    <style>
+      __ARCHITECTURE_STYLE__
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">本文へ移動</a>
+    <header>
+      <div class="container">
+        <nav aria-label="機能">
+          <a href="/">理解する</a><a href="/review">テストする</a
+          ><span aria-current="page">構成図で確認する</span>
+        </nav>
+        <h1 class="dads-u-std-28B-150">構成と試験結果を確認する</h1>
+        <p>
+          同じ構成を見ながら、期待する動作、実際の観測、まだ分からないことを確認します。
+        </p>
+      </div>
+    </header>
+    <main id="main" class="container" tabindex="-1">
+      <div id="status" role="status" aria-live="polite"></div>
+      <section class="panel">
+        <div class="controls">
+          <div>
+            <label for="model">対象と構成の版</label
+            ><select id="model"></select>
+          </div>
+          <button
+            id="reload"
+            class="dads-button"
+            data-type="outline"
+            data-size="sm"
+          >
+            最新版を読み直す
+          </button>
+        </div>
+        <div id="model-description"></div>
+        <button
+          id="save-model"
+          class="dads-button"
+          data-type="solid-fill"
+          data-size="sm"
+          hidden
+        >
+          この試験用構成を事例に追加する
+        </button>
+      </section>
+      <section class="panel" aria-labelledby="diagram-heading">
+        <h2 id="diagram-heading">構成図</h2>
+        <div class="controls">
+          <div>
+            <label for="view">図の詳しさ</label
+            ><select id="view">
+              <option value="context">全体の構成</option>
+              <option value="containers">内部の構成</option>
+            </select>
+          </div>
+          <div>
+            <label for="trial">図に対応づける試行</label
+            ><select id="trial">
+              <option value="">試行を選択しない</option>
+            </select>
+          </div>
+        </div>
+        <p class="note">
+          線は構成上の接続です。色と文字は対応づけた観測条件の結果を示します。要素全体の正常性や、すべての通信を確認した意味にはなりません。
+        </p>
+        <p class="legend">
+          ○ 期待どおり　× 期待と異なる　？ 未観測・対応づけなし　↻
+          現在の条件には再確認が必要
+        </p>
+        <div
+          id="diagram"
+          class="diagram"
+          aria-label="選択できるアーキテクチャ図"
+        ></div>
+        <p id="diagram-status" class="note" role="status"></p>
+        <div
+          id="objects"
+          class="object-list"
+          aria-label="構成要素と接続の一覧"
+        ></div>
+      </section>
+      <div class="columns">
+        <section
+          id="details"
+          class="panel"
+          tabindex="-1"
+          aria-labelledby="details-heading"
+        >
+          <h2 id="details-heading">構成要素・接続を選んでください</h2>
+          <div id="details-body"></div>
+        </section>
+        <section class="panel" aria-labelledby="record-heading">
+          <h2 id="record-heading">疑問・期待と対応づけを残す</h2>
+          <p class="note">
+            記入者の名前と理由を残します。この操作から理解や合意の成立は判定しません。
+          </p>
+          <label for="actor">記入者</label
+          ><input id="actor" autocomplete="off" /><label for="role"
+            >立場（自己申告）</label
+          ><select id="role">
+            <option value="developer">開発者</option>
+            <option value="operator">運用担当</option>
+            <option value="other">その他</option></select
+          ><label for="reason">記録する理由</label
+          ><textarea id="reason" rows="2"></textarea>
+          <div id="record-controls"></div>
+        </section>
+      </div>
+    </main>
+    <footer class="container">
+      <p>
+        構成の出所と未確認事項を、対象の版とともに確認してください。試験用の構成と実運用環境は別です。
+      </p>
+    </footer>
+    <script src="/ui/architecture-likec4.js" defer></script>
+    <script type="module" src="/ui/architecture.js"></script>
+  </body>
+</html>

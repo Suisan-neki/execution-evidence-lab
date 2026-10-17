@@ -108,7 +108,10 @@ export function explainFunction(model, path, selectedLine) {
       const name = match[1];
       const preceding = line.slice(0, match.index);
       if (RESERVED.has(name) || /(?:fn|function|def)\s*$/.test(preceding)) continue;
-      const targets = callTargets(model, file, name, range);
+      // super(...).f() や obj().f() は受け手が式で、同名の関数と対応づけられない。
+      const targets = /[)\]]\s*\.\s*$/.test(preceding)
+        ? { candidates: [], bindings: [], unread: [], reason: '式の結果に対するメソッド呼び出しで、対応先を特定できません。' }
+        : callTargets(model, file, name, range);
       calls.push({ name, line: number, macro: Boolean(match[2]), ...targets });
     }
   }

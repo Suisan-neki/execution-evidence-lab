@@ -46,7 +46,7 @@ export function compareTrials(state, checkId, beforeId, afterId) {
   add('check', '取り込み時の条件版・判定規則', { version: old.check_version, rule: old.rule }, { version: next.check_version, rule: next.rule });
   add('condition', '試行に記録された条件文・出所', m.condition, n.condition);
   add('reference', '取り込み時の参照コード', old.source, next.source);
-  if (old.rule === 'observed_assertion' || next.rule === 'observed_assertion')
+  if (['observed_assertion', 'reported_assertion'].some(rule => old.rule === rule || next.rule === rule))
     add('observation', '条件へ対応づけた観測名・対象', old.observation, next.observation);
   for (const [key, label, nullable] of [
     ['source_fingerprint', '基盤のコード・依存関係'], ['program_version', '基盤のバージョン'],
@@ -61,8 +61,15 @@ export function compareTrials(state, checkId, beforeId, afterId) {
       ['args', '起動引数'], ['input', '外部コードの試験入力'], ['criterion', '試験設定の観測名・対象'],
       ['timeout_ms', '対象プロセスの待機上限・ミリ秒'],
     ]) add('recipe.' + key, label, x?.recipe[key], y?.recipe[key], { nullable: key === 'input' });
+    for (const [key, label] of [['dependencies', '固定版のコード依存先'], ['service', '先に起動するプロセス'], ['container', 'コンテナの構成'], ['trial', 'ブラウザー・HTTP・DBの試験設定']]) {
+      if (x?.recipe[key] != null || y?.recipe[key] != null) add('recipe.' + key, label, x?.recipe[key], y?.recipe[key]);
+    }
     for (const [key, label] of [['tree', '固定版のGit tree'], ['runtime_path', 'ランタイムのパス'], ['runtime_version', 'ランタイムのバージョン'], ['mode', '外部コードの実行方式']])
       add('execution.' + key, label, x?.[key], y?.[key]);
+  }
+  if (old.reported || next.reported) {
+    for (const [key, label] of [['producer', '報告した処理'], ['origin', '報告の出所'], ['source', '報告対象の固定版'], ['context', '報告された試験条件']])
+      add('reported.' + key, label, old.reported?.[key], next.reported?.[key]);
   }
   if (old.adapter || next.adapter) {
     const x = old.adapter?.target, y = next.adapter?.target;
@@ -74,7 +81,7 @@ export function compareTrials(state, checkId, beforeId, afterId) {
   const own = (object, key) => object && Object.hasOwn(object, key) ? object[key] : undefined;
   for (const key of keys) {
     // 固定版実行の依存値はJSON。同じ値のキー順だけを変更扱いにしない。
-    add('dependency.' + key, '依存先：' + key, own(old.dependencies, key), own(next.dependencies, key), { parse: key.startsWith('execution-') });
+    add('dependency.' + key, '依存先：' + key, own(old.dependencies, key), own(next.dependencies, key), { parse: key.startsWith('execution-') || key.startsWith('report-') });
     add('dependency_origin.' + key, '依存先の値の出所：' + key, own(old.dependency_origins, key), own(next.dependency_origins, key));
   }
   const summary = ({ record, result }) => ({ evidence_id: record.id, run_id: result.run_id,

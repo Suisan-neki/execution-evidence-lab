@@ -1,0 +1,316 @@
+{
+  "schema_version": 1,
+  "id": "monai-trial",
+  "version": 1,
+  "title": "MONAIの学習・保存・再読込を試す構成",
+  "source": {
+    "repository": "Project-MONAI/MONAI",
+    "commit": "f2ec87ae9b536baaeca1d6bcc2b6349369e2af8f",
+    "path": "pyproject.toml",
+    "line": 1,
+    "end_line": 54
+  },
+  "environment": "trial",
+  "images": {
+    "workflow": "python:3.12.12-bookworm@sha256:6760942332f453ec141ea470fa3bfb790e84e11edcf0b6331b98bee6091a7b69"
+  },
+  "browser_version": null,
+  "elements": [
+    {
+      "id": "operator",
+      "parent": null,
+      "kind": "person",
+      "title": "試験設定の作成者",
+      "description": "合成データ、モデル、数値の照合範囲と故障を宣言する。",
+      "basis": {
+        "kind": "human",
+        "note": "合成データの試験設定を作る役割を補足した。本人の理解や合意を確認したという記録ではない。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
+          "path": "examples/monai-workflow/workflow.py",
+          "line": 1,
+          "end_line": 201
+        }
+      }
+    },
+    {
+      "id": "system",
+      "parent": null,
+      "kind": "boundary",
+      "title": "試行専用CPUコンテナ",
+      "description": "固定した依存を導入する。前処理から推論までは同じPythonプロセス内の段階で、別サービスではない。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
+          "path": "examples/monai-workflow/workflow.py",
+          "line": 1,
+          "end_line": 201
+        }
+      }
+    },
+    {
+      "id": "input",
+      "parent": "system",
+      "kind": "storage",
+      "title": "合成入力",
+      "description": "64×64の合成画像とラベルを作り、入力ファイルを読み出す。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
+          "path": "examples/monai-workflow/workflow.py",
+          "line": 1,
+          "end_line": 201
+        }
+      }
+    },
+    {
+      "id": "preprocess",
+      "parent": "system",
+      "kind": "component",
+      "title": "前処理",
+      "description": "MONAIで強度を正規化し、float32のtensorへ変換する。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
+          "path": "examples/monai-workflow/workflow.py",
+          "line": 1,
+          "end_line": 201
+        }
+      }
+    },
+    {
+      "id": "train",
+      "parent": "system",
+      "kind": "component",
+      "title": "学習と保存前の推論",
+      "description": "小さいUNetを3回更新し、保存前のモデルの参照出力を得る。モデルの性能は評価しない。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
+          "path": "examples/monai-workflow/workflow.py",
+          "line": 1,
+          "end_line": 201
+        }
+      }
+    },
+    {
+      "id": "checkpoint",
+      "parent": "system",
+      "kind": "storage",
+      "title": "チェックポイント",
+      "description": "重みと処理設定を保存・再読込する。optimizerの状態を使う学習再開は扱わない。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
+          "path": "examples/monai-workflow/workflow.py",
+          "line": 1,
+          "end_line": 201
+        }
+      }
+    },
+    {
+      "id": "inference",
+      "parent": "system",
+      "kind": "component",
+      "title": "再読込後の推論",
+      "description": "再読込したモデルで一つの窓の推論を行い、保存前の出力と全画素で照合する。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
+          "path": "examples/monai-workflow/workflow.py",
+          "line": 1,
+          "end_line": 201
+        }
+      }
+    },
+    {
+      "id": "result",
+      "parent": "system",
+      "kind": "storage",
+      "title": "推論結果",
+      "description": "推論結果をnpyファイルへ保存する。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
+          "path": "examples/monai-workflow/workflow.py",
+          "line": 1,
+          "end_line": 201
+        }
+      }
+    },
+    {
+      "id": "reader",
+      "parent": "system",
+      "kind": "app",
+      "title": "別のPythonプロセス",
+      "description": "保存したnpyを読み出し、参照出力と照合する。同じコンテナの別プロセスであり、第三者の検証ではない。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
+          "path": "examples/monai-workflow/workflow.py",
+          "line": 1,
+          "end_line": 201
+        }
+      }
+    }
+  ],
+  "relations": [
+    {
+      "id": "configure",
+      "from": "operator",
+      "to": "system",
+      "title": "処理と故障を宣言",
+      "description": "実行前に固定した設定とスクリプトを確認できる。",
+      "basis": {
+        "kind": "human",
+        "note": "合成データの試験設定を作る役割を補足した。本人の理解や合意を確認したという記録ではない。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
+          "path": "examples/monai-workflow/workflow.py",
+          "line": 1,
+          "end_line": 201
+        }
+      }
+    },
+    {
+      "id": "read-input",
+      "from": "input",
+      "to": "preprocess",
+      "title": "入力を読む",
+      "description": "読み出せなかった場合は後続の段階を未観測として残す。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
+          "path": "examples/monai-workflow/workflow.py",
+          "line": 1,
+          "end_line": 201
+        }
+      }
+    },
+    {
+      "id": "training-input",
+      "from": "preprocess",
+      "to": "train",
+      "title": "tensorを渡す",
+      "description": "同じPythonプロセスの段階間の受け渡し。通信の観測ではない。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
+          "path": "examples/monai-workflow/workflow.py",
+          "line": 1,
+          "end_line": 201
+        }
+      }
+    },
+    {
+      "id": "save-model",
+      "from": "train",
+      "to": "checkpoint",
+      "title": "重みを保存",
+      "description": "チェックポイントの保存段階の報告を対応づける。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
+          "path": "examples/monai-workflow/workflow.py",
+          "line": 1,
+          "end_line": 201
+        }
+      }
+    },
+    {
+      "id": "load-model",
+      "from": "checkpoint",
+      "to": "inference",
+      "title": "モデルを再読込",
+      "description": "破損したファイルで読取が失敗した場合は、推論完了を補わない。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
+          "path": "examples/monai-workflow/workflow.py",
+          "line": 1,
+          "end_line": 201
+        }
+      }
+    },
+    {
+      "id": "save-result",
+      "from": "inference",
+      "to": "result",
+      "title": "出力を保存",
+      "description": "保存段階の報告と生成物のハッシュを各試行に残す。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
+          "path": "examples/monai-workflow/workflow.py",
+          "line": 1,
+          "end_line": 201
+        }
+      }
+    },
+    {
+      "id": "read-result",
+      "from": "result",
+      "to": "reader",
+      "title": "別プロセスで読む",
+      "description": "保存した結果の読取・数値の照合を報告する。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
+          "path": "examples/monai-workflow/workflow.py",
+          "line": 1,
+          "end_line": 201
+        }
+      }
+    }
+  ],
+  "limits": [
+    "合成画像1枚、CPU、小さいモデルの処理と記録を確認する構成。学習性能や医療上の妥当性は未確認。",
+    "図の各処理は段階の区別であり、前処理・学習・推論を別プロセスや別サービスとして起動したとは扱わない。",
+    "結果は対象内の段階報告。報告の回収完了と対象の処理完了を分け、実行経路の独立した証明とは扱わない。",
+    "図は報告に宣言されたソースとイメージを照合する。報告されなかった段階や、全体の正常性を補わない。"
+  ]
+}

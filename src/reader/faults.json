@@ -1,0 +1,61 @@
+[
+  {
+    "id": "normal",
+    "label": "故障なし（通常時）",
+    "needs_storage": false
+  },
+  {
+    "id": "storage_read_only",
+    "label": "保存先を書き込み不可にする",
+    "needs_storage": true,
+    "how": "試行の前に、基盤が保存先へ空のファイルを作り、書き込み権限を外す。書き込めないことを基盤が確かめてから対象を起動する"
+  },
+  {
+    "id": "storage_is_directory",
+    "label": "保存先に同名のディレクトリを置く",
+    "needs_storage": true,
+    "how": "試行の前に、基盤が保存先と同じ名前のディレクトリを作る。ファイルとして開けない状態になる"
+  },
+  {
+    "id": "skip_state_read",
+    "label": "基盤による保存先の読み出しを止める（観測の欠落）",
+    "needs_storage": false,
+    "how": "対象は通常どおり動かし、試行後に基盤が保存先を読み出す処理だけを止める。観測がないときに成功と扱わないかを確かめる"
+  },
+  {
+    "id": "network_unavailable",
+    "label": "外部への通信を遮断する",
+    "needs_storage": false,
+    "how": "Linuxのbubblewrap方式で、ネットワークを持たない環境で起動する。local方式では使えない"
+  },
+  {
+    "id": "storage_directory_read_only",
+    "label": "保存先のディレクトリを書き込み不可にする",
+    "needs_storage": true,
+    "how": "試行の前に、基盤が保存先のディレクトリを空で作り、書き込み権限を外す。ディレクトリへ書き込めないことを基盤が確かめてから起動する"
+  },
+  {
+    "id": "server_not_started",
+    "label": "待つプロセス（受信側など）を起動しない",
+    "needs_server": true,
+    "how": "待つプロセスを起動せず、操作するプロセスだけを動かす。割り当てたポートが応答しないことを基盤が確かめる"
+  },
+  {
+    "id": "database_stopped",
+    "label": "データベースのコンテナを止める",
+    "needs_containers": true,
+    "how": "コンテナが準備できたあと、データベースの役割のコンテナを止める。止まったことを確かめてから操作する"
+  },
+  {
+    "id": "database_unreachable",
+    "label": "対象とデータベースの間の通信を切る",
+    "needs_containers": true,
+    "how": "コンテナが準備できたあと、データベースを試験用ネットワークから外す。外れたことを確かめてから操作する"
+  },
+  {
+    "id": "volume_read_only",
+    "label": "保存先のボリュームを読み取り専用にする",
+    "needs_containers": true,
+    "how": "コンテナが準備できたあと、データベースの保存先ボリュームを読み取り専用で載せ直す。書き込めないことを確かめる"
+  }
+]

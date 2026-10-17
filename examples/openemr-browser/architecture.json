@@ -1,0 +1,210 @@
+{
+  "schema_version": 1,
+  "id": "openemr-trial",
+  "version": 1,
+  "title": "OpenEMRの患者登録・受診理由保存を試す構成",
+  "source": {
+    "repository": "openemr/openemr",
+    "commit": "d7ecc612e166c6f9f3adc9f50bc9f8cc68cac701",
+    "path": "docker/production/docker-compose.yml",
+    "line": 1,
+    "end_line": 1
+  },
+  "environment": "trial",
+  "images": {
+    "mysql": "mariadb:12.3.3@sha256:2bdff1534a7e569fecaf4b10b66ad0d410806e382d9db29ba305448addda97c4",
+    "openemr": "openemr/openemr:latest@sha256:f0bfbc17fae13503ab64bbd271f74d80dd4a0786f5a8d0683841aeef4e159700"
+  },
+  "browser_version": "151.0.7922.34",
+  "elements": [
+    {
+      "id": "operator",
+      "parent": null,
+      "kind": "person",
+      "title": "試験操作の作成者",
+      "description": "架空の患者と受診理由を使う操作を宣言する。実際の医療機関の担当者ではない。",
+      "basis": {
+        "kind": "human",
+        "note": "宣言されたブラウザ操作から、人の役割を補足した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
+          "path": "examples/openemr-browser/recipe.json",
+          "line": 1,
+          "end_line": 541
+        }
+      }
+    },
+    {
+      "id": "browser",
+      "parent": null,
+      "kind": "app",
+      "title": "試験用ブラウザ",
+      "description": "Chromiumで入力・保存・再表示を操作し、表示とHTTP応答を記録する。",
+      "basis": {
+        "kind": "configuration",
+        "note": "browserの版・操作・応答の宣言。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
+          "path": "examples/openemr-browser/recipe.json",
+          "line": 1,
+          "end_line": 541
+        }
+      }
+    },
+    {
+      "id": "system",
+      "parent": null,
+      "kind": "system",
+      "title": "OpenEMRの試験環境",
+      "description": "試行ごとに作るネットワークとコンテナ。実運用環境とは別。",
+      "basis": {
+        "kind": "configuration",
+        "note": "containersで2サービスを宣言する。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
+          "path": "examples/openemr-browser/recipe.json",
+          "line": 1,
+          "end_line": 541
+        }
+      }
+    },
+    {
+      "id": "app",
+      "parent": "system",
+      "kind": "app",
+      "title": "OpenEMRアプリ",
+      "description": "HTTPSで画面を返す。患者登録と受診理由の保存・再表示を操作する。",
+      "basis": {
+        "kind": "configuration",
+        "note": "openemrサービスとブラウザの接続先。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
+          "path": "examples/openemr-browser/recipe.json",
+          "line": 1,
+          "end_line": 541
+        }
+      }
+    },
+    {
+      "id": "db",
+      "parent": "system",
+      "kind": "database",
+      "title": "MariaDB",
+      "description": "患者と受診理由の行を保存する試験用DB。",
+      "basis": {
+        "kind": "configuration",
+        "note": "mysqlサービス。アプリにはMYSQL_HOST=mysqlを渡す。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
+          "path": "examples/openemr-browser/recipe.json",
+          "line": 1,
+          "end_line": 541
+        }
+      }
+    },
+    {
+      "id": "storage",
+      "parent": "system",
+      "kind": "storage",
+      "title": "DBの保存領域",
+      "description": "mysqlコンテナの/var/lib/mysqlに接続する、試行専用のdbボリューム。",
+      "basis": {
+        "kind": "configuration",
+        "note": "mysql.volumesにdbを宣言。試行後に削除する。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
+          "path": "examples/openemr-browser/recipe.json",
+          "line": 1,
+          "end_line": 541
+        }
+      }
+    }
+  ],
+  "relations": [
+    {
+      "id": "operate",
+      "from": "operator",
+      "to": "browser",
+      "title": "操作を宣言",
+      "description": "レシピの準備と試験操作を基盤がブラウザへ送る。",
+      "basis": {
+        "kind": "configuration",
+        "note": "レシピの準備と試験操作を基盤がブラウザへ送る。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
+          "path": "examples/openemr-browser/recipe.json",
+          "line": 1,
+          "end_line": 541
+        }
+      }
+    },
+    {
+      "id": "https",
+      "from": "browser",
+      "to": "app",
+      "title": "画面とHTTP応答",
+      "description": "アプリの443番ポートを試験用に公開し、TLSでアクセスする。",
+      "basis": {
+        "kind": "configuration",
+        "note": "アプリの443番ポートを試験用に公開し、TLSでアクセスする。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
+          "path": "examples/openemr-browser/recipe.json",
+          "line": 1,
+          "end_line": 541
+        }
+      }
+    },
+    {
+      "id": "sql",
+      "from": "app",
+      "to": "db",
+      "title": "DBへの接続設定",
+      "description": "MYSQL_HOST=mysqlで接続先を指定する。通信そのものの観測はしていない。",
+      "basis": {
+        "kind": "configuration",
+        "note": "MYSQL_HOST=mysqlで接続先を指定する。通信そのものの観測はしていない。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
+          "path": "examples/openemr-browser/recipe.json",
+          "line": 1,
+          "end_line": 541
+        }
+      }
+    },
+    {
+      "id": "persist",
+      "from": "db",
+      "to": "storage",
+      "title": "DBのファイルを保存",
+      "description": "dbボリュームを/var/lib/mysqlに接続する。ファイル書込やディスク同期の観測はしていない。",
+      "basis": {
+        "kind": "configuration",
+        "note": "dbボリュームを/var/lib/mysqlに接続する。ファイル書込やディスク同期の観測はしていない。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
+          "path": "examples/openemr-browser/recipe.json",
+          "line": 1,
+          "end_line": 541
+        }
+      }
+    }
+  ],
+  "limits": [
+    "固定Gitコミットは構成を調べた参照先。イメージ内のコードと同一だとは証明していない。",
+    "この図は基盤の試験用レシピを表す。上流の構成設定や実運用環境をそのまま再現した図ではない。",
+    "直接SQL読取はDBの行の観測。アプリからDBへの通信や、ディスク同期を観測した証拠ではない。",
+    "全体判定で部分の欠落を補わない。未観測と観測した失敗を区別する。",
+    "認証はアプリのログイン画面を操作する。外部の認証サービス・医療機関の権限要件は未確認。"
+  ]
+}

@@ -8,7 +8,7 @@ permissions:
 jobs:
   rust:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install the pinned Rust toolchain
@@ -20,10 +20,45 @@ jobs:
       - run: cargo build --locked
       - run: node tools/pinned-demo.mjs evaluations/ci-external
       - run: node tools/reproduce-methods.mjs evaluations/ci-methods
+      - run: node tools/backend-demo.mjs evaluations/ci-backend --live
       - run: npm run test:reader
+      - run: npm run test:reader-native
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.19.0
       - run: npm ci --ignore-scripts
+      - name: Regenerate the pinned LikeC4 diagrams
+        run: |
+          npm run build:architecture
+          cargo build --locked
       - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - run: cargo test --locked --test containers browser_observes_nginx -- --ignored --nocapture
       - run: npm run test:ui
+      - name: Register a synthetic OpenEMR patient and visit, then repeat with the database stopped
+        run: |
+          umask 077
+          printf '%s' '{"username":"eel-operator","password":"eel-pass-trial"}' > "$RUNNER_TEMP/openemr-secrets.json"
+          EEL_BROWSER_SECRETS_FILE="$RUNNER_TEMP/openemr-secrets.json" cargo test --locked --test containers openemr_browser -- --ignored --nocapture
+      - name: Save and switch the three target diagrams
+        run: npm run test:architecture-targets -- presets
+      - name: Read the actual OpenEMR evidence through the architecture diagram
+        run: npm run test:architecture -- --real
+      - name: Operate the app against the public repository sjl/t
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          umask 077
+          printf '%s' "$GH_TOKEN" > "$RUNNER_TEMP/github-token"
+          EEL_GITHUB_TOKEN_FILE="$RUNNER_TEMP/github-token" npm run test:reader-native -- --live
+          EEL_GITHUB_TOKEN_FILE="$RUNNER_TEMP/github-token" npm run test:app
+      - name: Send and store a DICOM image with pinned pynetdicom and pydicom
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          umask 077
+          printf '%s' "$GH_TOKEN" > "$RUNNER_TEMP/github-token"
+          EEL_GITHUB_TOKEN_FILE="$RUNNER_TEMP/github-token" npm run test:dicom
       - name: Keep synthetic review screenshots
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -31,8 +66,12 @@ jobs:
           name: synthetic-review-screenshots
           path: |
             test-results/*.png
+            evaluations/ci-openemr/**/*.json
+            evaluations/ci-openemr/**/*.png
             evaluations/ci-methods/results.json
             evaluations/ci-methods/results.md
             evaluations/ci-external/result.json
+            evaluations/ci-backend/result.json
+            evaluations/ci-backend/analysis.json
           if-no-files-found: ignore
           retention-days: 7

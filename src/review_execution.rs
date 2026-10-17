@@ -39,6 +39,14 @@ pub struct ExecutionStatus {
     pub repository_root: Option<PathBuf>,
     pub mode: Option<String>,
     pub job: Option<Job>,
+    pub managed: bool,
+    pub runtimes: Vec<RuntimeStatus>,
+}
+#[derive(Debug, Serialize)]
+pub struct RuntimeStatus {
+    pub name: String,
+    pub available: bool,
+    pub detail: String,
 }
 impl ExecutionStatus {
     pub fn disabled() -> Self {
@@ -48,6 +56,8 @@ impl ExecutionStatus {
             repository_root: None,
             mode: None,
             job: None,
+            managed: false,
+            runtimes: vec![],
         }
     }
 }
@@ -56,13 +66,38 @@ struct State {
     sequence: u64,
     job: Option<Job>,
 }
+/// 実行できるリポジトリの範囲。
+#[derive(Clone)]
+enum Repositories {
+    /// 起動時に指定した一つのリポジトリ。
+    Fixed { root: PathBuf, name: String },
+    /// 画面の「試験用に取得」で、固定コミットだけを取得したリポジトリ。
+    Managed { base: PathBuf },
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PrepareRequest {
+    pub repository: String,
+    pub commit: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Prepared {
+    pub repository: String,
+    pub commit: String,
+    pub checkout: bool,
+    pub executed: bool,
+    pub note: String,
+}
+
 #[derive(Clone)]
 pub struct Controller {
     directory: PathBuf,
-    repository_root: PathBuf,
-    repository: String,
+    repositories: Repositories,
     mode: ExecutionMode,
     state: Arc<Mutex<State>>,
+    fetching: Arc<Mutex<()>>,
 }
 impl Controller {
     pub fn new(
@@ -71,15 +106,110 @@ impl Controller {
         mode: ExecutionMode,
     ) -> io::Result<Self> {
         workspace::load(&directory)?;
-        let repository_root = std::fs::canonicalize(repository_root)?;
-        let repository = execution::repository_name(&repository_root)?;
+        let root = std::fs::canonicalize(repository_root)?;
+        let name = execution::repository_name(&root)?;
         Ok(Self {
             directory: std::fs::canonicalize(directory)?,
-            repository_root,
-            repository,
+            repositories: Repositories::Fixed { root, name },
             mode,
             state: Arc::new(Mutex::new(State::default())),
+            fetching: Arc::new(Mutex::new(())),
         })
+    }
+    /// 画面で選んだ公開リポジトリを、利用者が取得を指示した後に試せるようにする。
+    pub fn managed(directory: PathBuf, base: PathBuf, mode: ExecutionMode) -> io::Result<Self> {
+        workspace::load(&directory)?;
+        std::fs::create_dir_all(&base)?;
+        Ok(Self {
+            directory: std::fs::canonicalize(directory)?,
+            repositories: Repositories::Managed {
+                base: std::fs::canonicalize(base)?,
+            },
+            mode,
+            state: Arc::new(Mutex::new(State::default())),
+            fetching: Arc::new(Mutex::new(())),
+        })
+    }
+    /// 固定コミットの取得だけを行う。対象のコード・インストールスクリプトは起動しない。
+    pub fn prepare(&self, request: PrepareRequest) -> io::Result<Prepared> {
+        let Repositories::Managed { base } = &self.repositories else {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "この起動方法では、起動時に指定したリポジトリだけを試せます",
+            ));
+        };
+        let _guard = self
+            .fetching
+            .lock()
+            .map_err(|_| io::Error::other("取得の状態を読み取れません"))?;
+        execution::fetch_commit(base, &request.repository, &request.commit).map_err(|e| {
+            io::Error::new(
+                e.kind(),
+                format!("固定コミットをGitHubから取得できませんでした: {e}"),
+            )
+        })?;
+        Ok(Prepared {
+            repository: request.repository,
+            commit: request.commit,
+            checkout: false,
+            executed: false,
+            note: "git fetchで固定コミットだけを取得した。作業ツリーの展開・対象コードの実行・依存関係のインストールは行っていない".into(),
+        })
+    }
+    fn root_for(&self, repository: &str, commit: &str) -> io::Result<PathBuf> {
+        match &self.repositories {
+            Repositories::Fixed { root, name } if name == repository => Ok(root.clone()),
+            Repositories::Fixed { .. } => Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "起動時に指定したリポジトリだけを実行できます",
+            )),
+            Repositories::Managed { base } => {
+                let root = base.join(repository);
+                if !root.join("HEAD").is_file() && !root.join(".git").exists() {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!(
+                            "{repository} のコミット {commit} は、まだ試験用に取得していません。「試験用に取得する」を先に実行してください"
+                        ),
+                    ));
+                }
+                Ok(root)
+            }
+        }
+    }
+    /// 利用者が内容を確かめて試験を始めた後に、依存先の固定コミットだけを取得する。
+    /// checkout・インストール用のスクリプト・依存先のコードの起動は、ここでは行わない。
+    fn fetch_dependencies(&self, recipe: &Recipe) -> io::Result<Option<PathBuf>> {
+        let dependencies = recipe
+            .python
+            .as_ref()
+            .map_or(&[][..], |p| p.dependencies.as_slice());
+        match &self.repositories {
+            _ if dependencies.is_empty() => Ok(None),
+            Repositories::Fixed { .. } => Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "この起動方法では依存先を取得できません。アプリ（app）として起動してください",
+            )),
+            Repositories::Managed { base } => {
+                let _guard = self
+                    .fetching
+                    .lock()
+                    .map_err(|_| io::Error::other("取得の状態を読み取れません"))?;
+                for dependency in dependencies {
+                    execution::fetch_commit(base, &dependency.repository, &dependency.commit)
+                        .map_err(|e| {
+                            io::Error::new(
+                                e.kind(),
+                                format!(
+                                    "依存先 {} の固定コミットをGitHubから取得できませんでした: {e}",
+                                    dependency.repository
+                                ),
+                            )
+                        })?;
+                }
+                Ok(Some(base.clone()))
+            }
+        }
     }
     fn lock(&self) -> io::Result<std::sync::MutexGuard<'_, State>> {
         self.state
@@ -87,12 +217,36 @@ impl Controller {
             .map_err(|_| io::Error::other("実行状態を読み取れません"))
     }
     pub fn status(&self) -> io::Result<ExecutionStatus> {
+        let (repository, repository_root, managed) = match &self.repositories {
+            Repositories::Fixed { root, name } => (Some(name.clone()), Some(root.clone()), false),
+            Repositories::Managed { .. } => (None, None, true),
+        };
+        let runtimes = [
+            ("node", execution::Runtime::Node),
+            ("python3", execution::Runtime::Python3),
+            ("http", execution::Runtime::Http),
+        ]
+        .into_iter()
+        .map(|(name, runtime)| {
+            let (available, detail) = match execution::runtime_available(&runtime) {
+                Ok((path, version)) => (true, format!("{version}（{}）", path.display())),
+                Err(error) => (false, error),
+            };
+            RuntimeStatus {
+                name: name.into(),
+                available,
+                detail,
+            }
+        })
+        .collect();
         Ok(ExecutionStatus {
             enabled: true,
-            repository: Some(self.repository.clone()),
-            repository_root: Some(self.repository_root.clone()),
+            repository,
+            repository_root,
             mode: Some(self.mode.label().into()),
             job: self.lock()?.job.clone(),
+            managed,
+            runtimes,
         })
     }
     pub fn start(&self, request: ExecuteRequest) -> io::Result<Job> {
@@ -105,12 +259,10 @@ impl Controller {
                 ));
             }
         }
-        if request.recipe.source.repository != self.repository {
-            return Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "起動時に指定したリポジトリだけを実行できます",
-            ));
-        }
+        let repository_root = self.root_for(
+            &request.recipe.source.repository,
+            &request.recipe.source.commit,
+        )?;
         let workspace = workspace::load(&self.directory)?;
         if workspace.revision != request.expected_revision {
             return Err(io::Error::new(
@@ -162,9 +314,11 @@ impl Controller {
             .name("review-execution".into())
             .spawn(move || {
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    workspace::run_external_at_revision(
+                    let base = controller.fetch_dependencies(&request.recipe)?;
+                    workspace::run_external_with_dependencies(
                         &controller.directory,
-                        &controller.repository_root,
+                        &repository_root,
+                        base.as_deref(),
                         request.recipe,
                         controller.mode,
                         request.actor,
