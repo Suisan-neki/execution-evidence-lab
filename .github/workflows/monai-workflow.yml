@@ -1,0 +1,35 @@
+name: MONAI synthetic workflow
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  monai:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install 1.99.0 --profile minimal
+      - run: cargo build --locked
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.19.0
+      - name: Prepare pinned CPU dependencies and verify the original inference example
+        run: node tools/environment-smoke.mjs monai-cpu
+      - name: Train, save, reload, read back, fail at four stages and retry
+        run: node tools/monai-workflow-smoke.mjs
+      - name: Keep synthetic workflow and case evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: monai-workflow
+          path: |
+            evaluations/ci-monai-workflow/**/*.json
+            evaluations/ci-monai-workflow/**/*.log
+            evaluations/ci-monai-workflow/**/*.npy
+            evaluations/ci-monai-workflow/**/*.pt
+          if-no-files-found: ignore
+          retention-days: 7
