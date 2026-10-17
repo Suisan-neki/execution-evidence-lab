@@ -228,6 +228,16 @@ footer {
 .external-setup { border-top: 1px solid #dbe4e9; padding-top: 10px; }
 .external-setup input,.external-setup textarea,.external-setup select { margin-bottom: 12px; }
 .execution-target { padding: 10px 14px; background: #eff6f1; border-left: 3px solid #59846b; margin: 12px 0; }
+.trial-comparison { border-top: 1px solid #dbe4e9; padding-top: 10px; }
+.trial-comparison .grid > div, .comparison-trial { min-width: 0; }
+.trial-comparison select { min-width: 0; max-width: 100%; text-overflow: ellipsis; }
+.comparison-trial { border: 1px solid #d2dde4; border-radius: 8px; padding: 14px; }
+.comparison-table { max-width: 100%; overflow-x: auto; }
+.comparison-table table { display: table; table-layout: fixed; }
+.comparison-table th, .comparison-table td { overflow-wrap: anywhere; }
+.comparison-table pre { margin: 0; max-height: 240px; overflow: auto; }
+.comparison-table th:first-child { width: 28%; }
+@media (max-width: 800px) { .comparison-table table { min-width: 540px; } }
 
 .browser-photo-dialog { width: min(96vw, 1100px); max-height: 92vh; overflow: auto; border: 2px solid #1a3f75; padding: 1.25rem; }
 .browser-photo-dialog img { display: block; max-width: 100%; height: auto; margin-block: 1rem; }
