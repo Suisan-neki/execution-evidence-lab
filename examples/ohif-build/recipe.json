@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "platform": "linux/amd64",
+  "timeout_ms": 2400000,
+  "memory_mb": 6144,
+  "cpus": 2,
+  "source": {
+    "repository": "OHIF/Viewers",
+    "commit": "5a78dac37797efa74c10e63ec2028bca0b33e13b",
+    "path": "package.json",
+    "line": 1,
+    "end_line": 10
+  },
+  "image": "node:24.19.0-bookworm@sha256:107ceb6ad85808049dccef12414bf17b08eceb299eaf755c0339dc5fc8958d6b",
+  "setup": {
+    "kind": "pnpm",
+    "version": "12.8.1",
+    "url": "https://registry.npmjs.org/pnpm/-/pnpm-12.8.1.tgz",
+    "integrity": "sha512-9kupB1B/XOr+BsjTjmBS0BeURFgOwSed3Vv8EctIqoomRLZlmOB+dh2oSHKp/FfV+QK4f6SdAkGY1VhhKqu+RQ==",
+    "lockfile": "pnpm-lock.yaml",
+    "executable_url": "https://registry.npmjs.org/@pnpm/exe.linux-x64/-/exe.linux-x64-12.8.1.tgz",
+    "executable_integrity": "sha512-8bDZ0lZlCdi2rvnFul7EYgcC7zKeWSe76y8JV2oXobaS8p9i9d6PSf6LgLtTM0fI7R9Oh4eLCbveXyNDMmvZ+g=="
+  },
+  "locks": [
+    {
+      "path": "pnpm-lock.yaml",
+      "sha256": "a26dffd43c46b8958020a79596e7bd26d87dcee4f2a201e5b4da60d36feea6b7"
+    },
+    {
+      "path": "pnpm-workspace.yaml",
+      "sha256": "d293e80f443b8225233fd1215b136becf18ef2cf51a88a280826ef1e73c4aa66"
+    },
+    {
+      "path": "package.json",
+      "sha256": "8162dbee88fb81443b51ec7603e1261423983b50fe03379a1a79a0ff250027ca"
+    },
+    {
+      "path": ".npmrc",
+      "sha256": "74c4bbecc61e08c3bf917dd2e52c623fefd1ea6d5772d60a2a730868cb0df217"
+    }
+  ],
+  "support": [
+    {
+      "path": "build.py",
+      "sha256": "4dfaf915ddfdd0139f0f3aedcdc0eac6bea77c7da5e492b6411f1233fa535863"
+    }
+  ],
+  "command": [
+    "python3",
+    "/eel/support/build.py"
+  ],
+  "command_phase": "preparation",
+  "env": {
+    "QUICK_BUILD": "true",
+    "APP_CONFIG": "config/default.js",
+    "PUBLIC_URL": "/",
+    "CYPRESS_INSTALL_BINARY": "0",
+    "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD": "1",
+    "RAYON_NUM_THREADS": "2"
+  },
+  "limits": [
+    "OHIF上流のDockerfileはロックを再解決するため使わず、固定コミット全体でfrozen installを行う。",
+    "ビルドの成功は画像の取得・表示の成功を意味しない。",
+    "testdataのGit submodule、外部データセット、臨床データは取得しない。"
+  ]
+}
