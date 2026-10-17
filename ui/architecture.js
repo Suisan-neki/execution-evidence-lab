@@ -24,6 +24,7 @@ let state,
   selected = "system",
   model,
   diagramObserver,
+  diagramResizeObserver,
   overlaySheet,
   observedRoots = new Set();
 const basisLabels = {
@@ -265,6 +266,7 @@ function choose(id, focus = true) {
 }
 function renderDiagram() {
   diagramObserver?.disconnect();
+  diagramResizeObserver?.disconnect();
   observedRoots = new Set();
   const box = $("diagram");
   box.replaceChildren();
@@ -286,6 +288,11 @@ function renderDiagram() {
   canvas.className = "diagram-canvas";
   canvas.append(view);
   box.append(canvas);
+  // Keep the centre of the wide diagram visible when a narrow viewport first opens or resizes.
+  diagramResizeObserver = new ResizeObserver(() => {
+    box.scrollLeft = Math.max(0, (box.scrollWidth - box.clientWidth) / 2);
+  });
+  diagramResizeObserver.observe(box);
   customElements.whenDefined("likec4-view").then(() => {
     if (!view.isConnected) return;
     const shadow = view.shadowRoot;
