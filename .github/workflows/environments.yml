@@ -18,6 +18,7 @@ jobs:
       - name: Install the pinned Rust toolchain
         run: rustup toolchain install 1.99.0 --profile minimal
       - run: cargo build --locked
+      - run: python3 tools/environment-runner-tests.py
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24.19.0

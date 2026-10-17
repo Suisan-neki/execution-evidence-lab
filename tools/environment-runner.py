@@ -3,7 +3,7 @@ import base64
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import platform
 import re
 import shutil
@@ -48,6 +48,30 @@ def download(url, path, algorithm, expected):
         raise RuntimeError(f"distribution hash mismatch: {path.name}")
 
 
+def extract(archive, destination):
+    # The pinned Node image has Python 3.11.2, before tarfile's data filter.
+    # Accept only regular files and directories; never create links or device files.
+    total = 0
+    with tarfile.open(archive) as tar:
+        for count, member in enumerate(tar):
+            name = PurePosixPath(member.name)
+            if name.is_absolute() or ".." in name.parts or not name.parts or count >= 100000:
+                raise RuntimeError("unsafe archive path or member limit")
+            target = destination.joinpath(*name.parts)
+            if member.isdir():
+                target.mkdir(parents=True, exist_ok=True)
+            elif member.isfile():
+                total += member.size
+                if total > 1024 * 1024 * 1024:
+                    raise RuntimeError("archive expansion limit")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with tar.extractfile(member) as source, target.open("xb") as output:
+                    shutil.copyfileobj(source, output)
+                target.chmod(member.mode & 0o777)
+            else:
+                raise RuntimeError("archive links and special files are not accepted")
+
+
 def verify_files(base, files):
     for f in files:
         path = base / f["path"]
@@ -64,14 +88,12 @@ def pnpm_setup(recipe, env):
     download(setup["url"], archive, "sha512", setup["integrity"].removeprefix("sha512-"))
     manager = Path("/work/manager")
     manager.mkdir()
-    with tarfile.open(archive) as tar:
-        tar.extractall(manager, filter="data")
+    extract(archive, manager)
     native_archive = Path("/work/pnpm-native.tgz")
     download(setup["executable_url"], native_archive, "sha512", setup["executable_integrity"].removeprefix("sha512-"))
     native = Path("/work/native")
     native.mkdir()
-    with tarfile.open(native_archive) as tar:
-        tar.extractall(native, filter="data")
+    extract(native_archive, native)
     pnpm = manager / "package/pnpm"
     shutil.copyfile(native / "package/pnpm", pnpm)
     pnpm.chmod(0o755)
@@ -164,8 +186,7 @@ def main():
     try:
         if platform.machine() != "x86_64":
             raise RuntimeError("expected Linux amd64")
-        with tarfile.open("/eel/source.tar") as tar:
-            tar.extractall(ROOT, filter="data")
+        extract("/eel/source.tar", ROOT)
         verify_files(ROOT, recipe["locks"])
         verify_files(Path("/eel/support"), recipe["support"])
         env = {"PATH": os.environ["PATH"], "HOME": "/work/home", "LANG": "C.UTF-8", "CI": "true"}
