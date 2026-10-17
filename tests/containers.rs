@@ -1,0 +1,543 @@
+//! ダイジェスト付きの公式イメージで、試験専用コンテナの起動・HTTP操作・故障・掃除を確かめる。
+//! Dockerのエンジンがない環境では省略し、成功とは書かない。
+use execution_evidence_lab::{
+    container::*, execution::*, model::*, recording::*, trial::*, workspace::*,
+};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
+
+const NGINX: &str =
+    "nginx:1.27.4-alpine@sha256:4ff102c5d78d254a6f0da062b3cf39eaf07f01eec0927fd21e219d0af8bc0591";
+
+fn git(root: &Path, args: &[&str]) -> String {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(args)
+        .output()
+        .expect("git");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8_lossy(&output.stdout).trim().into()
+}
+
+fn fixture() -> (std::path::PathBuf, std::path::PathBuf, String) {
+    let directory = new_run_directory(&std::env::temp_dir().join("evidence-containers"))
+        .expect("dir")
+        .0;
+    let root = directory.join("repo");
+    fs::create_dir_all(&root).unwrap();
+    git(&root, &["init", "-q"]);
+    git(&root, &["config", "user.name", "Synthetic test"]);
+    git(&root, &["config", "user.email", "test@example.invalid"]);
+    git(
+        &root,
+        &[
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/example/web.git",
+        ],
+    );
+    fs::write(
+        root.join("README.md"),
+        "架空の対象。コンテナは公式イメージをダイジェストで固定する。\n",
+    )
+    .unwrap();
+    git(&root, &["add", "."]);
+    git(&root, &["commit", "-qm", "synthetic"]);
+    let commit = git(&root, &["rev-parse", "HEAD"]);
+    (directory, root, commit)
+}
+
+fn nginx(name: &str, role: ServiceRole) -> Service {
+    Service {
+        name: name.into(),
+        image: NGINX.into(),
+        role,
+        expose: 80,
+        env: Default::default(),
+        volumes: vec![],
+        command: vec![],
+        ready: ReadyCheck::Http {
+            path: "/".into(),
+            tls: false,
+        },
+        ready_timeout_ms: 20000,
+    }
+}
+
+fn recipe(
+    commit: &str,
+    services: Vec<Service>,
+    fault: TrialFault,
+    checks: Vec<TrialCheck>,
+) -> Recipe {
+    let http_service = services
+        .iter()
+        .find(|s| s.role == ServiceRole::App)
+        .expect("app")
+        .name
+        .clone();
+    Recipe {
+        schema_version: 1,
+        check_id: "web".into(),
+        source: CodeReference {
+            repository: "example/web".into(),
+            commit: commit.into(),
+            path: "README.md".into(),
+            line: 1,
+            end_line: 1,
+        },
+        runtime: Runtime::Http,
+        entrypoint: "/".into(),
+        args: vec![],
+        input: serde_json::json!({}),
+        criterion: Criterion {
+            assertion: "eel.trial".into(),
+            subject: "web".into(),
+        },
+        timeout_ms: 30000,
+        trial: Some(TrialSpec {
+            schema_version: 1,
+            fault,
+            storage: None,
+            readback: None,
+            checks,
+        }),
+        launch: Default::default(),
+        python: None,
+        server: None,
+        containers: Some(ContainerSpec { services }),
+        http: Some(HttpOp {
+            service: http_service,
+            method: "GET".into(),
+            path: "/".into(),
+            body_file: None,
+            content_type: None,
+        }),
+    }
+}
+
+fn check(
+    id: &str,
+    scope: &str,
+    method: CheckMethod,
+    expect: Expectation,
+    text: &str,
+) -> TrialCheck {
+    TrialCheck {
+        id: id.into(),
+        scope: scope.into(),
+        method,
+        expect,
+        text: if text.is_empty() {
+            None
+        } else {
+            Some(text.into())
+        },
+        target: None,
+    }
+}
+
+fn docker_available() -> bool {
+    match engine() {
+        Ok(_) => true,
+        Err(error) => {
+            eprintln!("Dockerがないためコンテナ試験を省略: {error}");
+            false
+        }
+    }
+}
+
+#[test]
+fn tag_without_digest_is_rejected() {
+    let mut spec = ContainerSpec {
+        services: vec![nginx("web", ServiceRole::App)],
+    };
+    spec.services[0].image = "nginx:1.27.4-alpine".into();
+    assert!(validate_spec(&spec).is_err());
+}
+
+#[test]
+fn nginx_http_is_satisfied() {
+    if !docker_available() {
+        return;
+    }
+    let (directory, root, commit) = fixture();
+    let result = execute(
+        &root,
+        &directory.join("runs"),
+        recipe(
+            &commit,
+            vec![nginx("web", ServiceRole::App)],
+            TrialFault::Normal,
+            vec![
+                check(
+                    "status",
+                    "受付",
+                    CheckMethod::ExitCode,
+                    Expectation::Zero,
+                    "",
+                ),
+                check(
+                    "welcome",
+                    "応答",
+                    CheckMethod::Stdout,
+                    Expectation::Contains,
+                    "Welcome to nginx",
+                ),
+                check(
+                    "log",
+                    "ログ",
+                    CheckMethod::ContainerLog,
+                    Expectation::Contains,
+                    "Configuration complete",
+                ),
+            ],
+        ),
+        Condition {
+            id: "web".into(),
+            version: 1,
+            text: "試験用のnginxが応答する".into(),
+            origin: "試験".into(),
+            kind: ConditionKind::Custom,
+        },
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        result.assessment.verdict,
+        Verdict::Satisfied,
+        "{}",
+        result.assessment.reason
+    );
+    let trace: ExecutionTrace =
+        serde_json::from_str(&fs::read_to_string(result.directory.join("execution.json")).unwrap())
+            .unwrap();
+    let phase = trace.containers.expect("containers");
+    assert!(phase.leftovers.is_empty(), "{:?}", phase.leftovers);
+    assert!(phase.services[0].ready);
+    assert!(phase.services[0].digest.contains("sha256:"));
+    assert!(!phase.services[0].running_after_stop);
+}
+
+#[test]
+fn stopping_the_database_container_is_effective() {
+    if !docker_available() {
+        return;
+    }
+    let (directory, root, commit) = fixture();
+    let result = execute(
+        &root,
+        &directory.join("runs"),
+        recipe(
+            &commit,
+            vec![
+                nginx("web", ServiceRole::App),
+                nginx("db", ServiceRole::Database),
+            ],
+            TrialFault::DatabaseStopped,
+            vec![
+                check(
+                    "welcome",
+                    "応答",
+                    CheckMethod::Stdout,
+                    Expectation::Contains,
+                    "Welcome to nginx",
+                ),
+                check(
+                    "log",
+                    "ログ",
+                    CheckMethod::ContainerLog,
+                    Expectation::Contains,
+                    "Configuration complete",
+                ),
+            ],
+        ),
+        Condition {
+            id: "web".into(),
+            version: 1,
+            text: "データベースを止めても、止めたことを記録する".into(),
+            origin: "試験".into(),
+            kind: ConditionKind::Custom,
+        },
+        None,
+    )
+    .unwrap();
+    let trace: ExecutionTrace =
+        serde_json::from_str(&fs::read_to_string(result.directory.join("execution.json")).unwrap())
+            .unwrap();
+    let trial = trace.trial.expect("trial");
+    assert!(trial.fault_effective, "{}", trial.fault_applied);
+    let db = trial
+        .containers
+        .as_ref()
+        .unwrap()
+        .services
+        .iter()
+        .find(|s| s.name == "db")
+        .unwrap();
+    assert!(!db.running_after_stop);
+    assert!(trial.containers.as_ref().unwrap().leftovers.is_empty());
+}
+
+#[test]
+fn disconnecting_the_database_is_effective() {
+    if !docker_available() {
+        return;
+    }
+    let (directory, root, commit) = fixture();
+    let result = execute(
+        &root,
+        &directory.join("runs"),
+        recipe(
+            &commit,
+            vec![
+                nginx("web", ServiceRole::App),
+                nginx("db", ServiceRole::Database),
+            ],
+            TrialFault::DatabaseUnreachable,
+            vec![check(
+                "welcome",
+                "応答",
+                CheckMethod::Stdout,
+                Expectation::Contains,
+                "Welcome to nginx",
+            )],
+        ),
+        Condition {
+            id: "web".into(),
+            version: 1,
+            text: "データベースとの通信を切ったことを記録する".into(),
+            origin: "試験".into(),
+            kind: ConditionKind::Custom,
+        },
+        None,
+    )
+    .unwrap();
+    let trace: ExecutionTrace =
+        serde_json::from_str(&fs::read_to_string(result.directory.join("execution.json")).unwrap())
+            .unwrap();
+    assert!(trace.trial.as_ref().unwrap().fault_effective);
+}
+
+const ORTHANC: &str = "orthancteam/orthanc:26.9.1@sha256:d2705f2c56547e55ce9bc2250fd22d05d326493b3f3d9fa191ecb7db8ca6b5a2";
+const OPENEMR: &str = "openemr/openemr:latest@sha256:f0bfbc17fae13503ab64bbd271f74d80dd4a0786f5a8d0683841aeef4e159700";
+const MARIADB: &str =
+    "mariadb:12.3.3@sha256:2bdff1534a7e569fecaf4b10b66ad0d410806e382d9db29ba305448addda97c4";
+
+fn sample_dicom(root: &Path) -> bool {
+    let src = PathBuf::from(format!(
+        "{}/.cache/pynetdicom/pynetdicom/tests/dicom_files/CTImageStorage.dcm",
+        std::env::var("HOME").unwrap_or_default()
+    ));
+    if !src.is_file() {
+        eprintln!("試験用DICOMがないため Orthanc の登録試験を省略");
+        return false;
+    }
+    fs::copy(src, root.join("sample.dcm")).unwrap();
+    Command::new("git")
+        .args(["-C", root.to_str().unwrap(), "add", "sample.dcm"])
+        .status()
+        .ok();
+    git(root, &["commit", "-qm", "sample"]);
+    true
+}
+
+#[test]
+#[ignore = "Orthancのイメージ取得が必要"]
+fn orthanc_stores_the_sample_dicom() {
+    if !docker_available() {
+        return;
+    }
+    let (directory, root, _) = fixture();
+    if !sample_dicom(&root) {
+        return;
+    }
+    let commit = git(&root, &["rev-parse", "HEAD"]);
+    let mut env = std::collections::BTreeMap::new();
+    env.insert("DICOM_WEB_PLUGIN_ENABLED".into(), "true".into());
+    env.insert("ORTHANC__REMOTE_ACCESS_ALLOWED".into(), "true".into());
+    env.insert("ORTHANC__AUTHENTICATION_ENABLED".into(), "false".into());
+    let mut recipe = recipe(
+        &commit,
+        vec![Service {
+            name: "orthanc".into(),
+            image: ORTHANC.into(),
+            role: ServiceRole::App,
+            expose: 8042,
+            env,
+            volumes: vec![],
+            command: vec![],
+            ready: ReadyCheck::Http {
+                path: "/system".into(),
+                tls: false,
+            },
+            ready_timeout_ms: 60000,
+        }],
+        TrialFault::Normal,
+        vec![
+            check(
+                "status",
+                "受付",
+                CheckMethod::ExitCode,
+                Expectation::Zero,
+                "",
+            ),
+            check(
+                "stored",
+                "書き込み",
+                CheckMethod::Stdout,
+                Expectation::Contains,
+                "ParentStudy",
+            ),
+        ],
+    );
+    recipe.http = Some(HttpOp {
+        service: "orthanc".into(),
+        method: "POST".into(),
+        path: "/instances".into(),
+        body_file: Some("sample.dcm".into()),
+        content_type: Some("application/dicom".into()),
+    });
+    recipe.entrypoint = "/instances".into();
+    recipe.timeout_ms = 60000;
+    let result = execute(
+        &root,
+        &directory.join("runs"),
+        recipe,
+        Condition {
+            id: "web".into(),
+            version: 1,
+            text: "試験用のDICOMをOrthancへ登録できる".into(),
+            origin: "試験".into(),
+            kind: ConditionKind::Custom,
+        },
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        result.assessment.verdict,
+        Verdict::Satisfied,
+        "{}",
+        result.assessment.reason
+    );
+}
+
+#[test]
+#[ignore = "OpenEMRとMariaDBのイメージ取得と数分の起動が必要"]
+fn openemr_becomes_ready_with_pinned_images() {
+    if !docker_available() {
+        return;
+    }
+    let (directory, root, commit) = fixture();
+    let mut db_env = std::collections::BTreeMap::new();
+    db_env.insert("MYSQL_ROOT_PASSWORD".into(), "eel-root-trial".into());
+    db_env.insert("MARIADB_AUTO_UPGRADE".into(), "1".into());
+    let mut app_env = std::collections::BTreeMap::new();
+    app_env.insert("MYSQL_HOST".into(), "mysql".into());
+    app_env.insert("MYSQL_ROOT_PASS".into(), "eel-root-trial".into());
+    app_env.insert("MYSQL_USER".into(), "openemr".into());
+    app_env.insert("MYSQL_PASS".into(), "eel-openemr-trial".into());
+    app_env.insert("OE_USER".into(), "eel-operator".into());
+    app_env.insert("OE_PASS".into(), "eel-pass-trial".into());
+    let mut recipe = recipe(
+        &commit,
+        vec![
+            Service {
+                name: "mysql".into(),
+                image: MARIADB.into(),
+                role: ServiceRole::Database,
+                expose: 3306,
+                env: db_env,
+                volumes: vec![VolumeMount {
+                    name: "db".into(),
+                    path: "/var/lib/mysql".into(),
+                }],
+                command: vec!["mariadbd".into(), "--character-set-server=utf8mb4".into()],
+                ready: ReadyCheck::Exec {
+                    args: vec![
+                        "/usr/local/bin/healthcheck.sh".into(),
+                        "--su-mysql".into(),
+                        "--connect".into(),
+                        "--innodb_initialized".into(),
+                    ],
+                },
+                ready_timeout_ms: 120000,
+            },
+            Service {
+                name: "openemr".into(),
+                image: OPENEMR.into(),
+                role: ServiceRole::App,
+                expose: 443,
+                env: app_env,
+                volumes: vec![],
+                command: vec![],
+                ready: ReadyCheck::Http {
+                    path: "/meta/health/readyz".into(),
+                    tls: true,
+                },
+                ready_timeout_ms: 240000,
+            },
+        ],
+        TrialFault::Normal,
+        vec![
+            check(
+                "status",
+                "受付",
+                CheckMethod::ExitCode,
+                Expectation::Zero,
+                "",
+            ),
+            check(
+                "ready",
+                "応答",
+                CheckMethod::Stdout,
+                Expectation::Contains,
+                "HTTP 200",
+            ),
+            check(
+                "db",
+                "保存先",
+                CheckMethod::DatabaseQuery,
+                Expectation::Contains,
+                "SELECT 1",
+            ),
+        ],
+    );
+    recipe.http = Some(HttpOp {
+        service: "openemr".into(),
+        method: "GET".into(),
+        path: "/meta/health/readyz".into(),
+        body_file: None,
+        content_type: None,
+    });
+    recipe.timeout_ms = 300000;
+    let result = execute(
+        &root,
+        &directory.join("runs"),
+        recipe,
+        Condition {
+            id: "web".into(),
+            version: 1,
+            text: "固定したイメージでOpenEMRが準備できる".into(),
+            origin: "試験".into(),
+            kind: ConditionKind::Custom,
+        },
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        result.assessment.verdict,
+        Verdict::Satisfied,
+        "{}",
+        result.assessment.reason
+    );
+}

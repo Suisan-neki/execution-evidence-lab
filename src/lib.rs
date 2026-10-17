@@ -4,6 +4,7 @@ pub mod assessment;
 pub mod backup;
 pub mod capture;
 pub mod comparison;
+pub mod container;
 pub mod evaluation;
 pub mod execution;
 pub mod experiment;

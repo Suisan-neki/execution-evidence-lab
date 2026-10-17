@@ -57,6 +57,8 @@ pub struct Criterion {
 pub enum Runtime {
     Node,
     Python3,
+    /// 基盤がコンテナの公開ポートへHTTPで操作する。対象のNode/Pythonは起動しない。
+    Http,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -83,6 +85,12 @@ pub struct Recipe {
     /// 操作するプロセスより先に起動して待つプロセス。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server: Option<crate::server::ServerSpec>,
+    /// 試験専用のコンテナ。ダイジェスト付きのイメージだけを起動する。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub containers: Option<crate::container::ContainerSpec>,
+    /// コンテナへ基盤が行うHTTP操作。指定すると操作するプロセスは起動しない。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub http: Option<crate::container::HttpOp>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -146,6 +154,9 @@ pub struct ExecutionTrace {
     /// 依存先の固定コミット、基盤が作ったパッケージ情報、起動のしかたの解決結果。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub python: Option<crate::python_env::PythonTrace>,
+    /// 試験専用コンテナの起動・準備・ログ・HTTP操作・掃除の記録。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub containers: Option<crate::container::ContainerPhase>,
 }
 struct ChildGuard(std::process::Child);
 impl Drop for ChildGuard {
@@ -186,7 +197,21 @@ pub fn validate_criterion(criterion: &Criterion) -> io::Result<()> {
 pub fn validate_recipe(recipe: &Recipe) -> io::Result<()> {
     crate::workspace::validate_source(&recipe.source)?;
     let python = recipe.python.is_some();
-    crate::python_env::validate_launch(recipe.launch, &recipe.entrypoint, python, relative)?;
+    let http = recipe.runtime == Runtime::Http;
+    if http {
+        if recipe.containers.is_none() || recipe.http.is_none() {
+            return Err(invalid(
+                "HTTPの操作には、ダイジェスト付きのコンテナと操作先が必要です",
+            ));
+        }
+        if recipe.python.is_some() || recipe.server.is_some() {
+            return Err(invalid(
+                "HTTPの操作と、Pythonの読み込み先・待つプロセスは同時に指定しません",
+            ));
+        }
+    } else {
+        crate::python_env::validate_launch(recipe.launch, &recipe.entrypoint, python, relative)?;
+    }
     relative(&recipe.source.path)?;
     if let Some(setup) = &recipe.python {
         if recipe.runtime != Runtime::Python3 {
@@ -202,6 +227,22 @@ pub fn validate_recipe(recipe: &Recipe) -> io::Result<()> {
         }
         crate::server::validate(server)?;
         crate::python_env::validate_launch(server.launch, &server.entrypoint, python, relative)?;
+    }
+    if let Some(containers) = &recipe.containers {
+        crate::container::validate_spec(containers)?;
+        if recipe.trial.is_none() {
+            return Err(invalid("コンテナを使う試行には、判定条件が必要です"));
+        }
+    }
+    if let Some(http) = &recipe.http {
+        let containers = recipe
+            .containers
+            .as_ref()
+            .ok_or_else(|| invalid("HTTPの操作には、ダイジェスト付きのコンテナが必要です"))?;
+        crate::container::validate_http(http, containers)?;
+        if let Some(file) = &http.body_file {
+            relative(file)?;
+        }
     }
     validate_criterion(&recipe.criterion)?;
     text(&recipe.check_id)?;
@@ -223,7 +264,13 @@ pub fn validate_recipe(recipe: &Recipe) -> io::Result<()> {
         ));
     }
     if let Some(trial) = &recipe.trial {
-        crate::trial::validate(trial, recipe.server.is_some(), python, relative)?;
+        crate::trial::validate(
+            trial,
+            recipe.server.is_some(),
+            python,
+            recipe.containers.is_some(),
+            relative,
+        )?;
     }
     Ok(())
 }
@@ -367,7 +414,7 @@ fn inventory(
 fn check_target_files(recipe: &Recipe, files: &[SnapshotFile]) -> io::Result<()> {
     let readback = recipe.trial.as_ref().and_then(|t| t.readback.as_ref());
     let starts = [
-        Some((recipe.launch, recipe.entrypoint.as_str())),
+        (recipe.runtime != Runtime::Http).then_some((recipe.launch, recipe.entrypoint.as_str())),
         readback.map(|r| (r.launch, r.entrypoint.as_str())),
         recipe
             .server
@@ -459,6 +506,11 @@ fn runtime_path(runtime: &Runtime) -> io::Result<PathBuf> {
     let (name, probe): (_, &[&str]) = match runtime {
         Runtime::Node => ("node", &["-p", "process.execPath"]),
         Runtime::Python3 => ("python3", &["-c", "import sys; print(sys.executable)"]),
+        Runtime::Http => {
+            return Err(invalid(
+                "HTTPの操作はコンテナの公開ポートへ基盤が行います。Node.jsやPython 3の実行環境は使いません",
+            ));
+        }
     };
     let candidate = executable(name)?;
     // ホストが用意した実行環境に実体の場所だけを尋ねる。対象のコードは渡さない。
@@ -478,6 +530,10 @@ fn runtime_path(runtime: &Runtime) -> io::Result<PathBuf> {
     }
 }
 pub fn runtime_available(runtime: &Runtime) -> Result<(PathBuf, String), String> {
+    if *runtime == Runtime::Http {
+        return crate::container::engine()
+            .map(|version| (PathBuf::from("docker"), format!("Docker {version}")));
+    }
     let program = runtime_path(runtime).map_err(|e| e.to_string())?;
     let output = Command::new(&program)
         .arg("--version")
@@ -587,12 +643,14 @@ pub fn validate_trace(trace: &ExecutionTrace, manifest: &Manifest) -> io::Result
             .files
             .iter()
             .any(|f| f.path == trace.recipe.source.path)
-        || trace.recipe.launch.is_file()
+        || trace.recipe.runtime != Runtime::Http
+            && trace.recipe.launch.is_file()
             && !trace
                 .files
                 .iter()
                 .any(|f| f.path == trace.recipe.entrypoint)
         || trace.python.is_some() != trace.recipe.python.is_some()
+        || trace.containers.is_some() != trace.recipe.containers.is_some()
         || (trace.observation_read == ObservationRead::Missing
             || trace.observation_read == ObservationRead::Invalid)
             && !trace.observations.is_empty()
@@ -767,6 +825,11 @@ pub fn execute_with_dependencies(
             "bubblewrap方式ではプロセスごとにネットワークを分けるため、待つプロセスとの通信を試せません。ローカルへは自動で切り替えません",
         ));
     }
+    if mode == ExecutionMode::Bubblewrap && recipe.containers.is_some() {
+        return Err(invalid(
+            "bubblewrap方式ではコンテナの待ち受けをホストの127.0.0.1へ公開できません。ローカルへは自動で切り替えません",
+        ));
+    }
     let root = fs::canonicalize(repository_root)?;
     let (tree, files) = inventory(
         &root,
@@ -843,6 +906,11 @@ pub fn execute_with_dependencies(
         Some(_) => Some(crate::server::free_port()?),
         None => None,
     };
+    let mut session = match &recipe.containers {
+        Some(spec) => Some(crate::container::Session::start(&correlation.run_id, spec)?),
+        None => None,
+    };
+    let container_ports = session.as_ref().map(|s| s.ports()).unwrap_or_default();
     let source_root = if mode == ExecutionMode::Bubblewrap {
         "/source".to_owned()
     } else {
@@ -851,12 +919,12 @@ pub fn execute_with_dependencies(
     let substitute = |args: &[String]| -> Vec<String> {
         args.iter()
             .map(|a| {
-                let value = crate::trial::substitute(a, &test_value)
+                let mut value = crate::trial::substitute(a, &test_value)
                     .replace(crate::trial::SOURCE_ROOT, &source_root);
-                match port {
-                    Some(port) => value.replace(crate::server::PORT, &port.to_string()),
-                    None => value,
+                if let Some(port) = port {
+                    value = value.replace(crate::server::PORT, &port.to_string());
                 }
+                crate::container::substitute_ports(&value, &container_ports)
             })
             .collect()
     };
@@ -869,6 +937,31 @@ pub fn execute_with_dependencies(
         Some(spec) => Some(crate::trial::apply_fault(spec, &work)?),
         None => None,
     };
+    if let (Some(spec), Some(session), Some((_, effective))) =
+        (recipe.trial.as_ref(), session.as_mut(), fault.as_mut())
+    {
+        if session.all_ready() {
+            match spec.fault {
+                crate::trial::TrialFault::DatabaseStopped => {
+                    *effective = session.stop_database()?;
+                }
+                crate::trial::TrialFault::DatabaseUnreachable => {
+                    *effective = session.disconnect_database()?;
+                }
+                crate::trial::TrialFault::VolumeReadOnly => {
+                    *effective = session.remount_database_read_only()?;
+                }
+                _ => {}
+            }
+        } else if matches!(
+            spec.fault,
+            crate::trial::TrialFault::DatabaseStopped
+                | crate::trial::TrialFault::DatabaseUnreachable
+                | crate::trial::TrialFault::VolumeReadOnly
+        ) {
+            *effective = false;
+        }
+    }
     let launch = Launcher {
         mode,
         program: &program,
@@ -877,12 +970,16 @@ pub fn execute_with_dependencies(
         correlation: &correlation,
         python: python.as_ref().map(|p| &p.paths),
     };
-    let operate = start_for(
-        recipe.launch,
-        &recipe.entrypoint,
-        python.as_ref(),
-        "operate",
-    )?;
+    let operate = if recipe.runtime == Runtime::Http {
+        None
+    } else {
+        Some(start_for(
+            recipe.launch,
+            &recipe.entrypoint,
+            python.as_ref(),
+            "operate",
+        )?)
+    };
     let mut manifest = make_manifest(correlation.clone(), condition)?;
     manifest.mode = "pinned_execution".into();
     manifest.timeout_ms = recipe.timeout_ms;
@@ -900,10 +997,28 @@ pub fn execute_with_dependencies(
             "。待つプロセスとの通信用に127.0.0.1のポート{port}を基盤が割り当てた。待ち受けるアドレスは対象の引数で決まり、OSでは制限していない"
         ));
     }
+    if session.is_some() {
+        manifest.initial_storage.push_str(
+            "。試験専用のコンテナ・ネットワーク・ボリュームをこの試行だけで作り、待ち受けは127.0.0.1だけに公開する。終了後に消す。既存のコンテナは使わない",
+        );
+    }
     manifest.observation_scope =
         "固定版と構造化された自己申告の観測、stdout/stderr・終了。実行経路と外部依存先は未確認"
             .into();
-    manifest.command = launch.describe(&operate, &args);
+    manifest.command = match &operate {
+        Some(operate) => launch.describe(operate, &args),
+        None => recipe
+            .http
+            .as_ref()
+            .map(|op| {
+                vec![
+                    "http".into(),
+                    op.method.clone(),
+                    format!("{} {}", op.service, op.path),
+                ]
+            })
+            .unwrap_or_default(),
+    };
     write_json_new(&directory.join("manifest.json"), &manifest)?;
     write_json_new(&directory.join("recipe.json"), &recipe)?;
     let recorder = Recorder::new(&directory, correlation.clone())?;
@@ -927,40 +1042,76 @@ pub fn execute_with_dependencies(
                 .trial
                 .as_ref()
                 .is_some_and(|t| t.fault == crate::trial::TrialFault::ServerNotStarted)
-    });
-    let stdout = File::create(directory.join("stdout.txt"))?;
-    let stderr = File::create(directory.join("stderr.txt"))?;
+    }) && session.as_ref().is_none_or(|s| s.all_ready());
+    let mut http_result = None;
+    let mut http_exit = None;
     let (status, timed_out, output_limit) = if proceed {
-        let mut command = launch.command(&operate, &args)?;
-        command.stdout(stdout).stderr(stderr);
-        let child = ChildGuard(command.spawn()?);
-        recorder.record(
-            Source::Process,
-            EventKind::ProcessStarted,
-            format!(
-                "pid={}、固定コミット{}、起動{}（{}）",
-                child.0.id(),
-                recipe.source.commit,
-                recipe.entrypoint,
-                recipe.launch.label()
-            ),
-        )?;
-        let (status, timed_out, output_limit) = wait(
-            child,
-            &directory,
-            ["stdout.txt", "stderr.txt"],
-            recipe.timeout_ms,
-        )?;
-        recorder.record(
-            Source::Process,
-            if timed_out {
-                EventKind::ProcessTimedOut
-            } else {
-                EventKind::ProcessExited
-            },
-            format!("{status}、出力上限超過={output_limit}"),
-        )?;
-        (Some(status), timed_out, output_limit)
+        if let (Some(op), Some(session)) = (&recipe.http, session.as_ref()) {
+            match session.request(op, &snapshot, recipe.timeout_ms) {
+                Ok(result) => {
+                    let code = result.status.unwrap_or(0);
+                    fs::write(
+                        directory.join("stdout.txt"),
+                        format!("{}\n{}", result.detail, result.body_excerpt),
+                    )?;
+                    fs::write(directory.join("stderr.txt"), "")?;
+                    recorder.record(
+                        Source::Process,
+                        EventKind::ProcessExited,
+                        format!("HTTP {code}（コンテナ {}）", op.service),
+                    )?;
+                    http_exit = Some(if (200..400).contains(&code) { 0 } else { 1 });
+                    http_result = Some(result);
+                    (None, false, false)
+                }
+                Err(error) => {
+                    fs::write(directory.join("stdout.txt"), "")?;
+                    fs::write(directory.join("stderr.txt"), error.to_string())?;
+                    recorder.record(
+                        Source::Process,
+                        EventKind::ProcessExited,
+                        format!("HTTPの操作に失敗: {error}"),
+                    )?;
+                    http_exit = Some(1);
+                    (None, false, false)
+                }
+            }
+        } else if let Some(operate) = &operate {
+            let stdout = File::create(directory.join("stdout.txt"))?;
+            let stderr = File::create(directory.join("stderr.txt"))?;
+            let mut command = launch.command(operate, &args)?;
+            command.stdout(stdout).stderr(stderr);
+            let child = ChildGuard(command.spawn()?);
+            recorder.record(
+                Source::Process,
+                EventKind::ProcessStarted,
+                format!(
+                    "pid={}、固定コミット{}、起動{}（{}）",
+                    child.0.id(),
+                    recipe.source.commit,
+                    recipe.entrypoint,
+                    recipe.launch.label()
+                ),
+            )?;
+            let (status, timed_out, output_limit) = wait(
+                child,
+                &directory,
+                ["stdout.txt", "stderr.txt"],
+                recipe.timeout_ms,
+            )?;
+            recorder.record(
+                Source::Process,
+                if timed_out {
+                    EventKind::ProcessTimedOut
+                } else {
+                    EventKind::ProcessExited
+                },
+                format!("{status}、出力上限超過={output_limit}"),
+            )?;
+            (Some(status), timed_out, output_limit)
+        } else {
+            (None, false, false)
+        }
     } else {
         (None, false, false)
     };
@@ -968,7 +1119,27 @@ pub fn execute_with_dependencies(
         Some((phase, child)) => Some(finish_server(phase, child, &directory, &recorder)?),
         None => None,
     };
-    let completed = status.is_some() && !timed_out && !output_limit;
+    if !directory.join("stdout.txt").exists() {
+        fs::write(directory.join("stdout.txt"), "")?;
+        fs::write(directory.join("stderr.txt"), "")?;
+    }
+    let database_query = session.as_ref().and_then(|s| s.query_database());
+    let mut container_phase = session.as_ref().map(|s| s.snapshot());
+    if let Some(phase) = container_phase.as_mut() {
+        phase.database_query = database_query;
+        phase.http = http_result.clone();
+    }
+    let leftovers = match session.as_mut() {
+        Some(session) => match session.cleanup() {
+            Ok(left) => left,
+            Err(error) => vec![error.to_string()],
+        },
+        None => vec![],
+    };
+    if let Some(phase) = container_phase.as_mut() {
+        phase.leftovers.clone_from(&leftovers);
+    }
+    let completed = (status.is_some() || http_exit.is_some()) && !timed_out && !output_limit;
     let readback = match recipe.trial.as_ref().and_then(|t| t.readback.as_ref()) {
         Some(spec) if completed => {
             let readback_args = substitute(&spec.args);
@@ -1017,16 +1188,23 @@ pub fn execute_with_dependencies(
         load_observations(&work.join("observations.jsonl"), &correlation, &files);
     let stdout_excerpt = excerpt(&directory.join("stdout.txt"), 8192)?;
     let stderr_excerpt = excerpt(&directory.join("stderr.txt"), 8192)?;
-    match status {
-        None => diagnostics
-            .push("待つプロセスが準備できなかったため、操作するプロセスを起動していない".into()),
-        Some(status) if !status.success() => diagnostics.push(format!(
+    match (status, http_exit, proceed) {
+        (_, Some(_), _) => {}
+        (None, None, false) => diagnostics
+            .push("待つプロセスまたは試験用コンテナが準備できなかったため、操作していない".into()),
+        (Some(status), _, _) if !status.success() => diagnostics.push(format!(
             "起動・実行・終了を確認できませんでした: {}",
             stderr_excerpt.chars().take(2000).collect::<String>()
         )),
-        Some(_) => {}
+        _ => {}
     }
-    let exit_code = status.and_then(|s| s.code());
+    if !leftovers.is_empty() {
+        diagnostics.push(format!(
+            "試行の後に試験用のコンテナまたはボリュームが残った: {}",
+            leftovers.join("、")
+        ));
+    }
+    let exit_code = status.and_then(|s| s.code()).or(http_exit);
     let trial = match (&recipe.trial, fault) {
         (Some(spec), Some((fault_applied, fault_effective))) => {
             let (state, state_text) = crate::trial::read_state(spec, &work, &test_value);
@@ -1056,6 +1234,7 @@ pub fn execute_with_dependencies(
                     state: state.as_ref(),
                     state_text: state_text.as_deref(),
                     server: server.as_ref().map(|p| (p, server_output.as_str())),
+                    containers: container_phase.as_ref(),
                 },
             );
             Some(crate::trial::TrialOutcome {
@@ -1067,6 +1246,7 @@ pub fn execute_with_dependencies(
                 state,
                 results,
                 server,
+                containers: container_phase.clone(),
             })
         }
         _ => None,
@@ -1102,6 +1282,7 @@ pub fn execute_with_dependencies(
         stderr_excerpt,
         trial,
         python: python.map(|p| p.trace),
+        containers: container_phase,
     };
     write_json_new(&directory.join("execution.json"), &trace)?;
     // 観測は複製して取り込める。状態の答え合わせはこの判定へ混ぜない。

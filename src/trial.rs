@@ -23,6 +23,9 @@ pub enum TrialFault {
     NetworkUnavailable,
     StorageDirectoryReadOnly,
     ServerNotStarted,
+    DatabaseStopped,
+    DatabaseUnreachable,
+    VolumeReadOnly,
 }
 impl TrialFault {
     pub fn label(self) -> &'static str {
@@ -34,6 +37,9 @@ impl TrialFault {
             Self::NetworkUnavailable => "外部への通信を遮断する",
             Self::StorageDirectoryReadOnly => "保存先のディレクトリを書き込み不可にする",
             Self::ServerNotStarted => "待つプロセス（受信側など）を起動しない",
+            Self::DatabaseStopped => "データベースのコンテナを止める",
+            Self::DatabaseUnreachable => "対象とデータベースの間の通信を切る",
+            Self::VolumeReadOnly => "保存先のボリュームを読み取り専用にする",
         }
     }
 }
@@ -57,6 +63,8 @@ pub enum CheckMethod {
     StoredFile,
     ReadbackOutput,
     ServerOutput,
+    ContainerLog,
+    DatabaseQuery,
 }
 impl CheckMethod {
     /// 誰の観測かを示す。対象の報告と基盤の読み出しを同じ扱いにしない。
@@ -68,6 +76,8 @@ impl CheckMethod {
             Self::StoredFile => "基盤が保存先を直接読み出した結果",
             Self::ReadbackOutput => "別のプロセスで対象の読み出し機能を動かした結果",
             Self::ServerOutput => "待つプロセス（受信側など）の出力",
+            Self::ContainerLog => "コンテナのログ（対象の応答とは別）",
+            Self::DatabaseQuery => "基盤がデータベースを直接読み出した結果",
         }
     }
 }
@@ -91,6 +101,9 @@ pub struct TrialCheck {
     pub expect: Expectation,
     #[serde(default)]
     pub text: Option<String>,
+    /// コンテナのログを見るときに、対象のコンテナ名。省略時は全てのログ。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -153,6 +166,8 @@ pub struct TrialOutcome {
     pub results: Vec<CheckResult>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server: Option<crate::server::ServerPhase>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub containers: Option<crate::container::ContainerPhase>,
 }
 
 fn invalid(text: impl Into<String>) -> io::Error {
@@ -163,6 +178,7 @@ pub fn validate(
     spec: &TrialSpec,
     has_server: bool,
     python: bool,
+    has_containers: bool,
     relative: impl Fn(&str) -> io::Result<()>,
 ) -> io::Result<()> {
     if spec.schema_version != 1 || spec.checks.is_empty() || spec.checks.len() > 16 {
@@ -234,9 +250,25 @@ pub fn validate(
                 "待つプロセスの出力の条件には、待つプロセスが必要です",
             ));
         }
+        if matches!(
+            check.method,
+            CheckMethod::ContainerLog | CheckMethod::DatabaseQuery
+        ) && !has_containers
+        {
+            return Err(invalid(
+                "コンテナのログとデータベースの直接読み出しには、コンテナが必要です",
+            ));
+        }
     }
     if spec.fault == TrialFault::ServerNotStarted && !has_server {
         return Err(invalid("この故障には待つプロセスが必要です"));
+    }
+    if matches!(
+        spec.fault,
+        TrialFault::DatabaseStopped | TrialFault::DatabaseUnreachable | TrialFault::VolumeReadOnly
+    ) && !has_containers
+    {
+        return Err(invalid("この故障にはコンテナが必要です"));
     }
     if spec.fault == TrialFault::StorageDirectoryReadOnly
         && !spec.storage.as_ref().is_some_and(|s| s.contains('/'))
@@ -296,6 +328,20 @@ pub fn apply_fault(spec: &TrialSpec, work: &Path) -> io::Result<(String, bool)> 
         // 効いたかどうかは、操作の直前にポートが応答しないことで確かめる。
         (TrialFault::ServerNotStarted, _) => Ok((
             "待つプロセスを起動せずに、操作するプロセスだけを動かす".into(),
+            true,
+        )),
+        (TrialFault::DatabaseStopped, _) => Ok((
+            "コンテナが準備できたあと、データベースのコンテナを止めてから操作する".into(),
+            true,
+        )),
+        (TrialFault::DatabaseUnreachable, _) => Ok((
+            "コンテナが準備できたあと、データベースを試験用ネットワークから外してから操作する"
+                .into(),
+            true,
+        )),
+        (TrialFault::VolumeReadOnly, _) => Ok((
+            "コンテナが準備できたあと、データベースの保存先ボリュームを読み取り専用で載せ直す"
+                .into(),
             true,
         )),
         (TrialFault::StorageDirectoryReadOnly, Some(path)) => {
@@ -449,6 +495,7 @@ pub struct Outputs<'a> {
     pub state_text: Option<&'a str>,
     /// 待つプロセスの記録と、標準出力・標準エラーを続けた全文。
     pub server: Option<(&'a crate::server::ServerPhase, &'a str)>,
+    pub containers: Option<&'a crate::container::ContainerPhase>,
 }
 
 fn contains(expect: Expectation, haystack: &str, needle: &str) -> Observed {
@@ -523,6 +570,52 @@ pub fn evaluate(spec: &TrialSpec, test_value: &str, out: &Outputs) -> Vec<CheckR
                     }
                     None => (Observed::NotObserved, "待つプロセスの記録がない".into()),
                 },
+                CheckMethod::ContainerLog => match out.containers {
+                    Some(phase) => {
+                        let logs = phase
+                            .services
+                            .iter()
+                            .filter(|s| check.target.as_deref().is_none_or(|t| t == s.name))
+                            .map(|s| s.log_excerpt.as_str())
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        if check
+                            .target
+                            .as_ref()
+                            .is_some_and(|t| !phase.services.iter().any(|s| &s.name == t))
+                        {
+                            (Observed::NotObserved, "指定したコンテナのログがない".into())
+                        } else {
+                            let has = logs.contains(&text);
+                            (
+                                contains(check.expect, &logs, &text),
+                                format!(
+                                    "コンテナのログに「{text}」が{}",
+                                    if has { "含まれる" } else { "含まれない" }
+                                ),
+                            )
+                        }
+                    }
+                    None => (Observed::NotObserved, "コンテナの記録がない".into()),
+                },
+                CheckMethod::DatabaseQuery => {
+                    match out.containers.and_then(|c| c.database_query.as_deref()) {
+                        Some(query) => {
+                            let has = query.contains(&text);
+                            (
+                                contains(check.expect, query, &text),
+                                format!(
+                                    "基盤がデータベースを直接読み出した結果に「{text}」が{}",
+                                    if has { "含まれる" } else { "含まれない" }
+                                ),
+                            )
+                        }
+                        None => (
+                            Observed::NotObserved,
+                            "基盤はデータベースを直接読み出していない".into(),
+                        ),
+                    }
+                },
             };
             CheckResult { id: check.id.clone(), observed, detail }
         })
@@ -581,6 +674,28 @@ pub fn assess(
             result.next_action = "待つプロセスの標準エラーを確認して再試験する".into();
             return result;
         }
+    }
+    if let Some(containers) = &outcome.containers
+        && !matches!(
+            spec.fault,
+            TrialFault::DatabaseStopped
+                | TrialFault::DatabaseUnreachable
+                | TrialFault::VolumeReadOnly
+        )
+        && containers.services.iter().any(|s| !s.ready)
+    {
+        result.reason = format!(
+            "試験用のコンテナが準備できず、操作していない: {}",
+            containers
+                .services
+                .iter()
+                .find(|s| !s.ready)
+                .map(|s| s.detail.as_str())
+                .unwrap_or(&containers.detail)
+        );
+        result.next_action =
+            "コンテナのログ、イメージのダイジェスト、準備の待機上限を確認して再試験する".into();
+        return result;
     }
     let scope_of: BTreeMap<_, _> = spec
         .checks
@@ -694,6 +809,10 @@ pub fn describe(check: &TrialCheck, spec: &TrialSpec) -> String {
         CheckMethod::ServerOutput => {
             format!("待つプロセス（受信側など）の出力に{text}{has}")
         }
+        CheckMethod::ContainerLog => format!("コンテナのログに{text}{has}"),
+        CheckMethod::DatabaseQuery => {
+            format!("基盤がデータベースを直接読み出した結果に{text}{has}")
+        }
     }
 }
 
@@ -727,6 +846,8 @@ pub struct Summary {
     /// 依存先の「リポジトリ@コミット（読み込み先）」。
     #[serde(default)]
     pub dependencies: Vec<String>,
+    #[serde(default)]
+    pub containers: Option<crate::container::ContainerPhase>,
 }
 
 pub fn observed_label(o: Observed) -> &'static str {
@@ -744,6 +865,7 @@ pub fn summarize(trace: &crate::execution::ExecutionTrace, command: &[String]) -
     let runtime = match trace.recipe.runtime {
         crate::execution::Runtime::Node => "Node.js",
         crate::execution::Runtime::Python3 => "Python 3",
+        crate::execution::Runtime::Http => "HTTP（コンテナ）",
     };
     let items = spec
         .checks
@@ -778,6 +900,12 @@ pub fn summarize(trace: &crate::execution::ExecutionTrace, command: &[String]) -
         (Some(server), _) => format!("。待つプロセス（{}）は起動していない", server.entrypoint),
         (None, _) => String::new(),
     };
+    let container_note = match outcome.and_then(|o| o.containers.as_ref()) {
+        Some(phase) if !phase.services.is_empty() => {
+            format!("。試験専用コンテナ {} 件を起動した", phase.services.len())
+        }
+        _ => String::new(),
+    };
     let dependencies = trace
         .python
         .as_ref()
@@ -798,7 +926,7 @@ pub fn summarize(trace: &crate::execution::ExecutionTrace, command: &[String]) -
         .unwrap_or_default();
     Some(Summary {
         tried: format!(
-            "{} のコミット {short} にある {launched} を、{runtime}（{}方式）で起動した{waiting}",
+            "{} のコミット {short} にある {launched} を、{runtime}（{}方式）で起動した{waiting}{container_note}",
             trace.recipe.source.repository, trace.mode
         ),
         fault: spec.fault.label().into(),
@@ -813,5 +941,6 @@ pub fn summarize(trace: &crate::execution::ExecutionTrace, command: &[String]) -
         stderr_excerpt: trace.stderr_excerpt.clone(),
         server: outcome.and_then(|o| o.server.clone()),
         dependencies,
+        containers: outcome.and_then(|o| o.containers.clone()),
     })
 }

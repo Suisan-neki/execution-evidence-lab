@@ -224,6 +224,7 @@ impl Controller {
         let runtimes = [
             ("node", execution::Runtime::Node),
             ("python3", execution::Runtime::Python3),
+            ("http", execution::Runtime::Http),
         ]
         .into_iter()
         .map(|(name, runtime)| {

@@ -29,10 +29,12 @@ const METHODS = [
   ['stored_file', '保存先の内容', '基盤が保存先を直接読み出した結果'],
   ['readback_output', '後からの読み出し', '別のプロセスで対象の読み出し機能を動かした結果'],
   ['server_output', '待つプロセスの出力', '待つプロセス（受信側など）の出力'],
+  ['container_log', 'コンテナのログ', 'コンテナのログ（対象の応答とは別）'],
+  ['database_query', 'データベースの直接読み出し', '基盤がデータベースを直接読み出した結果'],
 ];
 const SCOPES = ['受付', '書き込み', '後からの読み出し', '終了コードで失敗が分かる', 'エラー表示で失敗が分かる', '受信側のエラー'];
 const UNANALYZED = '解析に対応していない種類（未対応の言語、画像、設定など）';
-const FAULT_LABEL = { normal: '故障なし（通常時）', storage_read_only: '保存先を書き込み不可にする', storage_is_directory: '保存先に同名のディレクトリを置く', skip_state_read: '基盤による保存先の読み出しを止める（観測の欠落）', network_unavailable: '外部への通信を遮断する', storage_directory_read_only: '保存先のディレクトリを書き込み不可にする', server_not_started: '待つプロセス（受信側など）を起動しない' };
+const FAULT_LABEL = { normal: '故障なし（通常時）', storage_read_only: '保存先を書き込み不可にする', storage_is_directory: '保存先に同名のディレクトリを置く', skip_state_read: '基盤による保存先の読み出しを止める（観測の欠落）', network_unavailable: '外部への通信を遮断する', storage_directory_read_only: '保存先のディレクトリを書き込み不可にする', server_not_started: '待つプロセス（受信側など）を起動しない', database_stopped: 'データベースのコンテナを止める', database_unreachable: '対象とデータベースの間の通信を切る', volume_read_only: '保存先のボリュームを読み取り専用にする' };
 const LAUNCHES = [['file', 'ファイルを起動する'], ['module', 'モジュールとして起動する（python -m）'], ['script', '宣言されたコマンドを起動する（[project.scripts]）']];
 const LAUNCH_LABEL = Object.fromEntries(LAUNCHES);
 const DECISION = { modify: '修正する', hold: '保留する', verify: '追加で確かめる', ask: '質問する', release: '採用する' };
@@ -565,7 +567,7 @@ function trialDefaults(kind) {
   const flag = o => o.flags.find(f => f.startsWith('--')) || o.flags[0];
   const base = [...(dir ? [flag(dir), '.'] : []), ...(list ? [flag(list), list.default] : [])];
   const storage = list ? list.default : '';
-  const common = { entrypoint: entry?.entrypoint || '', launch: entry?.launch || 'file', runtime: entry?.runtime || 'python3', storage, timeout_ms: 10000, readback: null, python_root: '', dependencies_text: '', server: null };
+  const common = { entrypoint: entry?.entrypoint || '', launch: entry?.launch || 'file', runtime: entry?.runtime || 'python3', storage, timeout_ms: 10000, readback: null, python_root: '', dependencies_text: '', server: null, containers_text: '', http: null };
   if (kind === 'normal') return { ...common, fault: 'normal', args: [...base, '{{test_value}}'], readback: entry ? { launch: entry.launch || 'file', entrypoint: entry.entrypoint, args: base } : null,
     checks: [{ scope: '受付', method: 'exit_code', expect: 'zero', text: '' }, { scope: '書き込み', method: 'stored_file', expect: 'contains', text: '{{test_value}}' }, ...(entry ? [{ scope: '後からの読み出し', method: 'readback_output', expect: 'contains', text: '{{test_value}}' }] : [])] };
   return { ...common, fault: 'storage_read_only', args: [...base, '{{test_value}}'],
@@ -579,7 +581,10 @@ function recipeToForm(r) {
   return { entrypoint: r.entrypoint, launch: r.launch || 'file', runtime: r.runtime, args: r.args, storage: r.trial.storage || '', timeout_ms: r.timeout_ms, fault: r.trial.fault,
     readback: r.trial.readback ? { launch: 'file', ...r.trial.readback } : null, python_root: r.python?.root || '',
     dependencies_text: (r.python?.dependencies || []).map(d => [d.repository, d.commit, d.root].filter(Boolean).join(' ')).join('\n'),
-    server: r.server ? { launch: 'file', ...r.server } : null, checks: r.trial.checks.map(c => ({ scope: c.scope, method: c.method, expect: c.expect, text: c.text || '' })) };
+    server: r.server ? { launch: 'file', ...r.server } : null,
+    containers_text: r.containers ? JSON.stringify(r.containers.services, null, 2) : '',
+    http: r.http ? { ...r.http } : null,
+    checks: r.trial.checks.map(c => ({ scope: c.scope, method: c.method, expect: c.expect, text: c.text || '', target: c.target || '' })) };
 }
 /// フォームの内容から、Pythonの読み込み先の設定を作る。ファイルを起動するだけで依存先がない場合は作らない。
 function pythonSetup(f) {
@@ -591,7 +596,15 @@ function pythonSetup(f) {
 function pythonSetupOrNull(f) {
   try { return pythonSetup(f); } catch { return null; }
 }
+function parseContainers(text) {
+  if (!String(text || '').trim()) return null;
+  let services;
+  try { services = JSON.parse(text); } catch { throw Error('コンテナの指定はJSONの配列で書いてください。'); }
+  if (!Array.isArray(services) || !services.length) throw Error('コンテナを1件以上書いてください。');
+  return { services };
+}
 function launchCommand(f, launch, entrypoint, args) {
+  if (f.runtime === 'http') return `HTTP ${f.http?.method || 'GET'} ${f.http?.service || ''} ${f.http?.path || entrypoint || ''}`;
   const runtime = f.runtime === 'node' ? 'node' : 'python3';
   const flags = pythonSetupOrNull(f) ? ['-S', '-P'] : [];
   const start = launch === 'module' ? ['-m', entrypoint] : launch === 'script' ? [`（コマンド ${entrypoint} の宣言どおりに関数を呼ぶ）`] : [entrypoint];
@@ -645,7 +658,7 @@ function trialFormView(check, form, plan, exec) {
   const launchSelect = value => { const s = select(LAUNCHES); s.control.value = value || 'file'; return s; };
   const entry = input({ value: form.entrypoint, list: 'entry-candidates' });
   const launch = launchSelect(form.launch);
-  const runtime = select([['python3', 'Python 3'], ['node', 'Node.js']]); runtime.control.value = form.runtime;
+  const runtime = select([['python3', 'Python 3'], ['node', 'Node.js'], ['http', 'HTTP（コンテナへ）']]); runtime.control.value = form.runtime;
   const args = textarea({ rows: 3, value: form.args.join('\n') });
   const storage = input({ value: form.storage });
   const readbackEntry = input({ value: form.readback?.entrypoint || '', list: 'entry-candidates' });
@@ -657,7 +670,13 @@ function trialFormView(check, form, plan, exec) {
   const serverLaunch = launchSelect(form.server?.launch);
   const serverArgs = textarea({ rows: 3, value: (form.server?.args || []).join('\n') });
   const serverReady = input({ type: 'number', value: form.server?.ready_timeout_ms || 10000, min: 1, max: 60000, inputmode: 'numeric' });
-  const timeout = input({ type: 'number', value: form.timeout_ms, min: 100, max: 120000, inputmode: 'numeric' });
+  const timeout = input({ type: 'number', value: form.timeout_ms, min: 100, max: 300000, inputmode: 'numeric' });
+  const containers = textarea({ rows: 8, value: form.containers_text || '' });
+  const httpService = input({ value: form.http?.service || '' });
+  const httpMethod = select([['GET', 'GET'], ['POST', 'POST'], ['PUT', 'PUT']]); httpMethod.control.value = form.http?.method || 'GET';
+  const httpPath = input({ value: form.http?.path || '/' });
+  const httpBody = input({ value: form.http?.body_file || '' });
+  const httpType = input({ value: form.http?.content_type || '' });
   const faults = h('fieldset', {}, h('legend', {}, '故障の種類'), (plan?.faults || Object.keys(FAULT_LABEL).map(id => ({ id, label: FAULT_LABEL[id], applicable: '' }))).map(f => {
     return h('label', { class: 'dads-radio', 'data-size': 'md' },
       h('span', { class: 'dads-radio__radio' }, h('input', { class: 'dads-radio__input', type: 'radio', name: 'fault', value: f.id, checked: f.id === form.fault, disabled: f.id === 'network_unavailable' && exec?.mode !== 'bubblewrap' })),
@@ -690,6 +709,8 @@ function trialFormView(check, form, plan, exec) {
       readback: readbackEntry.control.value.trim() ? { launch: readbackLaunch.control.value, entrypoint: readbackEntry.control.value.trim(), args: lines(readbackArgs.control.value) } : null,
       python_root: pythonRoot.control.value.trim(), dependencies_text: dependencies.control.value,
       server: serverEntry.control.value.trim() ? { launch: serverLaunch.control.value, entrypoint: serverEntry.control.value.trim(), args: lines(serverArgs.control.value), ready_timeout_ms: Number(serverReady.control.value) || 10000 } : null,
+      containers_text: containers.control.value,
+      http: httpService.control.value.trim() ? { service: httpService.control.value.trim(), method: httpMethod.control.value, path: httpPath.control.value.trim() || '/', body_file: httpBody.control.value.trim() || null, content_type: httpType.control.value.trim() || null } : null,
       checks: [...rows.children].map(r => r.read()) };
   };
   const preview = h('div', {});
@@ -699,7 +720,7 @@ function trialFormView(check, form, plan, exec) {
   const updateRuntime = () => {
     const rt = exec?.runtimes?.find(r => r.name === runtime.control.value);
     runtimeNote.replaceChildren(rt ? h('p', { class: rt.available ? 'note' : 'ref-unverified' }, rt.available ? `実行環境: ${rt.detail}` : `実行環境がないため試せません: ${rt.detail}`) : h('p', { class: 'note' }, '実行環境を確認できません。'));
-    submit.disabled = !plan?.executable || !check.source || !rt?.available;
+    submit.disabled = !check.source || !rt?.available || (runtime.control.value !== 'http' && !plan?.executable);
   };
   runtime.control.addEventListener('change', () => { updateRuntime(); updatePreview(); });
   for (const [box, kind] of [[entry, launch], [readbackEntry, readbackLaunch], [serverEntry, serverLaunch]])
@@ -718,6 +739,11 @@ function trialFormView(check, form, plan, exec) {
       h('p', { class: 'note' }, '依存先は、公開GitHubのリポジトリを固定コミットで指定します。試験を始めると、基盤が固定コミットだけを取得し（git fetch）、読み込み先のディレクトリを読み取り専用で複製します。インストール用のスクリプトやビルドは実行しません。Pythonだけで書かれた依存先に限ります。モジュール・コマンドで起動するときや依存先を指定したときは、ホストに入っているパッケージを読まない設定（-S -P）で起動します。'),
       h('div', { class: 'inline-fields' }, field({ label: '対象の読み込み先', control: pythonRoot, support: '対象リポジトリの中のディレクトリ。空なら最上位。例: src' }),
         field({ label: '依存先', control: dependencies, support: '1行に1つ、「所有者/リポジトリ 40桁のコミット 読み込み先（任意）」。例: pydicom/pydicom 20aa4b73aef76bffb6fbc46a8827588dfa9bb89d src' }))),
+    h('fieldset', {}, h('legend', {}, '試験専用のコンテナ（任意）'),
+      h('p', { class: 'note' }, 'イメージはタグだけではなく @sha256: と64桁のダイジェストを付けます。試行ごとに新しいコンテナ・ネットワーク・ボリュームを作り、待ち受けは 127.0.0.1 だけに公開し、終わったら消します。Dockerが使えないときはほかの方式へ切り替えません。対象リポジトリの compose をそのまま実行はしません。'),
+      field({ label: 'コンテナ（JSONの配列）', control: containers, support: '各要素は name, image, role（app / database / other）, expose, ready（tcp または {"http":{"path":"/","tls":false}}）, ready_timeout_ms。任意で env, volumes, command。例のポートは {{port:名前}} で引数に使えます。' }),
+      h('div', { class: 'inline-fields' }, field({ label: 'HTTPの操作先', control: httpService }), field({ label: 'HTTPの方法', control: httpMethod }), field({ label: 'HTTPのパス', control: httpPath })),
+      h('div', { class: 'inline-fields' }, field({ label: 'HTTPの本文ファイル', control: httpBody, support: '固定コミットの中の相対パス。空なら本文なし。' }), field({ label: 'Content-Type', control: httpType }))),
     h('fieldset', {}, h('legend', {}, '先に起動して待つプロセス（任意）'),
       h('p', { class: 'note' }, '受信サーバーのように待ち受けるプロセスを先に起動し、指定したポートが接続を受け付けてから、上の「起動するもの」を動かします。終わったら基盤が止めます。止めたことを待つプロセスの失敗とは扱いません。準備できなかったときは「判定できない」にします。'),
       h('div', { class: 'inline-fields' }, field({ label: '待つプロセス', control: serverEntry }), field({ label: '起動のしかた', control: serverLaunch }), field({ label: '準備の待機上限（ミリ秒）', control: serverReady })),
@@ -743,6 +769,8 @@ function previewBox(check, f, exec) {
       h('dt', {}, '依存先'), h('dd', {}, pythonError ? h('span', { class: 'ref-unverified' }, pythonError)
         : python?.dependencies.length ? h('ul', { class: 'items' }, python.dependencies.map(d => h('li', {}, `${d.repository} のコミット ${d.commit} の ${d.root || '最上位'}（試験を始めると固定コミットだけを取得します。インストールはしません）`)))
         : 'なし'),
+      h('dt', {}, '試験専用のコンテナ'), h('dd', {}, (() => { try { const c = parseContainers(f.containers_text); return c ? c.services.map(s => `${s.name}（${s.image}、127.0.0.1 の {{port:${s.name}}}）`).join('、') : 'なし'; } catch (e) { return h('span', { class: 'ref-unverified' }, e.message); } })()),
+      h('dt', {}, 'HTTPの操作'), h('dd', {}, f.http ? codeText(`${f.http.method} ${f.http.service} ${f.http.path}`) : 'なし'),
       h('dt', {}, '先に起動して待つプロセス'), h('dd', {}, f.server ? [codeText(launchCommand(f, f.server.launch, f.server.entrypoint, f.server.args)), `（${LAUNCH_LABEL[f.server.launch]}。${f.server.ready_timeout_ms}ミリ秒以内に {{port}} のポートが接続を受け付けなければ「判定できない」）`] : 'なし'),
       h('dt', {}, '起動のしかた'), h('dd', {}, codeText(launchCommand(f, f.launch, f.entrypoint, f.args)), f.launch === 'file' ? '' : `（${LAUNCH_LABEL[f.launch]}）`),
       h('dt', {}, '入力'), h('dd', {}, '上の引数だけ。input.json には空のJSON（{}）を置きます。試験用の値は試行ごとに新しく作ります。'),
@@ -750,13 +778,15 @@ function previewBox(check, f, exec) {
       h('dt', {}, '故障'), h('dd', {}, FAULT_LABEL[f.fault]),
       h('dt', {}, '後からの読み出し'), h('dd', {}, f.readback ? [codeText(launchCommand(f, f.readback.launch, f.readback.entrypoint, f.readback.args)), f.readback.launch === 'file' ? '' : `（${LAUNCH_LABEL[f.readback.launch]}）`] : '行いません'),
       h('dt', {}, '判定の条件'), h('dd', {}, h('ul', { class: 'items' }, f.checks.map(c => h('li', {}, `${c.scope || '（範囲が未入力）'}: ${METHODS.find(m => m[0] === c.method)?.[1]} が ${{ zero: '0で終わる', nonzero: '0以外で終わる', contains: `「${c.text}」を含む`, not_contains: `「${c.text}」を含まない` }[c.expect]}（${METHODS.find(m => m[0] === c.method)?.[2]}）`)))),
-      h('dt', {}, '実行の方式'), h('dd', {}, `${exec?.mode || '不明'}方式。${exec?.mode === 'local' ? 'OSによる隔離は行いません。' : ''}固定コミットのファイルを読み取り専用で複製し、試行ごとの新しい作業ディレクトリで起動します。依存パッケージのインストールは行いません。既存の保存データは使わず、置き換えません。${f.server ? '待つプロセスとの通信は 127.0.0.1 のポートで行います。' : ''}`)));
+      h('dt', {}, '実行の方式'), h('dd', {}, `${exec?.mode || '不明'}方式。${exec?.mode === 'local' ? 'OSによる隔離は行いません。' : ''}固定コミットのファイルを読み取り専用で複製し、試行ごとの新しい作業ディレクトリで起動します。依存パッケージのインストールは行いません。既存の保存データは使わず、置き換えません。${f.server ? '待つプロセスとの通信は 127.0.0.1 のポートで行います。' : ''}${f.containers_text?.trim() ? 'コンテナの待ち受けは 127.0.0.1 だけに公開し、試行の後に消します。' : ''}`)));
 }
 async function runTrial(check, f) {
   await guarded(async () => {
     requirePerson();
-    if (!f.entrypoint) throw Error('起動するものを入力してください。');
+    if (f.runtime !== 'http' && !f.entrypoint) throw Error('起動するものを入力してください。');
+    if (f.runtime === 'http' && !f.http) throw Error('HTTPの操作先を入力してください。');
     const python = pythonSetup(f);
+    const containers = parseContainers(f.containers_text);
     if ([f.launch, f.readback?.launch, f.server?.launch].some(l => l && l !== 'file') && f.runtime !== 'python3') throw Error('モジュール・宣言されたコマンドでの起動は、Python 3 だけで使えます。');
     if (f.server && !f.server.args.some(a => a.includes('{{port}}'))) throw Error('待つプロセスの引数に、ポートの位置として {{port}} を入れてください。');
     if (!f.checks.length || f.checks.some(c => !c.scope)) throw Error('判定の条件を入力し、それぞれの確認する範囲を書いてください。');
@@ -767,9 +797,9 @@ async function runTrial(check, f) {
       await change({ op: 'configure_observation', check_id: check.id, criterion }, '試験案の判定条件で判定するように設定した');
       current = currentCheck();
     }
-    const recipe = { schema_version: 1, check_id: check.id, source: current.source, runtime: f.runtime, launch: f.launch, entrypoint: f.entrypoint, args: f.args, input: {}, criterion, timeout_ms: f.timeout_ms,
-      python, server: f.server,
-      trial: { schema_version: 1, fault: f.fault, storage: f.storage || null, readback: f.readback, checks: f.checks.map((c, i) => ({ id: `c${i + 1}`, scope: c.scope, method: c.method, expect: c.expect, text: c.method === 'exit_code' ? null : c.text })) } };
+    const recipe = { schema_version: 1, check_id: check.id, source: current.source, runtime: f.runtime, launch: f.launch, entrypoint: f.runtime === 'http' ? (f.http?.path || '/') : f.entrypoint, args: f.args, input: {}, criterion, timeout_ms: f.timeout_ms,
+      python, server: f.server, containers, http: f.http,
+      trial: { schema_version: 1, fault: f.fault, storage: f.storage || null, readback: f.readback, checks: f.checks.map((c, i) => ({ id: `c${i + 1}`, scope: c.scope, method: c.method, expect: c.expect, text: c.method === 'exit_code' ? null : c.text, target: c.target || null })) } };
     setStatus(`固定コミット ${shortCommit(current.source.commit)} を試験用に取得しています（git fetch のみ。まだ実行しません）。`);
     await api('POST', '/api/v1/prepare', { repository: current.source.repository, commit: current.source.commit });
     const p = person();
@@ -777,7 +807,7 @@ async function runTrial(check, f) {
     const job = await api('POST', '/api/v1/execute', { expected_revision: state.view.workspace.revision, actor: `${p.name}（${ROLE[p.role]}）`, reason: `${FAULT_LABEL[f.fault]}で試験した`, recipe });
     state.lastRun = `${job.id}（実行中）`; renderCurrent();
     let status;
-    for (let i = 0; i < 600; i++) {
+    for (let i = 0; i < 900; i++) {
       await new Promise(r => setTimeout(r, 500));
       status = await api('GET', '/api/v1/execution');
       if (status.job?.id === job.id && status.job.status !== 'running') break;
@@ -794,7 +824,7 @@ async function runTrial(check, f) {
 }
 
 // ---------- 4. 結果 ----------
-const DIFF_LABEL = { '/source': 'コード参照（コミット・ファイル・行）', '/execution/recipe': '試験の内容（起動・引数・判定条件・故障）', '/execution/tree': 'コミットのファイル一式（tree）', '/execution/exit_code': '終了コード', '/execution/trial': '判定条件ごとの結果と保存先の読み出し', '/execution/python': '依存先の固定コミットとパッケージ情報', '/execution/runtime_version': '実行環境のバージョン', '/execution/runtime_path': '実行環境の場所', '/execution/mode': '実行の方式', '/check_version': '条件の版', '/manifest/command': '実行したコマンド', '/manifest/condition': '期待の文と版', '/manifest/input': '入力', '/manifest/fault': '故障', '/manifest/source_fingerprint': '対象ファイルの指紋', '/manifest/program_version': '対象の版', '/manifest/mode': '実行の方式（記録上）', '/manifest/os': 'OS', '/manifest/architecture': 'CPUの種類', '/manifest/timeout_ms': '待機の上限', '/manifest/initial_storage': '試行前の保存先', '/manifest/observation_scope': '観測の範囲', '/observation': '判定する観測', '/rule': '判定規則' };
+const DIFF_LABEL = { '/source': 'コード参照（コミット・ファイル・行）', '/execution/recipe': '試験の内容（起動・引数・判定条件・故障）', '/execution/tree': 'コミットのファイル一式（tree）', '/execution/exit_code': '終了コード', '/execution/trial': '判定条件ごとの結果と保存先の読み出し', '/execution/python': '依存先の固定コミットとパッケージ情報', '/execution/containers': '試験専用コンテナのイメージと準備', '/execution/runtime_version': '実行環境のバージョン', '/execution/runtime_path': '実行環境の場所', '/execution/mode': '実行の方式', '/check_version': '条件の版', '/manifest/command': '実行したコマンド', '/manifest/condition': '期待の文と版', '/manifest/input': '入力', '/manifest/fault': '故障', '/manifest/source_fingerprint': '対象ファイルの指紋', '/manifest/program_version': '対象の版', '/manifest/mode': '実行の方式（記録上）', '/manifest/os': 'OS', '/manifest/architecture': 'CPUの種類', '/manifest/timeout_ms': '待機の上限', '/manifest/initial_storage': '試行前の保存先', '/manifest/observation_scope': '観測の範囲', '/observation': '判定する観測', '/rule': '判定規則' };
 function renderResult() {
   const body = $('result-body');
   const checks = repoChecks();
@@ -836,6 +866,7 @@ function evidenceCard(check, v, e) {
       h('p', {}, h('strong', {}, '試験用の値: '), codeText(s.test_value || '（なし）')),
       s.dependencies?.length ? h('p', {}, h('strong', {}, '依存先: '), s.dependencies.join('、'), '（固定コミットの読み込み先だけを複製。インストールはしていない）') : null,
       s.server ? h('p', {}, h('strong', {}, '待つプロセス: '), s.server.started ? `${s.server.detail}。${s.server.exited_before_stop ? `基盤が止める前に終了していた（終了コード ${s.server.exit_code ?? 'なし'}）` : s.server.stopped_by_platform ? '操作の後に基盤が止めた' : ''}` : s.server.detail) : null,
+      s.containers ? h('p', {}, h('strong', {}, '試験専用コンテナ: '), s.containers.services.map(x => `${x.name}（${x.ready ? `${x.ready_after_ms}msで準備` : '準備できず'}、127.0.0.1:${x.port}）`).join('、'), s.containers.leftovers?.length ? `。残った資源: ${s.containers.leftovers.join('、')}` : '。試行の後に消した') : null,
       h('figure', { class: 'dads-table' }, h('figcaption', { class: 'dads-table__caption' }, '判定の条件ごとの、期待と観測'),
         h('table', { class: 'dads-table__table', 'data-cell-border': 'bottom' },
           h('thead', {}, h('tr', {}, ['確認する範囲', '期待したこと', '観測した結果', '観測の出所', '詳細'].map(t => h('th', { class: 'dads-table__col-header', scope: 'col' }, t)))),
@@ -852,6 +883,10 @@ function evidenceCard(check, v, e) {
       s?.server ? [h('p', {}, `待つプロセスのコマンド（ポート ${s.server.port}）: `, codeText(s.server.command.join(' '))),
         h('p', {}, '待つプロセスの標準出力（抜粋）'), h('pre', { class: 'output' }, s.server.stdout_excerpt || '（なし）'),
         h('p', {}, '待つプロセスの標準エラー（抜粋）'), h('pre', { class: 'output' }, s.server.stderr_excerpt || '（なし）')] : null,
+      s?.containers ? [h('p', {}, `Docker ${s.containers.engine}。ネットワーク ${s.containers.network}`),
+        s.containers.http ? h('p', {}, s.containers.http.detail) : null,
+        s.containers.database_query ? h('p', {}, s.containers.database_query) : null,
+        ...s.containers.services.flatMap(x => [h('p', {}, `コンテナ ${x.name}（${x.image}、記録したダイジェスト ${x.digest}）: ${x.detail}`), h('pre', { class: 'output' }, x.log_excerpt || '（ログなし）')])] : null,
       trace.python ? [h('p', {}, `Pythonの読み込み先（この順）: ${trace.python.import_path.join('、')}。起動の設定: ${trace.python.flags.join(' ')}`),
         h('ul', { class: 'items' }, trace.python.packages.map(p => h('li', {}, `${p.role === 'target' ? '対象' : '依存先'} ${p.repository}（コミット ${shortCommit(p.commit)}、読み込み先 ${p.root || '最上位'}、${p.files} ファイル）: ${p.note}`)))] : null,
       h('p', {}, '標準出力（抜粋）'), h('pre', { class: 'output' }, trace.stdout_excerpt || '（なし）'),
