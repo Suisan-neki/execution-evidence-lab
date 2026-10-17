@@ -448,8 +448,7 @@ pub fn links(w: &Workspace) -> Vec<LinkView> {
                         let criterion=crate::execution::Criterion {assertion:assertion.clone(),subject:subject.clone()};
                         let assessment=crate::reported::assess(trace,&e.manifest.condition,&criterion);
                         let observed=match assessment.verdict {crate::model::Verdict::Satisfied=>Observed::Pass,crate::model::Verdict::NotSatisfied=>Observed::Fail,crate::model::Verdict::Unknown=>Observed::NotObserved};
-                        let details=trace.observations.iter().filter(|o|o.assertion==*assertion && o.subject==*subject).map(|o|o.detail.as_str()).collect::<Vec<_>>().join("\n");
-                        (observed,format!("{}。対象内の段階報告であり、実行経路の独立した証明ではありません。{}",assessment.reason,details.chars().take(16384).collect::<String>()))
+                        (observed,format!("{}。対象内の段階報告であり、実行経路の独立した証明ではありません。段階の詳しい記録は証拠から確認できます。",assessment.reason))
                     });
                     (applicable,Some(LinkMethod::Reported(ReportedMethod::Assertion)),Some(observed),detail)
                 }

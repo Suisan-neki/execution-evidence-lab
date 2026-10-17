@@ -272,7 +272,8 @@
           "locator": {
             "by": "css",
             "selector": ".product-registration-modal .nothanks"
-          }
+          },
+          "frames": []
         }
       },
       {
@@ -525,7 +526,8 @@
           "locator": {
             "by": "css",
             "selector": "#tabs_div .tabSpan:not(.tabsNoHover) .fa-sync"
-          }
+          },
+          "frames": []
         }
       },
       {
@@ -573,7 +575,7 @@
         "target": {
           "frames": [
             "iframe[name=enc]",
-            "iframe[src*=forms.php]"
+            "iframe[src*=\"forms.php\"]"
           ],
           "locator": {
             "by": "css",
@@ -587,7 +589,7 @@
         "target": {
           "frames": [
             "iframe[name=enc]",
-            "iframe[src*=forms.php]"
+            "iframe[src*=\"forms.php\"]"
           ],
           "locator": {
             "by": "css",
@@ -601,7 +603,7 @@
         "target": {
           "frames": [
             "iframe[name=enc]",
-            "iframe[src*=load_form.php][src*=soap]"
+            "iframe[src*=\"load_form.php\"][src*=soap]"
           ],
           "locator": {
             "by": "css",
@@ -619,7 +621,7 @@
         "target": {
           "frames": [
             "iframe[name=enc]",
-            "iframe[src*=load_form.php][src*=soap]"
+            "iframe[src*=\"load_form.php\"][src*=soap]"
           ],
           "locator": {
             "by": "css",
@@ -637,7 +639,7 @@
         "target": {
           "frames": [
             "iframe[name=enc]",
-            "iframe[src*=load_form.php][src*=soap]"
+            "iframe[src*=\"load_form.php\"][src*=soap]"
           ],
           "locator": {
             "by": "css",
@@ -655,7 +657,7 @@
         "target": {
           "frames": [
             "iframe[name=enc]",
-            "iframe[src*=load_form.php][src*=soap]"
+            "iframe[src*=\"load_form.php\"][src*=soap]"
           ],
           "locator": {
             "by": "css",
@@ -673,7 +675,7 @@
         "target": {
           "frames": [
             "iframe[name=enc]",
-            "iframe[src*=load_form.php][src*=soap]"
+            "iframe[src*=\"load_form.php\"][src*=soap]"
           ],
           "locator": {
             "by": "css",
@@ -687,7 +689,7 @@
         "target": {
           "frames": [
             "iframe[name=enc]",
-            "iframe[src*=forms.php]"
+            "iframe[src*=\"forms.php\"]"
           ],
           "locator": {
             "by": "css",
@@ -697,7 +699,7 @@
         "content": {
           "frames": [
             "iframe[name=enc]",
-            "iframe[src*=forms.php]"
+            "iframe[src*=\"forms.php\"]"
           ],
           "locator": {
             "by": "css",
@@ -711,7 +713,7 @@
         "target": {
           "frames": [
             "iframe[name=enc]",
-            "iframe[src*=forms.php]"
+            "iframe[src*=\"forms.php\"]"
           ],
           "locator": {
             "by": "css",
@@ -727,7 +729,8 @@
           "locator": {
             "by": "css",
             "selector": "#tabs_div .tabSpan:not(.tabsNoHover) .fa-sync"
-          }
+          },
+          "frames": []
         }
       },
       {
@@ -736,7 +739,7 @@
         "target": {
           "frames": [
             "iframe[name=enc]",
-            "iframe[src*=forms.php]"
+            "iframe[src*=\"forms.php\"]"
           ],
           "locator": {
             "by": "css",
@@ -746,7 +749,7 @@
         "content": {
           "frames": [
             "iframe[name=enc]",
-            "iframe[src*=forms.php]"
+            "iframe[src*=\"forms.php\"]"
           ],
           "locator": {
             "by": "css",
@@ -760,7 +763,7 @@
         "target": {
           "frames": [
             "iframe[name=enc]",
-            "iframe[src*=forms.php]"
+            "iframe[src*=\"forms.php\"]"
           ],
           "locator": {
             "by": "css",
@@ -775,7 +778,7 @@
         "target": {
           "frames": [
             "iframe[name=enc]",
-            "iframe[src*=forms.php]"
+            "iframe[src*=\"forms.php\"]"
           ],
           "locator": {
             "by": "css",
@@ -790,7 +793,7 @@
         "target": {
           "frames": [
             "iframe[name=enc]",
-            "iframe[src*=forms.php]"
+            "iframe[src*=\"forms.php\"]"
           ],
           "locator": {
             "by": "css",
@@ -805,7 +808,7 @@
         "target": {
           "frames": [
             "iframe[name=enc]",
-            "iframe[src*=forms.php]"
+            "iframe[src*=\"forms.php\"]"
           ],
           "locator": {
             "by": "css",
