@@ -927,11 +927,23 @@ function compareForm(check, evidence) {
   const options = evidence.map(v => [v.id, `${v.run_id}（${VERDICT[v.observed.verdict]?.label}）`]);
   const before = select(options), after = select(options);
   before.control.value = evidence[1].id; after.control.value = evidence[0].id;
-  const out = h('div', {});
+  const out = h('div', { 'data-trial-comparison': '', 'aria-live': 'polite' });
+  let generation = 0;
+  const clearComparison = () => { generation++; out.replaceChildren(); };
+  before.control.addEventListener('change', clearComparison);
+  after.control.addEventListener('change', clearComparison);
   return h('div', {}, h('h3', { class: 'dads-u-std-20B-150' }, '二つの試行を比べる'),
     h('div', { class: 'inline-fields' }, field({ label: '前の試行', control: before }), field({ label: '後の試行', control: after })),
     button('比べる', () => guarded(async () => {
-      const res = await api('POST', '/api/v1/compare', { expected_revision: state.view.workspace.revision, check_id: check.id, before_id: before.control.value, after_id: after.control.value });
+      clearComparison();
+      const request = { expected_revision: state.view.workspace.revision, check_id: check.id, before_id: before.control.value, after_id: after.control.value };
+      const current = generation;
+      const isCurrent = () => current === generation && out.isConnected && state.view.workspace.revision === request.expected_revision && before.control.value === request.before_id && after.control.value === request.after_id;
+      let res;
+      try { res = await api('POST', '/api/v1/compare', request); }
+      catch (error) { if (isCurrent()) throw error; return; }
+      // 選択・事例の版・画面が変わった後に、古い応答を表示しない。
+      if (!isCurrent()) return;
       const changed = res.differences.filter(d => d.status !== 'same');
       const label = d => DIFF_LABEL[d.key] || d.key;
       const short = v => { const t = v === null || v === undefined ? '（記録なし）' : JSON.stringify(v); return t.length > 600 ? t.slice(0, 600) + '…' : t; };
