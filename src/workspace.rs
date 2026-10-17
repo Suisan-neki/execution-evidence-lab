@@ -255,6 +255,10 @@ pub struct Workspace {
     pub evidence: Vec<Evidence>,
     pub decisions: Vec<Decision>,
     pub history: Vec<Audit>,
+    #[serde(default)]
+    pub architecture_models: Vec<crate::architecture::Model>,
+    #[serde(default)]
+    pub architecture_links: Vec<crate::architecture::Link>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -343,6 +347,12 @@ pub struct ChangeRequest {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Change {
+    AddArchitectureModel {
+        model: crate::architecture::Model,
+    },
+    AddArchitectureLink {
+        link: crate::architecture::Link,
+    },
     ConfigureReportedObservation {
         check_id: String,
         criterion: Criterion,
@@ -540,6 +550,7 @@ pub fn validate(workspace: &Workspace) -> io::Result<()> {
     unique(workspace.checks.iter().map(|c| c.id.as_str()))?;
     unique(workspace.evidence.iter().map(|e| e.id.as_str()))?;
     unique(workspace.decisions.iter().map(|d| d.id.as_str()))?;
+    crate::architecture::validate(workspace)?;
     for s in &workspace.statements {
         nonempty(&s.text, "記録")?;
         nonempty(&s.origin, "出所")?;
@@ -628,6 +639,8 @@ pub fn empty_workspace(id: String, title: String) -> Workspace {
         evidence: vec![],
         decisions: vec![],
         history: vec![],
+        architecture_models: vec![],
+        architecture_links: vec![],
     }
 }
 
@@ -706,6 +719,8 @@ pub fn demo_workspace() -> Workspace {
         evidence: vec![],
         decisions: vec![],
         history: vec![],
+        architecture_models: vec![],
+        architecture_links: vec![],
     }
 }
 
@@ -1072,6 +1087,30 @@ fn statement_view(workspace: &Workspace, statement: &Statement) -> StatementView
     }
 }
 
+pub fn evidence_invalidated_by(workspace: &Workspace, check: &Check, e: &Evidence) -> Vec<String> {
+    let mut invalidated_by = vec![];
+    if e.observation != check.observation {
+        invalidated_by.push("判定する観測名・対象が変わった".into());
+    }
+    if e.source != check.source {
+        invalidated_by.push("確認事項が参照するコードの版・場所が変わった".into());
+    }
+    if e.check_version != check.version || e.rule != check.rule {
+        invalidated_by.push(format!(
+            "条件の版または判定規則が変わった（根拠の版{}、現在{}）",
+            e.check_version, check.version
+        ));
+    }
+    for key in &check.dependencies {
+        match (e.dependencies.get(key), workspace.context.get(key)) {
+            (Some(old), Some(new)) if old == new => (),
+            (Some(_), Some(_)) => invalidated_by.push(format!("依存先 {key} が変わった")),
+            _ => invalidated_by.push(format!("依存先 {key} の値を確認できない")),
+        }
+    }
+    invalidated_by
+}
+
 pub fn view(workspace: Workspace) -> WorkspaceView {
     let checks = workspace
         .checks
@@ -1082,28 +1121,7 @@ pub fn view(workspace: Workspace) -> WorkspaceView {
                 .iter()
                 .filter(|e| e.check_id == check.id)
                 .map(|e| {
-                    let mut invalidated_by = vec![];
-                    if e.observation != check.observation {
-                        invalidated_by.push("判定する観測名・対象が変わった".into());
-                    }
-                    if e.source != check.source {
-                        invalidated_by.push("確認事項が参照するコードの版・場所が変わった".into());
-                    }
-                    if e.check_version != check.version || e.rule != check.rule {
-                        invalidated_by.push(format!(
-                            "条件の版または判定規則が変わった（根拠の版{}、現在{}）",
-                            e.check_version, check.version
-                        ));
-                    }
-                    for key in &check.dependencies {
-                        match (e.dependencies.get(key), workspace.context.get(key)) {
-                            (Some(old), Some(new)) if old == new => (),
-                            (Some(_), Some(_)) => {
-                                invalidated_by.push(format!("依存先 {key} が変わった"))
-                            }
-                            _ => invalidated_by.push(format!("依存先 {key} の値を確認できない")),
-                        }
-                    }
+                    let invalidated_by = evidence_invalidated_by(&workspace, check, e);
                     EvidenceView {
                         id: e.id.clone(),
                         run_id: e.manifest.correlation.run_id.clone(),
@@ -1244,6 +1262,14 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
             .ok_or_else(|| invalid("確認事項がありません"))
     };
     let operation = match request.action {
+        Change::AddArchitectureModel { model } => {
+            workspace.architecture_models.push(model);
+            "add_architecture_model"
+        }
+        Change::AddArchitectureLink { link } => {
+            workspace.architecture_links.push(link);
+            "add_architecture_link"
+        }
         Change::ConfigureReportedObservation {
             check_id,
             criterion,

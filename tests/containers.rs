@@ -662,6 +662,90 @@ fn openemr_browser_registers_patient_and_reads_back_visit() {
         )
         .unwrap();
         let trace: ExecutionTrace = read_json(&result.directory.join("execution.json")).unwrap();
+        // 実際の正常・DB停止の記録を、同じ固定版の構成へ対応づける。
+        let case = Path::new("evaluations/ci-openemr").join(label).join("case");
+        let mut w = execution_evidence_lab::workspace::empty_workspace(
+            "openemr".into(),
+            "OpenEMRの構成と実試験".into(),
+        );
+        w.architecture_models
+            .push(execution_evidence_lab::architecture::openemr());
+        w.checks.push(execution_evidence_lab::workspace::Check {
+            id: "openemr".into(),
+            version: 1,
+            text: result.manifest.condition.text.clone(),
+            origin: result.manifest.condition.origin.clone(),
+            source: Some(original.source.clone()),
+            observation: Some(original.criterion.clone()),
+            rule: execution_evidence_lab::workspace::Rule::ObservedAssertion,
+            dependencies: vec!["execution-openemr".into()],
+            questions: vec![],
+        });
+        execution_evidence_lab::workspace::initialize(&case, w, "CI", "実試験と構成の対応づけ")
+            .unwrap();
+        let mut w = execution_evidence_lab::workspace::change(
+            &case,
+            execution_evidence_lab::workspace::ChangeRequest {
+                expected_revision: 1,
+                actor: "CI".into(),
+                reason: "実際の試行を取り込む".into(),
+                action: execution_evidence_lab::workspace::Change::Import {
+                    check_id: "openemr".into(),
+                    run_directory: result.directory.to_string_lossy().into_owned(),
+                    use_run_context: true,
+                },
+            },
+        )
+        .unwrap()
+        .workspace;
+        for check in &trace.recipe.trial.as_ref().unwrap().checks {
+            let object = match check.method {
+                CheckMethod::BrowserText => "browser",
+                CheckMethod::BrowserResponse => "https",
+                CheckMethod::DatabaseRows => "db",
+                _ => unreachable!(),
+            };
+            w = execution_evidence_lab::workspace::change(
+                &case,
+                execution_evidence_lab::workspace::ChangeRequest {
+                    expected_revision: w.revision,
+                    actor: "CI".into(),
+                    reason: "観測条件を構成要素へ対応づける".into(),
+                    action: execution_evidence_lab::workspace::Change::AddArchitectureLink {
+                        link: execution_evidence_lab::architecture::Link {
+                            id: check.id.clone(),
+                            model_id: "openemr-trial".into(),
+                            model_version: 1,
+                            object_id: object.into(),
+                            target: execution_evidence_lab::architecture::Target::Evidence {
+                                evidence_id: w.evidence[0].id.clone(),
+                                observation_id: check.id.clone(),
+                            },
+                        },
+                    },
+                },
+            )
+            .unwrap()
+            .workspace;
+        }
+        let links = execution_evidence_lab::architecture::links(&w);
+        assert_eq!(
+            links.len(),
+            trace.recipe.trial.as_ref().unwrap().checks.len()
+        );
+        assert!(links.iter().all(|l| l.applicable && l.current_model));
+        if fault == TrialFault::DatabaseStopped {
+            assert!(
+                links
+                    .iter()
+                    .filter(|l| l.link.object_id == "db")
+                    .all(|l| l.observed == Some(Observed::NotObserved))
+            );
+        }
+        execution_evidence_lab::backup::validate(
+            &execution_evidence_lab::backup::snapshot(&case).unwrap(),
+        )
+        .unwrap();
         let phase = trace.containers.as_ref().unwrap();
         let browser = phase.browser.as_ref().expect("ブラウザ記録");
         println!("{}",serde_json::to_string(&serde_json::json!({"condition":label,"directory":result.directory,"browser":browser,"database_reads":phase.database_reads,"results":trace.trial.as_ref().unwrap().results,"containers":phase.services.iter().map(|s|(&s.name,s.ready,&s.detail)).collect::<Vec<_>>()})).unwrap());

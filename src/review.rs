@@ -298,7 +298,7 @@ fn handle_connection_mode(
         return json(
             stream,
             200,
-            &serde_json::json!({"schema_version":1,"api_version":"v1","scope":"localhost","routes":if app.is_some() {serde_json::json!(["case","change","compare","backup","execution","execute","browser-screenshot","repository","understand","prepare","ai"])} else {serde_json::json!(["case","change","compare","backup","execution","execute","browser-screenshot","repository"])},"reported_observations":true,"limits":{"request_bytes":MAX_BODY,"backup_bytes":crate::backup::MAX_BACKUP,"reader_request_bytes":8*1024*1024,"reader_seconds":30,"reader_output_bytes":8*1024*1024},"understanding":"作者の説明と静的解析。実行経路・業務上の意味は未確認"}),
+            &serde_json::json!({"schema_version":1,"api_version":"v1","scope":"localhost","routes":if app.is_some() {serde_json::json!(["case","change","compare","backup","execution","execute","browser-screenshot","architecture","repository","understand","prepare","ai"])} else {serde_json::json!(["case","change","compare","backup","execution","execute","browser-screenshot","architecture","repository"])},"reported_observations":true,"limits":{"request_bytes":MAX_BODY,"backup_bytes":crate::backup::MAX_BACKUP,"reader_request_bytes":8*1024*1024,"reader_seconds":30,"reader_output_bytes":8*1024*1024},"understanding":"作者の説明と静的解析。実行経路・業務上の意味は未確認"}),
         );
     }
     if let Some(app) = app {
@@ -404,6 +404,10 @@ fn handle_connection_mode(
             &serde_json::json!({"error": "テストの事例を開いていません"}),
         );
     };
+    if request.method == "GET" && request.path == "/api/v1/architecture" {
+        let result = workspace::load(directory).map(|w| serde_json::json!({"models":w.architecture_models,"links":crate::architecture::links(&w),"builtin":crate::architecture::openemr()}));
+        return result_response(stream, result);
+    }
     let api_path = if versioned {
         request.path.replacen("/api/v1/", "/api/", 1)
     } else {
