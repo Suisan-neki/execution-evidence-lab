@@ -311,6 +311,19 @@ impl Session {
         cmd.env_clear()
             .env("HOME", &directory)
             .env("EEL_PLAYWRIGHT_MODULE", module);
+        // HOMEは試行用に分ける。Playwrightの導入済みブラウザはホストの固定したキャッシュから探す。
+        if std::env::var_os("PLAYWRIGHT_BROWSERS_PATH").is_none() {
+            let cache = if cfg!(target_os = "macos") {
+                std::env::var_os("HOME").map(|p| PathBuf::from(p).join("Library/Caches"))
+            } else {
+                std::env::var_os("XDG_CACHE_HOME")
+                    .map(PathBuf::from)
+                    .or_else(|| std::env::var_os("HOME").map(|p| PathBuf::from(p).join(".cache")))
+            };
+            if let Some(cache) = cache {
+                cmd.env("PLAYWRIGHT_BROWSERS_PATH", cache.join("ms-playwright"));
+            }
+        }
         for key in [
             "PATH",
             "PLAYWRIGHT_BROWSERS_PATH",
