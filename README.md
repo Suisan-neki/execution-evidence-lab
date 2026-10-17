@@ -159,3 +159,5 @@ npm run test:backend
 ```
 
 合成のPython接続例から、報告→判定→判断→再試験→比較→バックアップ→復元を確認する。Node.js/Pythonの固定版実行と、言語を問わない外部からの報告を区別する。APIの入力・出力・上限と残る条件は[バックエンドの手順](docs/backend-api.md)。
+
+OpenEMRの試験用構成と、表示・HTTP応答・DBの部分観測の対応づけは[構成と試験結果](docs/architecture.md)を参照。構成の版と過去の試行を保持し、未観測を失敗に読み替えない。

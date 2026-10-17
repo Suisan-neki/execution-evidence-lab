@@ -52,7 +52,17 @@ pub fn validate(backup: &Backup) -> io::Result<()> {
         }
         if i > 0 {
             let previous = &backup.revisions[i - 1];
-            if w.evidence.len() < previous.evidence.len()
+            if w.architecture_models.len() < previous.architecture_models.len()
+                || w.architecture_links.len() < previous.architecture_links.len()
+                || !same(
+                    &w.architecture_models[..previous.architecture_models.len()],
+                    &previous.architecture_models,
+                )?
+                || !same(
+                    &w.architecture_links[..previous.architecture_links.len()],
+                    &previous.architecture_links,
+                )?
+                || w.evidence.len() < previous.evidence.len()
                 || w.decisions.len() < previous.decisions.len()
                 || !same(&w.evidence[..previous.evidence.len()], &previous.evidence)?
                 || !same(
