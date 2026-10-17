@@ -113,6 +113,10 @@ pub struct ContainerPhase {
     pub leftovers: Vec<String>,
     pub database_query: Option<String>,
     pub http: Option<HttpResult>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub browser: Option<crate::browser::BrowserReport>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub database_reads: Vec<crate::browser::DatabaseRead>,
     pub detail: String,
 }
 
@@ -644,6 +648,81 @@ impl Session {
         })
     }
 
+    /// MariaDBの読取専用照会。対象の試験値に一致する行だけを読む。
+    pub fn read_database(
+        &self,
+        probe: &crate::browser::DatabaseProbe,
+        test_value: &str,
+    ) -> crate::browser::DatabaseRead {
+        let mut read = crate::browser::DatabaseRead {
+            id: probe.id.clone(),
+            performed: false,
+            exit_code: None,
+            text: String::new(),
+            detail: "DBの行を読み出していない".into(),
+        };
+        let Some(service) = self
+            .services
+            .iter()
+            .find(|s| s.spec.name == probe.service && s.spec.role == ServiceRole::Database)
+        else {
+            return read;
+        };
+        if !inspect_running(&service.container).unwrap_or(false) {
+            read.detail = "DBが停止しており、保存した行を読めない".into();
+            return read;
+        }
+        if ![&probe.database, &probe.table, &probe.match_column]
+            .iter()
+            .all(|s| crate::browser::sql_identifier(s))
+            || probe.columns.is_empty()
+            || !probe
+                .columns
+                .iter()
+                .all(|s| crate::browser::sql_identifier(s))
+        {
+            read.detail = "DBの識別子が不正".into();
+            return read;
+        }
+        let password = service
+            .spec
+            .env
+            .get("MYSQL_ROOT_PASSWORD")
+            .or_else(|| service.spec.env.get("MARIADB_ROOT_PASSWORD"));
+        let env = format!("MYSQL_PWD={}", password.map(String::as_str).unwrap_or(""));
+        let sql = crate::browser::query(probe, test_value);
+        match docker(&[
+            "exec",
+            "--env",
+            &env,
+            &service.container,
+            "mariadb",
+            "--user=root",
+            "--connect-timeout=5",
+            "--batch",
+            "--skip-column-names",
+            "--database",
+            &probe.database,
+            "--execute",
+            &sql,
+        ]) {
+            Ok(output) => {
+                read.performed = true;
+                read.exit_code = output.status.code();
+                if output.status.success() && output.stdout.len() <= 8192 {
+                    read.text = String::from_utf8_lossy(&output.stdout).into_owned();
+                    read.detail = "基盤が試験値に一致するDBの行を直接読み出した".into();
+                } else {
+                    read.exit_code = read.exit_code.filter(|c| *c != 0);
+                    read.detail =
+                        "DBの読取が失敗したか出力上限に達した。行の不存在とは扱わない".into();
+                }
+            }
+            Err(_) => read.detail = "DBの読取を起動できない".into(),
+        }
+        read
+    }
+
     pub fn request(&self, op: &HttpOp, snapshot: &Path, timeout_ms: u64) -> io::Result<HttpResult> {
         let running = self
             .services
@@ -699,6 +778,8 @@ impl Session {
             leftovers: leftovers.clone(),
             database_query: None,
             http: None,
+            browser: None,
+            database_reads: vec![],
             detail: if leftovers.is_empty() {
                 "試行用のコンテナ・ネットワーク・ボリュームをこの試行だけで使っている".into()
             } else {

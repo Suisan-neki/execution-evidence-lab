@@ -115,6 +115,7 @@ fn recipe(
         python: None,
         server: None,
         containers: Some(ContainerSpec { services }),
+        browser: None,
         http: Some(HttpOp {
             service: http_service,
             method: "GET".into(),
@@ -540,4 +541,69 @@ fn openemr_becomes_ready_with_pinned_images() {
         "{}",
         result.assessment.reason
     );
+}
+
+#[test]
+#[ignore = "CIのPlaywright導入後にDockerとChromiumで実行"]
+fn browser_observes_nginx_and_preserves_screenshots() {
+    assert!(engine().is_ok(), "この明示試験にはDockerが必要");
+    let (directory, root, commit) = fixture();
+    let browsers: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string("node_modules/playwright-core/browsers.json").unwrap(),
+    )
+    .unwrap();
+    let version = browsers["browsers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["name"] == "chromium")
+        .unwrap()["browserVersion"]
+        .as_str()
+        .unwrap();
+    let mut trial_check = check(
+        "display",
+        "表示",
+        CheckMethod::BrowserText,
+        Expectation::Contains,
+        "Welcome to nginx",
+    );
+    trial_check.target = Some("welcome".into());
+    let mut recipe = recipe(
+        &commit,
+        vec![nginx("web", ServiceRole::App)],
+        TrialFault::Normal,
+        vec![trial_check],
+    );
+    recipe.runtime = Runtime::Browser;
+    recipe.http = None;
+    recipe.browser = Some(serde_json::from_value(serde_json::json!({"service":"web","tls":false,"start_path":"/","expected_version":version,"actions":[{"id":"welcome","action":"read_text","target":{"locator":{"by":"role","role":"heading","name":"Welcome to nginx!"}}}]})).unwrap());
+    let result = execute(
+        &root,
+        &directory.join("runs"),
+        recipe,
+        Condition {
+            id: "web".into(),
+            version: 1,
+            text: "画面の見出しを読む".into(),
+            origin: "合成の接続試験".into(),
+            kind: ConditionKind::Custom,
+        },
+        None,
+    )
+    .unwrap();
+    let trace: ExecutionTrace = read_json(&result.directory.join("execution.json")).unwrap();
+    let report = trace.containers.as_ref().unwrap().browser.as_ref().unwrap();
+    assert!(report.completed, "{report:?}");
+    assert_eq!(
+        trace.trial.as_ref().unwrap().results[0].observed,
+        Observed::Pass
+    );
+    assert!(
+        result
+            .directory
+            .join(report.steps[0].screenshot.as_ref().unwrap())
+            .is_file()
+    );
+    assert!(trace.containers.as_ref().unwrap().leftovers.is_empty());
+    validate_trace(&trace, &result.manifest).unwrap();
 }

@@ -136,6 +136,7 @@ impl Fixture {
             server: None,
             containers: None,
             http: None,
+            browser: None,
         };
         git(&self.root, &["checkout", "-q", &self.commits[commit]]);
         execute(
@@ -451,6 +452,7 @@ fn invalid_specs_are_rejected_before_running() {
             server: None,
             containers: None,
             http: None,
+            browser: None,
         };
         assert!(validate_recipe(&recipe).is_err());
     }

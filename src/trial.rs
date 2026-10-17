@@ -65,6 +65,9 @@ pub enum CheckMethod {
     ServerOutput,
     ContainerLog,
     DatabaseQuery,
+    BrowserText,
+    BrowserResponse,
+    DatabaseRows,
 }
 impl CheckMethod {
     /// 誰の観測かを示す。対象の報告と基盤の読み出しを同じ扱いにしない。
@@ -77,6 +80,9 @@ impl CheckMethod {
             Self::ReadbackOutput => "別のプロセスで対象の読み出し機能を動かした結果",
             Self::ServerOutput => "待つプロセス（受信側など）の出力",
             Self::ContainerLog => "コンテナのログ（対象の応答とは別）",
+            Self::BrowserText => "試験用ブラウザで読み出した表示の文字列",
+            Self::BrowserResponse => "試験操作中にブラウザが受け取ったHTTP応答",
+            Self::DatabaseRows => "基盤が試験値に一致するDBの行を直接読み出した結果",
             Self::DatabaseQuery => "基盤がデータベースを直接読み出した結果",
         }
     }
@@ -252,7 +258,11 @@ pub fn validate(
         }
         if matches!(
             check.method,
-            CheckMethod::ContainerLog | CheckMethod::DatabaseQuery
+            CheckMethod::ContainerLog
+                | CheckMethod::DatabaseQuery
+                | CheckMethod::BrowserText
+                | CheckMethod::BrowserResponse
+                | CheckMethod::DatabaseRows
         ) && !has_containers
         {
             return Err(invalid(
@@ -598,6 +608,8 @@ pub fn evaluate(spec: &TrialSpec, test_value: &str, out: &Outputs) -> Vec<CheckR
                     }
                     None => (Observed::NotObserved, "コンテナの記録がない".into()),
                 },
+                CheckMethod::BrowserText | CheckMethod::BrowserResponse | CheckMethod::DatabaseRows =>
+                    crate::browser::evaluate(check, out.containers, &text),
                 CheckMethod::DatabaseQuery => {
                     match out.containers.and_then(|c| c.database_query.as_deref()) {
                         Some(query) => {
@@ -809,6 +821,9 @@ pub fn describe(check: &TrialCheck, spec: &TrialSpec) -> String {
         CheckMethod::ServerOutput => {
             format!("待つプロセス（受信側など）の出力に{text}{has}")
         }
+        CheckMethod::BrowserText => format!("画面の文字列に{text}{has}"),
+        CheckMethod::BrowserResponse => format!("ブラウザが受け取ったHTTP応答に{text}{has}"),
+        CheckMethod::DatabaseRows => format!("DBから直接読み出した行に{text}{has}"),
         CheckMethod::ContainerLog => format!("コンテナのログに{text}{has}"),
         CheckMethod::DatabaseQuery => {
             format!("基盤がデータベースを直接読み出した結果に{text}{has}")
@@ -865,6 +880,7 @@ pub fn summarize(trace: &crate::execution::ExecutionTrace, command: &[String]) -
     let runtime = match trace.recipe.runtime {
         crate::execution::Runtime::Node => "Node.js",
         crate::execution::Runtime::Python3 => "Python 3",
+        crate::execution::Runtime::Browser => "ブラウザ（コンテナ）",
         crate::execution::Runtime::Http => "HTTP（コンテナ）",
     };
     let items = spec

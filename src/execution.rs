@@ -59,6 +59,7 @@ pub enum Runtime {
     Python3,
     /// 基盤がコンテナの公開ポートへHTTPで操作する。対象のNode/Pythonは起動しない。
     Http,
+    Browser,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -91,6 +92,8 @@ pub struct Recipe {
     /// コンテナへ基盤が行うHTTP操作。指定すると操作するプロセスは起動しない。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub http: Option<crate::container::HttpOp>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub browser: Option<crate::browser::BrowserSpec>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -198,6 +201,29 @@ pub fn validate_recipe(recipe: &Recipe) -> io::Result<()> {
     crate::workspace::validate_source(&recipe.source)?;
     let python = recipe.python.is_some();
     let http = recipe.runtime == Runtime::Http;
+    let browser = recipe.runtime == Runtime::Browser;
+    if browser {
+        let containers = recipe
+            .containers
+            .as_ref()
+            .ok_or_else(|| invalid("ブラウザ試験にはコンテナが必要です"))?;
+        let spec = recipe
+            .browser
+            .as_ref()
+            .ok_or_else(|| invalid("ブラウザ試験には操作の手順が必要です"))?;
+        crate::browser::validate(spec, containers)?;
+        if recipe.http.is_some()
+            || recipe.python.is_some()
+            || recipe.server.is_some()
+            || !recipe.args.is_empty()
+        {
+            return Err(invalid(
+                "ブラウザ試験には別の起動方法と引数を同時に指定しません",
+            ));
+        }
+    } else if recipe.browser.is_some() {
+        return Err(invalid("ブラウザ操作はbrowserの試行だけで指定できます"));
+    }
     if http {
         if recipe.containers.is_none() || recipe.http.is_none() {
             return Err(invalid(
@@ -209,7 +235,7 @@ pub fn validate_recipe(recipe: &Recipe) -> io::Result<()> {
                 "HTTPの操作と、Pythonの読み込み先・待つプロセスは同時に指定しません",
             ));
         }
-    } else {
+    } else if !browser {
         crate::python_env::validate_launch(recipe.launch, &recipe.entrypoint, python, relative)?;
     }
     relative(&recipe.source.path)?;
@@ -271,6 +297,33 @@ pub fn validate_recipe(recipe: &Recipe) -> io::Result<()> {
             recipe.containers.is_some(),
             relative,
         )?;
+        for check in &trial.checks {
+            use crate::trial::CheckMethod;
+            let valid = match check.method {
+                CheckMethod::BrowserText => recipe.browser.as_ref().is_some_and(|b| {
+                    b.actions.iter().any(|s| {
+                        Some(s.id.as_str()) == check.target.as_deref()
+                            && matches!(s.action, crate::browser::Action::ReadText { .. })
+                    })
+                }),
+                CheckMethod::BrowserResponse => recipe.browser.as_ref().is_some_and(|b| {
+                    b.responses
+                        .iter()
+                        .any(|w| Some(w.id.as_str()) == check.target.as_deref())
+                }),
+                CheckMethod::DatabaseRows => recipe.browser.as_ref().is_some_and(|b| {
+                    b.database
+                        .iter()
+                        .any(|q| Some(q.id.as_str()) == check.target.as_deref())
+                }),
+                _ => true,
+            };
+            if !valid {
+                return Err(invalid(
+                    "判定条件のtargetに対応するブラウザ観測がありません",
+                ));
+            }
+        }
     }
     Ok(())
 }
@@ -376,7 +429,7 @@ fn inventory(
         let (header, path) = entry
             .split_once('\t')
             .ok_or_else(|| invalid("Gitのファイル情報が不正です"))?;
-        if prefix.is_some_and(|p| !path.starts_with(&format!("{p}/"))) {
+        if prefix.is_some_and(|p| path != p && !path.starts_with(&format!("{p}/"))) {
             continue;
         }
         relative(path)?;
@@ -414,7 +467,8 @@ fn inventory(
 fn check_target_files(recipe: &Recipe, files: &[SnapshotFile]) -> io::Result<()> {
     let readback = recipe.trial.as_ref().and_then(|t| t.readback.as_ref());
     let starts = [
-        (recipe.runtime != Runtime::Http).then_some((recipe.launch, recipe.entrypoint.as_str())),
+        (!matches!(recipe.runtime, Runtime::Http | Runtime::Browser))
+            .then_some((recipe.launch, recipe.entrypoint.as_str())),
         readback.map(|r| (r.launch, r.entrypoint.as_str())),
         recipe
             .server
@@ -504,7 +558,7 @@ fn snapshot_unchanged(root: &Path, snapshot: &Path, files: &[SnapshotFile]) -> b
 /// PATHの先頭がpyenv等のシェルスクリプトでも、環境変数を消した試行で動く実体を使う。
 fn runtime_path(runtime: &Runtime) -> io::Result<PathBuf> {
     let (name, probe): (_, &[&str]) = match runtime {
-        Runtime::Node => ("node", &["-p", "process.execPath"]),
+        Runtime::Node | Runtime::Browser => ("node", &["-p", "process.execPath"]),
         Runtime::Python3 => ("python3", &["-c", "import sys; print(sys.executable)"]),
         Runtime::Http => {
             return Err(invalid(
@@ -643,7 +697,7 @@ pub fn validate_trace(trace: &ExecutionTrace, manifest: &Manifest) -> io::Result
             .files
             .iter()
             .any(|f| f.path == trace.recipe.source.path)
-        || trace.recipe.runtime != Runtime::Http
+        || !matches!(trace.recipe.runtime, Runtime::Http | Runtime::Browser)
             && trace.recipe.launch.is_file()
             && !trace
                 .files
@@ -835,7 +889,7 @@ pub fn execute_with_dependencies(
         &root,
         &recipe.source.repository,
         &recipe.source.commit,
-        None,
+        (recipe.runtime == Runtime::Browser).then_some(recipe.source.path.as_str()),
     )?;
     check_target_files(&recipe, &files)?;
     let (program, runtime_version) = runtime_available(&recipe.runtime).map_err(invalid)?;
@@ -933,6 +987,20 @@ pub fn execute_with_dependencies(
         &work.join("input.json"),
         &crate::trial::substitute_json(&recipe.input, &test_value),
     )?;
+    // 認証などの準備は正常なDBで行い、その後に保存操作の故障を注入する。
+    let mut browser = match (&recipe.browser, session.as_ref()) {
+        (Some(spec), Some(session)) if session.all_ready() => {
+            Some(crate::browser::Session::prepare(
+                spec,
+                session,
+                &directory,
+                &correlation.run_id,
+                &test_value,
+                recipe.timeout_ms,
+            )?)
+        }
+        _ => None,
+    };
     let mut fault = match &recipe.trial {
         Some(spec) => Some(crate::trial::apply_fault(spec, &work)?),
         None => None,
@@ -940,7 +1008,7 @@ pub fn execute_with_dependencies(
     if let (Some(spec), Some(session), Some((_, effective))) =
         (recipe.trial.as_ref(), session.as_mut(), fault.as_mut())
     {
-        if session.all_ready() {
+        if session.all_ready() && browser.as_ref().is_none_or(|b| b.prepared()) {
             match spec.fault {
                 crate::trial::TrialFault::DatabaseStopped => {
                     *effective = session.stop_database()?;
@@ -970,7 +1038,7 @@ pub fn execute_with_dependencies(
         correlation: &correlation,
         python: python.as_ref().map(|p| &p.paths),
     };
-    let operate = if recipe.runtime == Runtime::Http {
+    let operate = if matches!(recipe.runtime, Runtime::Http | Runtime::Browser) {
         None
     } else {
         Some(start_for(
@@ -1007,6 +1075,9 @@ pub fn execute_with_dependencies(
             .into();
     manifest.command = match &operate {
         Some(operate) => launch.describe(operate, &args),
+        None if recipe.runtime == Runtime::Browser => {
+            vec!["browser".into(), "preparation -> fault -> actions".into()]
+        }
         None => recipe
             .http
             .as_ref()
@@ -1042,11 +1113,21 @@ pub fn execute_with_dependencies(
                 .trial
                 .as_ref()
                 .is_some_and(|t| t.fault == crate::trial::TrialFault::ServerNotStarted)
-    }) && session.as_ref().is_none_or(|s| s.all_ready());
+    }) && session.as_ref().is_none_or(|s| s.all_ready())
+        && (recipe.runtime != Runtime::Browser || browser.as_ref().is_some_and(|b| b.prepared()));
     let mut http_result = None;
     let mut http_exit = None;
     let (status, timed_out, output_limit) = if proceed {
-        if let (Some(op), Some(session)) = (&recipe.http, session.as_ref()) {
+        if let Some(browser) = browser.as_mut() {
+            let report = browser.run()?;
+            http_exit = Some(if report.completed { 0 } else { 1 });
+            recorder.record(
+                Source::Process,
+                EventKind::ProcessExited,
+                report.detail.clone(),
+            )?;
+            (None, false, false)
+        } else if let (Some(op), Some(session)) = (&recipe.http, session.as_ref()) {
             match session.request(op, &snapshot, recipe.timeout_ms) {
                 Ok(result) => {
                     let code = result.status.unwrap_or(0);
@@ -1123,11 +1204,28 @@ pub fn execute_with_dependencies(
         fs::write(directory.join("stdout.txt"), "")?;
         fs::write(directory.join("stderr.txt"), "")?;
     }
+    let browser_report = browser.as_ref().map(|b| b.report());
+    drop(browser);
+    let database_reads = match (&recipe.browser, session.as_ref()) {
+        (Some(spec), Some(session))
+            if browser_report
+                .as_ref()
+                .is_some_and(|r| r.prepared && r.steps.iter().any(|s| s.phase == "action")) =>
+        {
+            spec.database
+                .iter()
+                .map(|q| session.read_database(q, &test_value))
+                .collect()
+        }
+        _ => vec![],
+    };
     let database_query = session.as_ref().and_then(|s| s.query_database());
     let mut container_phase = session.as_ref().map(|s| s.snapshot());
     if let Some(phase) = container_phase.as_mut() {
         phase.database_query = database_query;
         phase.http = http_result.clone();
+        phase.browser = browser_report;
+        phase.database_reads = database_reads;
     }
     let leftovers = match session.as_mut() {
         Some(session) => match session.cleanup() {
@@ -1191,7 +1289,7 @@ pub fn execute_with_dependencies(
     match (status, http_exit, proceed) {
         (_, Some(_), _) => {}
         (None, None, false) => diagnostics
-            .push("待つプロセスまたは試験用コンテナが準備できなかったため、操作していない".into()),
+            .push("待つプロセス・試験用コンテナ・ブラウザのいずれかが準備できなかったため、操作していない".into()),
         (Some(status), _, _) if !status.success() => diagnostics.push(format!(
             "起動・実行・終了を確認できませんでした: {}",
             stderr_excerpt.chars().take(2000).collect::<String>()
