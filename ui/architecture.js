@@ -82,6 +82,7 @@ async function api(path, body) {
   return v;
 }
 async function guard(fn) {
+  status("");
   try {
     await fn();
   } catch (e) {
