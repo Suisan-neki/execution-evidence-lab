@@ -40,6 +40,8 @@ jobs:
           umask 077
           printf '%s' '{"username":"eel-operator","password":"eel-pass-trial"}' > "$RUNNER_TEMP/openemr-secrets.json"
           EEL_BROWSER_SECRETS_FILE="$RUNNER_TEMP/openemr-secrets.json" cargo test --locked --test containers openemr_browser -- --ignored --nocapture
+      - name: Save and switch the three target diagrams
+        run: npm run test:architecture-targets -- presets
       - name: Read the actual OpenEMR evidence through the architecture diagram
         run: npm run test:architecture -- --real
       - name: Operate the app against the public repository sjl/t

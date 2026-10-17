@@ -446,7 +446,7 @@ fn handle_connection_mode(
         );
     };
     if request.method == "GET" && request.path == "/api/v1/architecture" {
-        let result = workspace::load(directory).map(|w| serde_json::json!({"revision":w.revision,"models":w.architecture_models,"links":crate::architecture::links(&w),"builtin":crate::architecture::openemr()}));
+        let result = workspace::load(directory).map(|w| serde_json::json!({"revision":w.revision,"models":w.architecture_models,"links":crate::architecture::links(&w),"builtin":crate::architecture::openemr(),"builtins":crate::architecture::builtins()}));
         return result_response(stream, result);
     }
     let api_path = if versioned {

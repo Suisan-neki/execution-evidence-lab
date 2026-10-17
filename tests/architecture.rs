@@ -45,6 +45,146 @@ fn rejects_cycles_missing_endpoints_and_reused_model_versions() {
     w.architecture_models.push(original);
     assert!(execution_evidence_lab::architecture::validate(&w).is_err());
 }
+
+#[test]
+fn builtins_keep_separate_pinned_targets_and_valid_component_models() {
+    let models = builtins();
+    assert_eq!(models.len(), 3);
+    for model in &models {
+        model.validate().unwrap();
+    }
+    assert_eq!(models[1].source.repository, "OHIF/Viewers");
+    assert_eq!(models[2].source.repository, "Project-MONAI/MONAI");
+    assert!(models[2].browser_version.is_none());
+    assert!(
+        models[2]
+            .elements
+            .iter()
+            .any(|e| e.kind == ElementKind::Component)
+    );
+}
+
+fn reported_workspace() -> Workspace {
+    let m = builtins()
+        .into_iter()
+        .find(|m| m.id == "monai-trial")
+        .unwrap();
+    let mut w = empty_workspace("reported-architecture".into(), "合成の段階報告".into());
+    w.architecture_models.push(m.clone());
+    for id in ["train", "inference"] {
+        let criterion = execution_evidence_lab::execution::Criterion {
+            assertion: "monai.stage".into(),
+            subject: id.into(),
+        };
+        w.checks.push(Check {
+            id: id.into(),
+            version: 2,
+            text: format!("合成の{id}段階"),
+            origin: "合成".into(),
+            source: Some(m.source.clone()),
+            observation: Some(criterion.clone()),
+            rule: Rule::ReportedAssertion,
+            dependencies: vec![format!("report-{id}")],
+            questions: vec![],
+        });
+        let mut e = synthetic_evidence();
+        e.id = format!("reported-{id}");
+        e.check_id = id.into();
+        e.check_version = 2;
+        e.rule = Rule::ReportedAssertion;
+        e.source = Some(m.source.clone());
+        e.observation = Some(criterion);
+        e.execution = None;
+        e.manifest.mode = "reported_observation".into();
+        e.manifest.condition = Condition {
+            id: id.into(),
+            version: 2,
+            text: format!("合成の{id}段階"),
+            origin: "合成".into(),
+            kind: ConditionKind::Custom,
+        };
+        let trace=serde_json::from_value(json!({"schema_version":1,"correlation":e.manifest.correlation,"producer":"合成の報告器","origin":"段階の対応づけの単体試験","completed":true,"source":m.source,"context":{"images":m.images,"browser_version":null},"observations":[{"sequence":1,"correlation":e.manifest.correlation,"assertion":"monai.stage","subject":"train","outcome":"pass","detail":"合成の学習完了の報告","source":null}]})).unwrap();
+        e.reported = Some(trace);
+        let context = "合成の同じ実行条件".to_owned();
+        w.context.insert(format!("report-{id}"), context.clone());
+        e.dependencies = BTreeMap::from([(format!("report-{id}"), context)]);
+        w.evidence.push(e);
+        w.architecture_links.push(Link {
+            id: format!("reported-link-{id}"),
+            model_id: m.id.clone(),
+            model_version: 1,
+            object_id: id.into(),
+            target: Target::ReportedEvidence {
+                evidence_id: format!("reported-{id}"),
+                assertion: "monai.stage".into(),
+                subject: id.into(),
+            },
+        });
+    }
+    w
+}
+
+#[test]
+fn reported_completion_is_scoped_and_does_not_fill_an_unreported_later_stage() {
+    use execution_evidence_lab::trial::Observed;
+    let mut w = reported_workspace();
+    execution_evidence_lab::architecture::validate(&w).unwrap();
+    let views = links(&w);
+    assert_eq!(views[0].observed, Some(Observed::Pass));
+    assert_eq!(views[1].observed, Some(Observed::NotObserved));
+    assert!(views.iter().all(|v| v.applicable));
+    assert_eq!(
+        serde_json::to_value(&views[0]).unwrap()["method"],
+        "reported_assertion"
+    );
+    w.evidence[0].reported.as_mut().unwrap().completed = false;
+    assert_eq!(links(&w)[0].observed, Some(Observed::NotObserved));
+    w.evidence[0].reported.as_mut().unwrap().completed = true;
+    w.evidence[0].reported.as_mut().unwrap().observations[0].outcome =
+        execution_evidence_lab::execution::ObservationOutcome::Fail;
+    assert_eq!(links(&w)[0].observed, Some(Observed::Fail));
+    assert_eq!(links(&w)[1].observed, Some(Observed::NotObserved));
+    w.context
+        .insert("report-train".into(), "変更した条件".into());
+    assert!(!links(&w)[0].applicable);
+    assert_eq!(links(&w)[0].observed, Some(Observed::Fail));
+}
+
+#[test]
+fn rejects_report_links_to_other_stages_or_unmatched_environment_pins() {
+    let original = reported_workspace();
+    let mut w = original.clone();
+    if let Target::ReportedEvidence { subject, .. } = &mut w.architecture_links[0].target {
+        *subject = "inference".into();
+    }
+    assert!(execution_evidence_lab::architecture::validate(&w).is_err());
+    w = original.clone();
+    w.evidence[0]
+        .reported
+        .as_mut()
+        .unwrap()
+        .context
+        .remove("images");
+    assert!(execution_evidence_lab::architecture::validate(&w).is_err());
+    w = original.clone();
+    w.evidence[0]
+        .reported
+        .as_mut()
+        .unwrap()
+        .source
+        .as_mut()
+        .unwrap()
+        .commit = "a".repeat(40);
+    assert!(execution_evidence_lab::architecture::validate(&w).is_err());
+    w = original;
+    w.evidence[0]
+        .reported
+        .as_mut()
+        .unwrap()
+        .context
+        .insert("browser_version".into(), json!("unexpected-browser"));
+    assert!(execution_evidence_lab::architecture::validate(&w).is_err());
+}
 #[test]
 fn preserves_previous_model_links_and_marks_changed_conditions() {
     let mut w = workspace();
@@ -127,7 +267,9 @@ fn does_not_spread_http_failure_or_old_success_to_missing_database_observation()
     );
     assert_eq!(
         links(&w)[0].method,
-        Some(execution_evidence_lab::trial::CheckMethod::DatabaseRows)
+        Some(LinkMethod::Execution(
+            execution_evidence_lab::trial::CheckMethod::DatabaseRows
+        ))
     );
     assert_eq!(
         links(&w)[1].observed,

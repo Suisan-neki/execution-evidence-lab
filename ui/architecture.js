@@ -41,6 +41,7 @@ const methods = {
   browser_text: "画面表示",
   browser_canvas: "canvasの画素",
   server_http: "サーバーの直接読取",
+  reported_assertion: "対象内の段階報告（報告された範囲）",
   browser_response: "HTTP応答",
   database_rows: "DBの直接読取",
   database_query: "DBの直接読取",
@@ -102,6 +103,14 @@ async function change(action) {
 function modelKey(m) {
   return m.id + ":" + m.version;
 }
+function presets() { return data.builtins || [data.builtin]; }
+function availableModels() {
+  return [...data.models, ...presets().filter(p => !data.models.some(m => modelKey(m) === modelKey(p)))];
+}
+function diagramIds() { return ids.models?.[model.id] || ids; }
+function evidenceTarget(t) { return ["evidence", "reported_evidence"].includes(t.kind); }
+function observationLabel(t) { return t.kind === "reported_evidence" ? t.assertion + "／" + t.subject : t.observation_id; }
+function selectedRun() { return state.workspace.evidence.find(e => e.id === $("trial").value)?.manifest.correlation.run_id; }
 async function load() {
   const key = model && modelKey(model),
     trial = $("trial").value;
@@ -117,21 +126,27 @@ async function load() {
   state = loadedState;
   data = loadedData;
   $("model").replaceChildren();
-  for (const m of data.models.length ? data.models : [data.builtin]) {
+  for (const m of availableModels()) {
     const o = new Option(
-      `${m.title}／版${m.version}${data.models.length ? "" : "（未保存の見本）"}`,
+      `${m.title}／版${m.version}${data.models.some(saved => modelKey(saved) === modelKey(m)) ? "" : "（未保存の見本）"}`,
       modelKey(m),
     );
     $("model").append(o);
   }
   if ([...$("model").options].some((o) => o.value === key))
     $("model").value = key;
-  else $("model").selectedIndex = $("model").options.length - 1;
+  else {
+    const preferred = data.models.at(-1) || presets().find(m => state.workspace.checks.some(c => c.source?.repository === m.source.repository && c.source.commit === m.source.commit)) || presets()[0];
+    $("model").value = modelKey(preferred);
+  }
   $("trial").replaceChildren(new Option("試行を選択しない", ""));
+  const runs = new Set();
   for (const e of state.workspace.evidence) {
+    if (runs.has(e.manifest.correlation.run_id)) continue;
+    runs.add(e.manifest.correlation.run_id);
     $("trial").append(
       new Option(
-        `${e.manifest.correlation.run_id}／${e.execution?.recipe.trial?.fault || e.manifest.mode}`,
+        `${e.manifest.correlation.run_id}／${e.execution?.recipe.trial?.fault || e.reported?.context.fault || e.manifest.mode}`,
         e.id,
       ),
     );
@@ -155,17 +170,16 @@ function matchingLinks(objectId) {
   );
 }
 function relevant(objectId) {
-  const eid = $("trial").value;
-  return matchingLinks(objectId).filter(
-    (v) =>
-      v.link.target.kind === "evidence" && v.link.target.evidence_id === eid,
-  );
+  const run = selectedRun();
+  return matchingLinks(objectId).filter(v => evidenceTarget(v.link.target) && state.workspace.evidence.some(e => e.id === v.link.target.evidence_id && e.manifest.correlation.run_id === run));
 }
 function observationStatus(objectId) {
   const links = relevant(objectId);
   if (!links.length) return { kind: "unknown", label: "？ 対応する観測なし" };
-  if (links.some((l) => !l.applicable))
-    return { kind: "unknown", label: "↻ 現在の条件には再確認が必要" };
+  if (links.some((l) => !l.applicable)) {
+    const historical = links.some(l => l.observed === "fail") ? "× 期待と異なる" : links.some(l => l.observed == null || l.observed === "not_observed") ? "？ 未観測を含む" : "○ 期待どおり";
+    return { kind: "unknown", label: "↻ 現在の条件には再確認が必要／観測時：" + historical };
+  }
   if (links.some((l) => l.observed === "fail"))
     return { kind: "fail", label: "関連観測：× 期待と異なる" };
   if (links.some((l) => l.observed == null || l.observed === "not_observed"))
@@ -184,7 +198,7 @@ function sourceLink(s) {
 }
 function render() {
   model =
-    data.models.find((m) => modelKey(m) === $("model").value) || data.builtin;
+    availableModels().find((m) => modelKey(m) === $("model").value) || presets()[0];
   if (!object()) selected = "system";
   if (!object()) selected = model.elements[0].id;
   $("model-description").replaceChildren(
@@ -255,7 +269,7 @@ function renderDiagram() {
   const box = $("diagram");
   box.replaceChildren();
   // 生成済み図と保存モデルが完全一致する場合だけ埋め込む。未知の版へ旧図を流用しない。
-  if (JSON.stringify(model) !== JSON.stringify(data.builtin)) {
+  if (!presets().some(p => JSON.stringify(model) === JSON.stringify(p))) {
     box.hidden = true;
     $("diagram-status").textContent =
       "この構成の版の図は未生成です。下の構成一覧から説明と記録を確認できます。";
@@ -265,7 +279,7 @@ function renderDiagram() {
   $("diagram-status").textContent =
     "図を読み込んでいます。下の一覧からも同じ構成要素・接続を選べます。";
   const view = document.createElement("likec4-view");
-  view.setAttribute("view-id", $("view").value);
+  view.setAttribute("view-id", diagramIds().views?.[$("view").value] || $("view").value);
   view.setAttribute("browser", "false");
   view.setAttribute("color-scheme", "light");
   const canvas = document.createElement("div");
@@ -281,6 +295,7 @@ function renderDiagram() {
     overlaySheet = new CSSStyleSheet();
     overlaySheet.replaceSync(style.textContent);
     const selectFromDiagram = (event) => {
+      if (!view.isConnected) return;
       if (
         event.type === "keydown" &&
         event.key !== "Enter" &&
@@ -296,9 +311,9 @@ function renderDiagram() {
             .filter((r) => r.title === label.textContent.trim())
             .map((r) => r.id)
         : edge
-          ? ids.edges[edge.dataset.id] || []
+          ? diagramIds().edges[edge.dataset.id] || []
           : node
-            ? [ids.nodes[node.dataset.id]].filter(Boolean)
+            ? [diagramIds().nodes[node.dataset.id]].filter(Boolean)
             : [];
       if (!candidates.length) return;
       event.preventDefault();
@@ -346,9 +361,10 @@ function markDiagram() {
     }
   }
   for (const n of deepAll(".react-flow__node[data-id]")) {
-    const id = ids.nodes[n.dataset.id];
+    const id = diagramIds().nodes[n.dataset.id];
     if (!id) continue;
     const s = observationStatus(id);
+    n.dataset.eelObject = id;
     n.dataset.eelState = s.kind;
     n.dataset.eelLabel = s.label;
     n.dataset.eelSelected = String(id === selected);
@@ -359,7 +375,7 @@ function markDiagram() {
     label.setAttribute("aria-label", "接続：" + label.textContent.trim());
   }
   for (const n of deepAll(".react-flow__edge[data-id]")) {
-    const objects = ids.edges[n.dataset.id] || [];
+    const objects = diagramIds().edges[n.dataset.id] || [];
     const states = objects.map(observationStatus);
     n.dataset.eelState = states.some((s) => s.kind === "fail")
       ? "fail"
@@ -424,10 +440,10 @@ function renderDetails() {
         p(`出所：${s.origin}／記入者：${s.recorded_by || "未記録"}`),
       );
     }
-    if (t.kind === "evidence") {
+    if (evidenceTarget(t)) {
       const e = state.workspace.evidence.find((e) => e.id === t.evidence_id);
-      const selectedTrial = $("trial").value;
-      section.hidden = !!selectedTrial && selectedTrial !== e.id;
+      const run = selectedRun();
+      section.hidden = !!run && run !== e.manifest.correlation.run_id;
       section.classList.add(
         "observed-" +
           (v.observed === "fail"
@@ -438,7 +454,7 @@ function renderDetails() {
       );
       section.append(
         p(
-          `${methods[v.method] || v.method || "観測方法を未確認"}／${t.observation_id}／${outcome[v.observed] || "？ 観測結果の記録なし"}`,
+          `${methods[v.method] || v.method || "観測方法を未確認"}／${observationLabel(t)}／${outcome[v.observed] || "？ 観測結果の記録なし"}`,
         ),
         p(e.manifest.correlation.run_id),
         p(v.detail),
@@ -447,13 +463,13 @@ function renderDetails() {
             ? "この構成・現在の条件への照合済み。要素全体の正常性は判定しません。"
             : "↻ 現在の条件には再確認が必要。観測時の結果を表示しています。",
         ),
-        button("試験結果と証拠を見る", () => showEvidence(e, t.observation_id)),
+        button("試験結果と証拠を見る", () => showEvidence(e, observationLabel(t), t)),
       );
     }
     body.append(section);
   }
 }
-function showEvidence(e, obs) {
+function showEvidence(e, obs, target) {
   const d = document.createElement("dialog"),
     back = button("元の構成図へ戻る", () => d.close());
   back.classList.add("evidence-return");
@@ -461,7 +477,7 @@ function showEvidence(e, obs) {
   const summary = state.checks
     .flatMap((c) => c.evidence)
     .find((v) => v.id === e.id)?.summary;
-  if (summary) {
+  if (summary && !e.reported) {
     d.append(
       p(summary.tried),
       p(`故障条件：${summary.fault}／${summary.fault_applied}`),
@@ -479,14 +495,23 @@ function showEvidence(e, obs) {
       d.append(sec);
     }
   }
+  if (e.reported) {
+    d.append(p(`報告者：${e.reported.producer}／${e.reported.origin}`), p(`試行条件：${e.reported.context.fault || "報告に記載なし"}`), p("段階の報告と、基盤によるHTTP・DBの直接読取は別です。対象の実行経路の独立した証明ではありません。"));
+    const matching = e.reported.observations.filter(o => o.assertion === target.assertion && o.subject === target.subject);
+    if (!matching.length) d.append(p("この段階の成功・失敗の報告はありません。処理の失敗とは断定しません。"));
+    for (const o of matching) {
+      const item = document.createElement("section"); item.className = "record-action"; item.setAttribute("aria-label", "選択した観測条件");
+      item.append(p(`${o.assertion}／${o.subject}／${outcome[o.outcome]}`), sourceLink(o.source), p(o.detail)); d.append(item);
+    }
+  }
   const browser = document.createElement("div");
   browser.innerHTML = renderBrowserEvidence(e);
   d.append(browser);
   const raw = document.createElement("details"),
     s = document.createElement("summary"),
     pre = document.createElement("pre");
-  s.textContent = "固定版と実行の詳しい記録";
-  pre.textContent = JSON.stringify(e.execution, null, 2);
+  s.textContent = e.reported ? "固定版と報告の詳しい記録" : "固定版と実行の詳しい記録";
+  pre.textContent = JSON.stringify(e.execution || e.reported, null, 2);
   raw.append(s, pre);
   d.append(raw);
   document.body.append(d);
@@ -609,12 +634,10 @@ function renderControls() {
       },
     ),
   );
-  const options = state.workspace.evidence.flatMap((e) =>
-    (e.execution?.recipe.trial?.checks || []).map((c) => [
-      e.id + "|" + c.id,
-      `${e.manifest.correlation.run_id}／${c.scope}（${c.id}）`,
-    ]),
-  );
+  const options = state.workspace.evidence.flatMap(e => {
+    if (e.reported && e.observation) return [[JSON.stringify({kind:"reported_evidence",evidence_id:e.id,assertion:e.observation.assertion,subject:e.observation.subject}), `${e.manifest.correlation.run_id}／段階報告：${e.observation.subject}`]];
+    return (e.execution?.recipe.trial?.checks || []).map(c => [JSON.stringify({kind:"evidence",evidence_id:e.id,observation_id:c.id}), `${e.manifest.correlation.run_id}／${c.scope}（${c.id}）`]);
+  });
   const observation = makeSelect("link-observation", options);
   if (options.length)
     box.append(
@@ -624,8 +647,7 @@ function renderControls() {
         observation,
         "この観測を対応づける",
         () => {
-          const [evidence_id, observation_id] = observation.value.split("|");
-          return addLink({ kind: "evidence", evidence_id, observation_id });
+          return addLink(JSON.parse(observation.value));
         },
       ),
     );
@@ -647,7 +669,8 @@ $("trial").addEventListener("change", () =>
 );
 $("save-model").addEventListener("click", () =>
   guard(async () => {
-    await change({ op: "add_architecture_model", model: data.builtin });
+    const selectedModel = structuredClone(model);
+    await change({ op: "add_architecture_model", model: selectedModel });
     await load();
     status("試験用構成を事例に追加しました。");
   }),

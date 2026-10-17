@@ -32,6 +32,9 @@ jobs:
       - name: Observe OHIF list and images, reject image requests and retry
         if: matrix.target == 'ohif-build'
         run: node tools/ohif-smoke.mjs
+      - name: Read OHIF evidence and missing observations through its diagram
+        if: matrix.target == 'ohif-build'
+        run: npm run test:architecture-targets -- ohif
       - name: Keep synthetic environment records
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -44,5 +47,6 @@ jobs:
             evaluations/ci-ohif/**/*.json
             evaluations/ci-ohif/**/*.png
             evaluations/ci-ohif/**/*.log
+            test-results/architecture-ohif-*.png
           if-no-files-found: ignore
           retention-days: 7
