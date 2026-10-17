@@ -12,3 +12,4 @@ toml = { version = "1", default-features = false, features = ["parse", "serde", 
 regex = "1"
 ureq = { version = "3", default-features = false, features = ["rustls", "gzip", "platform-verifier"] }
 url = "2"
+sha2 = "0.10.9"

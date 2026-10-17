@@ -9,6 +9,7 @@ pub mod browser_evidence;
 pub mod capture;
 pub mod comparison;
 pub mod container;
+pub mod environment;
 pub mod evaluation;
 pub mod execution;
 pub mod experiment;
