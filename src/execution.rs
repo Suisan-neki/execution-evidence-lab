@@ -256,6 +256,16 @@ pub fn validate_recipe(recipe: &Recipe) -> io::Result<()> {
     }
     if let Some(containers) = &recipe.containers {
         crate::container::validate_spec(containers)?;
+        for service in &containers.services {
+            if service.web_build.as_ref().is_some_and(|b| {
+                b.source.repository != recipe.source.repository
+                    || b.source.commit != recipe.source.commit
+            }) {
+                return Err(invalid(
+                    "ビルドしたソースと試行の固定コミットが一致しません",
+                ));
+            }
+        }
         if recipe.trial.is_none() {
             return Err(invalid("コンテナを使う試行には、判定条件が必要です"));
         }
@@ -290,6 +300,16 @@ pub fn validate_recipe(recipe: &Recipe) -> io::Result<()> {
         ));
     }
     if let Some(trial) = &recipe.trial {
+        if (trial.fault == crate::trial::TrialFault::HttpRejected)
+            != recipe
+                .browser
+                .as_ref()
+                .is_some_and(|b| b.rejection.is_some())
+        {
+            return Err(invalid(
+                "HTTP拒否の故障にはブラウザーの観測先を指定してください",
+            ));
+        }
         crate::trial::validate(
             trial,
             recipe.server.is_some(),
@@ -300,6 +320,28 @@ pub fn validate_recipe(recipe: &Recipe) -> io::Result<()> {
         for check in &trial.checks {
             use crate::trial::CheckMethod;
             let valid = match check.method {
+                CheckMethod::BrowserCanvas => recipe.browser.as_ref().is_some_and(|b| {
+                    ["variation=true", "variation=false"]
+                        .contains(&check.text.as_deref().unwrap_or(""))
+                        && b.actions.iter().any(|s| {
+                            Some(s.id.as_str()) == check.target.as_deref()
+                                && matches!(s.action, crate::browser::Action::ReadCanvas { .. })
+                        })
+                }),
+                CheckMethod::ServerHttp => recipe.browser.as_ref().is_some_and(|b| {
+                    let text = check.text.as_deref().unwrap_or("");
+                    let expression = text.strip_prefix("status=").is_some_and(|s| {
+                        s.len() == 3 && s.parse::<u16>().is_ok_and(|n| (100..=599).contains(&n))
+                    }) || text.strip_prefix("sha256=").is_some_and(|s| {
+                        s.len() == 64
+                            && s.bytes()
+                                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+                    });
+                    expression
+                        && b.http_reads
+                            .iter()
+                            .any(|p| Some(p.id.as_str()) == check.target.as_deref())
+                }),
                 CheckMethod::BrowserText => recipe.browser.as_ref().is_some_and(|b| {
                     b.actions.iter().any(|s| {
                         Some(s.id.as_str()) == check.target.as_deref()
@@ -308,7 +350,12 @@ pub fn validate_recipe(recipe: &Recipe) -> io::Result<()> {
                 }),
                 CheckMethod::BrowserResponse => recipe.browser.as_ref().is_some_and(|b| {
                     let text = check.text.as_deref().unwrap_or("");
-                    let valid_expression = ["body_match=true", "body_match=false"].contains(&text)
+                    let valid_expression = text.strip_prefix("sha256=").is_some_and(|s| {
+                        s.len() == 64
+                            && s.bytes()
+                                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+                    }) || ["body_match=true", "body_match=false"]
+                        .contains(&text)
                         || text.strip_prefix("status=").is_some_and(|s| {
                             s.len() == 3 && s.parse::<u16>().is_ok_and(|n| (100..=599).contains(&n))
                         });
@@ -1216,6 +1263,18 @@ pub fn execute_with_dependencies(
         fs::write(directory.join("stderr.txt"), "")?;
     }
     let browser_report = browser.as_ref().map(|b| b.report());
+    if recipe
+        .trial
+        .as_ref()
+        .is_some_and(|t| t.fault == crate::trial::TrialFault::HttpRejected)
+        && let Some((_, effective)) = fault.as_mut()
+    {
+        *effective = recipe
+            .browser
+            .as_ref()
+            .zip(browser_report.as_ref())
+            .is_some_and(|(spec, report)| crate::browser::rejection_observed(spec, report));
+    }
     drop(browser);
     let database_reads = match (&recipe.browser, session.as_ref()) {
         (Some(spec), Some(session))
@@ -1230,6 +1289,19 @@ pub fn execute_with_dependencies(
         }
         _ => vec![],
     };
+    let http_reads = match (&recipe.browser, session.as_ref()) {
+        (Some(spec), Some(session))
+            if browser_report
+                .as_ref()
+                .is_some_and(|r| r.prepared && r.steps.iter().any(|s| s.phase == "action")) =>
+        {
+            spec.http_reads
+                .iter()
+                .map(|p| crate::http_probe::read(p, session))
+                .collect()
+        }
+        _ => vec![],
+    };
     let database_query = session.as_ref().and_then(|s| s.query_database());
     let mut container_phase = session.as_ref().map(|s| s.snapshot());
     if let Some(phase) = container_phase.as_mut() {
@@ -1237,6 +1309,7 @@ pub fn execute_with_dependencies(
         phase.http = http_result.clone();
         phase.browser = browser_report;
         phase.database_reads = database_reads;
+        phase.http_reads = http_reads;
     }
     let leftovers = match session.as_mut() {
         Some(session) => match session.cleanup() {

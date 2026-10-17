@@ -52,7 +52,7 @@ def persist():
 @contextmanager
 def stage(name):
     current = next(s for s in record["stages"] if s["id"] == name)
-    current.update(status="running", started_monotonic_ns=time.monotonic_ns())
+    current.update(status="running", started_monotonic_ns=str(time.monotonic_ns()))
     persist()
     try:
         yield
@@ -61,7 +61,7 @@ def stage(name):
         persist()
         raise
     else:
-        current.update(status="succeeded", ended_monotonic_ns=time.monotonic_ns())
+        current.update(status="succeeded", ended_monotonic_ns=str(time.monotonic_ns()))
         persist()
 
 
@@ -72,9 +72,10 @@ def save_array(path, array):
         os.fsync(output.fileno())
 
 
-def model_hash(model):
+def model_hash(model, parameters_only=False):
     h = hashlib.sha256()
-    for name, tensor in sorted(model.state_dict().items()):
+    items = model.named_parameters() if parameters_only else model.state_dict().items()
+    for name, tensor in sorted(items):
         array = tensor.detach().cpu().contiguous().numpy()
         h.update(name.encode())
         h.update(str(array.shape).encode())
@@ -117,6 +118,7 @@ def main():
     with stage("train"):
         model = UNet(**CONFIG).cpu()
         record["metrics"]["initial_model_sha256"] = model_hash(model)
+        record["metrics"]["initial_parameters_sha256"] = model_hash(model, parameters_only=True)
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
         loss_fn = DiceLoss(sigmoid=True)
         model.train()
@@ -136,7 +138,8 @@ def main():
                 persist()
                 os.kill(os.getpid(), signal.SIGKILL)
         record["metrics"]["trained_model_sha256"] = model_hash(model)
-        if record["metrics"]["trained_model_sha256"] == record["metrics"]["initial_model_sha256"]:
+        record["metrics"]["trained_parameters_sha256"] = model_hash(model, parameters_only=True)
+        if record["metrics"]["trained_parameters_sha256"] == record["metrics"]["initial_parameters_sha256"]:
             raise ValueError("training did not change model state")
     with stage("reference_inference"):
         model.eval()

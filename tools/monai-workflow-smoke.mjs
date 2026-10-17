@@ -50,7 +50,7 @@ function run(label,fault){
  if(fault==='normal'){
   assert(workflow.stages.every(s=>s.status==='succeeded'));assert.equal(workflow.completed,true);
   assert.equal(workflow.metrics.completed_updates,3);assert.equal(workflow.metrics.losses.length,3);assert(workflow.metrics.losses.every(Number.isFinite));
-  assert.notEqual(workflow.metrics.initial_model_sha256,workflow.metrics.trained_model_sha256);
+  assert.notEqual(workflow.metrics.initial_parameters_sha256,workflow.metrics.trained_parameters_sha256);
   assert.equal(workflow.metrics.trained_model_sha256,workflow.metrics.restored_model_sha256);
   assert(workflow.metrics.max_abs_error<=1e-6);assert(workflow.metrics.readback_max_abs_error<=1e-6);
  }else if(fault==='input_missing'){
@@ -73,7 +73,7 @@ function run(label,fault){
  const observations=workflow.stages.filter(s=>['succeeded','failed'].includes(s.status)).map((s,i)=>({sequence:i+1,correlation,assertion:'monai.stage',subject:s.id,outcome:s.status==='succeeded'?'pass':'fail',detail:JSON.stringify({stage:s,workflow_run:runs[0],workflow_sha256:hash(workflowBytes),environment_sha256:hash(recordBytes),workflow_completed:workflow.completed}),source:workflowSource}));
  // completed describes this recovered report, not the target workflow; unfinished stages have no observation.
  const trace={schema_version:1,correlation,producer:'MONAI workflow report adapter',origin:'固定したコンテナ内の段階報告を回収。独立した実行経路の証明ではない。',completed:true,source:recipe.source,
-  context:{image:record.recipe.image,platform:record.recipe.platform,source:recipe.source,support:record.recipe.support,runner_sha256:record.runner_sha256,packages:record.report.packages,model:workflow.model,seed:workflow.seed,updates:workflow.updates,atol:workflow.atol,rtol:workflow.rtol,fault,synthetic_input_sha256:workflow.metrics.input_sha256},observations};
+  context:{image:record.recipe.image,images:{workflow:record.recipe.image},browser_version:null,platform:record.recipe.platform,source:recipe.source,support:record.recipe.support,runner_sha256:record.runner_sha256,packages:record.report.packages,model:workflow.model,seed:workflow.seed,updates:workflow.updates,atol:workflow.atol,rtol:workflow.rtol,fault,synthetic_input_sha256:workflow.metrics.input_sha256},observations};
  fs.writeFileSync(path.join(folder,'reported-trace.json'),JSON.stringify(trace,null,2));
  for(const id of stages){
   const condition=view.workspace.checks.find(c=>c.id===id);
@@ -88,7 +88,7 @@ function run(label,fault){
 }
 for(const [label,fault] of [['normal','normal'],['input-missing','input_missing'],['checkpoint-corrupt','checkpoint_corrupt'],['save-is-directory','save_is_directory'],['interrupted','interrupted'],['retry','normal']])results.push(run(label,fault));
 const normal=results[0],retry=results.at(-1);
-for(const key of ['input_sha256','labels_sha256','preprocessed_sha256','trained_model_sha256','prediction_sha256'])assert.equal(normal.workflow.metrics[key],retry.workflow.metrics[key],key);
+for(const key of ['input_sha256','labels_sha256','preprocessed_sha256','trained_model_sha256','trained_parameters_sha256','prediction_sha256'])assert.equal(normal.workflow.metrics[key],retry.workflow.metrics[key],key);
 const deps=cli(['environment','compare',normal.directory,retry.directory]);assert.equal(deps.packages_comparable,true);assert.equal(deps.recipe_changed,false);assert.deepEqual(deps.added_or_changed,[]);assert.deepEqual(deps.removed_or_changed,[]);
 fs.writeFileSync(path.join(output,'dependency-comparison.json'),JSON.stringify(deps,null,2));
 const before=normal.evidence_ids.find(e=>e.check_id==='train').id,after=retry.evidence_ids.find(e=>e.check_id==='train').id;

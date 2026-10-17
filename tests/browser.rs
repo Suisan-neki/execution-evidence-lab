@@ -120,6 +120,7 @@ fn display_does_not_establish_database_success_and_mixed_http_responses_are_unkn
     let browser = p.browser.as_mut().unwrap();
     browser.responses = vec![
         ResponseRecord {
+            payload_sha256: None,
             watch: "save".into(),
             method: "POST".into(),
             path: "/save".into(),
@@ -128,6 +129,7 @@ fn display_does_not_establish_database_success_and_mixed_http_responses_are_unkn
             request_step: Some("message".into()),
         },
         ResponseRecord {
+            payload_sha256: None,
             watch: "save".into(),
             method: "POST".into(),
             path: "/save".into(),
@@ -190,6 +192,7 @@ fn validates_the_pinned_openemr_recipe_without_running_it() {
 fn unknown_response_body_never_passes_negative_body_check_and_expressions_are_validated() {
     let mut p = phase();
     p.browser.as_mut().unwrap().responses.push(ResponseRecord {
+        payload_sha256: None,
         watch: "save".into(),
         method: "POST".into(),
         path: "/save".into(),
@@ -214,4 +217,101 @@ fn unknown_response_body_never_passes_negative_body_check_and_expressions_are_va
         serde_json::from_str(include_str!("../examples/openemr-browser/recipe.json")).unwrap();
     recipe.trial.as_mut().unwrap().checks[1].text = Some("false".into());
     assert!(execution_evidence_lab::execution::validate_recipe(&recipe).is_err());
+}
+
+#[test]
+fn missing_pixels_or_payload_hashes_do_not_satisfy_negative_expectations() {
+    let mut p = phase();
+    assert_eq!(
+        evaluate(
+            &check(
+                CheckMethod::BrowserCanvas,
+                Expectation::NotContains,
+                "message"
+            ),
+            Some(&p),
+            "variation=true"
+        )
+        .0,
+        Observed::NotObserved
+    );
+    p.browser.as_mut().unwrap().steps[0].canvas=Some(serde_json::from_value(json!({"width":64,"height":64,"levels":1,"non_black_pixels":0,"rgba_sha256":"synthetic","variation":false})).unwrap());
+    assert_eq!(
+        evaluate(
+            &check(CheckMethod::BrowserCanvas, Expectation::Contains, "message"),
+            Some(&p),
+            "variation=true"
+        )
+        .0,
+        Observed::Fail
+    );
+    p.http_reads.push(serde_json::from_value(json!({"id":"direct","performed":true,"status":503,"content_type":"text/html","bytes":null,"sha256":null,"detail":"frame未読"})).unwrap());
+    assert_eq!(
+        evaluate(
+            &check(CheckMethod::ServerHttp, Expectation::Contains, "direct"),
+            Some(&p),
+            "status=200"
+        )
+        .0,
+        Observed::Fail
+    );
+    assert_eq!(
+        evaluate(
+            &check(CheckMethod::ServerHttp, Expectation::NotContains, "direct"),
+            Some(&p),
+            "sha256=missing"
+        )
+        .0,
+        Observed::NotObserved
+    );
+    p.browser.as_mut().unwrap().responses.push(ResponseRecord {
+        watch: "save".into(),
+        method: "POST".into(),
+        path: "/save".into(),
+        status: 503,
+        body_match: None,
+        request_step: Some("message".into()),
+        payload_sha256: None,
+    });
+    assert_eq!(
+        evaluate(
+            &check(
+                CheckMethod::BrowserResponse,
+                Expectation::NotContains,
+                "save"
+            ),
+            Some(&p),
+            "sha256=missing"
+        )
+        .0,
+        Observed::NotObserved
+    );
+}
+
+#[test]
+fn rejection_requires_the_declared_action_response_and_a_complete_record() {
+    use execution_evidence_lab::browser::{RejectionWatch, rejection_observed};
+    let mut s = spec();
+    s.rejection = Some(RejectionWatch {
+        watch: "save".into(),
+        status: 503,
+    });
+    let mut p = phase();
+    let report = p.browser.as_mut().unwrap();
+    assert!(!rejection_observed(&s, report));
+    report.responses.push(ResponseRecord {
+        watch: "save".into(),
+        method: "POST".into(),
+        path: "/save".into(),
+        status: 503,
+        body_match: None,
+        request_step: Some("message".into()),
+        payload_sha256: None,
+    });
+    assert!(rejection_observed(&s, report));
+    report.responses[0].request_step = Some("username".into());
+    assert!(!rejection_observed(&s, report));
+    report.responses[0].request_step = Some("message".into());
+    report.response_limit = true;
+    assert!(!rejection_observed(&s, report));
 }

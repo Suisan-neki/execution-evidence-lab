@@ -110,3 +110,5 @@ legend { font-weight: bold; padding: 0 0.25rem; }
 }
 .layout > *, .box, fieldset, .dads-notification-banner__body, .dads-notification-banner__heading-text { min-width: 0; }
 .person fieldset { margin: 0 0 1.5rem; }
+
+.browser-evidence { overflow-wrap: anywhere; }
