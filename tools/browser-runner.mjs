@@ -39,12 +39,15 @@ async function steps(list,phase){
     if(await locator.evaluate(e=>e.tagName)!=='CANVAS')throw Error('観測先がcanvasではない');
     const until=Date.now()+Math.max(1,Math.min(12000,remaining()-1000));let photo;
     do{
-     photo=await locator.screenshot({timeout:remaining(),animations:'disabled'});
+     const attribute='data-eel-canvas-probe',marker=createHash('sha256').update(request.run_id+step.id).digest('hex').slice(0,16),previous=await locator.getAttribute(attribute);
+     await locator.evaluate((e,{attribute,marker})=>e.setAttribute(attribute,marker),{attribute,marker});
+     try{photo=await locator.screenshot({timeout:remaining(),animations:'disabled',style:`* { visibility: hidden !important; } canvas[${attribute}="${marker}"] { visibility: visible !important; }`});}
+     finally{await locator.evaluate((e,{attribute,previous})=>previous==null?e.removeAttribute(attribute):e.setAttribute(attribute,previous),{attribute,previous});}
      if(photo.length>4*1024*1024)throw Error('canvasの画面写真が上限を超えた');
      const png=PNG.sync.read(photo);if(png.width*png.height>2000000)throw Error('canvasの画素数が上限を超えた');
      const levels=new Set();let non_black_pixels=0;
      for(let i=0;i<png.data.length;i+=4){if(!png.data[i+3])continue;const y=Math.round(0.2126*png.data[i]+0.7152*png.data[i+1]+0.0722*png.data[i+2]);levels.add(y);if(y>2)non_black_pixels++;}
-     r.canvas={width:png.width,height:png.height,levels:levels.size,non_black_pixels,rgba_sha256:createHash('sha256').update(png.data).digest('hex'),variation:levels.size>=step.min_levels&&non_black_pixels>=step.min_pixels};
+     r.canvas={measurement:'isolated_canvas_screenshot',width:png.width,height:png.height,levels:levels.size,non_black_pixels,rgba_sha256:createHash('sha256').update(png.data).digest('hex'),variation:levels.size>=step.min_levels&&non_black_pixels>=step.min_pixels};
      if(r.canvas.variation||Date.now()>=until)break;await new Promise(resolve=>setTimeout(resolve,300));
     }while(true);
     const name=`${phase}-${step.id}.png`;await fs.writeFile(path.join(dir,name),photo);r.screenshot='browser/'+name;

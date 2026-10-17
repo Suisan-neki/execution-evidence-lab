@@ -117,6 +117,8 @@ pub struct BrowserSpec {
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CanvasRead {
+    #[serde(default)]
+    pub measurement: String,
     pub width: u32,
     pub height: u32,
     pub levels: u16,
