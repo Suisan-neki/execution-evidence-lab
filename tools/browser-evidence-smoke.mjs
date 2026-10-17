@@ -15,7 +15,14 @@ try{
  browser=await chromium.launch({headless:true,executablePath:process.env.REVIEW_BROWSER_EXECUTABLE||undefined,args:['--no-sandbox']});
  const context=await browser.newContext({viewport:{width:1440,height:1100}}),page=await context.newPage();let available=true,photoRequests=0;const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('**/api/case',async route=>{const response=await route.fetch();const state=await response.json();const evidence=state.workspace.evidence[0];const recipe=JSON.parse(await readFile(join(root,'examples/openemr-browser/recipe.json'),'utf8'));
- evidence.execution={schema_version:1,recipe,tree:'a'.repeat(40),files:[],runtime_version:'synthetic',mode:'local',snapshot_unchanged:true,stdout_excerpt:'',stderr_excerpt:'',diagnostics:[],observations:[],containers:{browser:{version:'151.0.7922.34',prepared:true,completed:false,detail:'途中で止まった合成の記録',steps:[{id:'saved',phase:'action',completed:true,text:'保存しました <img src=x onerror=alert(1)>',detail:'操作完了',screenshot:'browser/action-saved.png'},{id:'missing',phase:'action',completed:false,text:null,detail:'要素が見つからない',screenshot:null}],responses:[{watch:'save',request_step:'saved',method:'POST',path:'/save',status:200,body_match:null}],database_reads:[{id:'row',performed:false,exit_code:null,text:'',detail:'DB停止により読取未完了'}]}}};
+ evidence.execution={schema_version:1,recipe,tree:'a'.repeat(40),files:[],runtime_version:'synthetic',mode:'local',snapshot_unchanged:true,stdout_excerpt:'',stderr_excerpt:'',diagnostics:[],observations:[],
+   containers:{
+     browser:{version:'151.0.7922.34',prepared:true,completed:false,detail:'途中で止まった合成の記録',
+       steps:[{id:'saved',phase:'action',completed:true,text:'保存しました <img src=x onerror=alert(1)>',detail:'操作完了',screenshot:'browser/action-saved.png'},
+              {id:'missing',phase:'action',completed:false,text:null,detail:'要素が見つからない',screenshot:null}],
+       responses:[{watch:'save',request_step:'saved',method:'POST',path:'/save',status:200,body_match:null}]},
+     database_reads:[{id:'row',performed:false,exit_code:null,text:'',detail:'DB停止により読取未完了'}]
+   }};
  await route.fulfill({response,json:state});});
  await page.route('**/api/v1/browser-screenshot/**',async route=>{photoRequests++;assert.ok(route.request().headers()['x-review-token']);await route.fulfill(available?{status:200,contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64')}:{status:404,contentType:'application/json',body:JSON.stringify({error:'この事例内に対応する画面写真がありません。'})});});
  await page.goto(url+'/review');await page.getByText('変更履歴と実行時の詳しい記録',{exact:true}).click();const panel=page.locator('.browser-evidence');await panel.waitFor();await panel.locator('summary').click();
