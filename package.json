@@ -8,7 +8,8 @@
     "test:methods": "node tools/reproduce-methods.mjs",
     "test:external": "node tools/pinned-demo.mjs",
     "test:backend": "node tools/backend-demo.mjs",
-    "test:app": "node tools/app-smoke.mjs"
+    "test:app": "node tools/app-smoke.mjs",
+    "test:dicom": "node tools/dicom-smoke.mjs"
   },
   "devDependencies": {
     "playwright": "1.62.1"

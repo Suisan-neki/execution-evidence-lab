@@ -1766,6 +1766,30 @@ pub fn run_external_at_revision(
     reason: String,
     expected_revision: Option<u64>,
 ) -> io::Result<WorkspaceView> {
+    run_external_with_dependencies(
+        directory,
+        repository_root,
+        None,
+        recipe,
+        mode,
+        actor,
+        reason,
+        expected_revision,
+    )
+}
+
+/// 依存先を `dependency_base/owner/repo` に取得済みの固定コミットから読み込んで実行し、取り込む。
+#[allow(clippy::too_many_arguments)]
+pub fn run_external_with_dependencies(
+    directory: &Path,
+    repository_root: &Path,
+    dependency_base: Option<&Path>,
+    recipe: crate::execution::Recipe,
+    mode: crate::execution::ExecutionMode,
+    actor: String,
+    reason: String,
+    expected_revision: Option<u64>,
+) -> io::Result<WorkspaceView> {
     nonempty(&actor, "記入者")?;
     nonempty(&reason, "理由")?;
     let workspace = load(directory)?;
@@ -1800,8 +1824,9 @@ pub fn run_external_at_revision(
         origin: check.origin.clone(),
         kind: ConditionKind::Custom,
     };
-    let result = crate::execution::execute_with_mode(
+    let result = crate::execution::execute_with_dependencies(
         repository_root,
+        dependency_base,
         &directory.join("runs"),
         recipe,
         condition,

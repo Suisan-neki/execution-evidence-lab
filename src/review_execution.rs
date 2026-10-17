@@ -177,6 +177,40 @@ impl Controller {
             }
         }
     }
+    /// 利用者が内容を確かめて試験を始めた後に、依存先の固定コミットだけを取得する。
+    /// checkout・インストール用のスクリプト・依存先のコードの起動は、ここでは行わない。
+    fn fetch_dependencies(&self, recipe: &Recipe) -> io::Result<Option<PathBuf>> {
+        let dependencies = recipe
+            .python
+            .as_ref()
+            .map_or(&[][..], |p| p.dependencies.as_slice());
+        match &self.repositories {
+            _ if dependencies.is_empty() => Ok(None),
+            Repositories::Fixed { .. } => Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "この起動方法では依存先を取得できません。アプリ（app）として起動してください",
+            )),
+            Repositories::Managed { base } => {
+                let _guard = self
+                    .fetching
+                    .lock()
+                    .map_err(|_| io::Error::other("取得の状態を読み取れません"))?;
+                for dependency in dependencies {
+                    execution::fetch_commit(base, &dependency.repository, &dependency.commit)
+                        .map_err(|e| {
+                            io::Error::new(
+                                e.kind(),
+                                format!(
+                                    "依存先 {} の固定コミットをGitHubから取得できませんでした: {e}",
+                                    dependency.repository
+                                ),
+                            )
+                        })?;
+                }
+                Ok(Some(base.clone()))
+            }
+        }
+    }
     fn lock(&self) -> io::Result<std::sync::MutexGuard<'_, State>> {
         self.state
             .lock()
@@ -279,9 +313,11 @@ impl Controller {
             .name("review-execution".into())
             .spawn(move || {
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    workspace::run_external_at_revision(
+                    let base = controller.fetch_dependencies(&request.recipe)?;
+                    workspace::run_external_with_dependencies(
                         &controller.directory,
                         &repository_root,
+                        base.as_deref(),
                         request.recipe,
                         controller.mode,
                         request.actor,

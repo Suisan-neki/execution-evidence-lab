@@ -3,6 +3,7 @@
 use crate::{
     experiment::{finish_run, make_manifest},
     model::*,
+    python_env::{ImportRoot, Launch, Program},
     recording::*,
     workspace::CodeReference,
 };
@@ -73,6 +74,15 @@ pub struct Recipe {
     /// 判定条件・故障・保存先の読み出しを指定する試験案。旧形式の設定にはない。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trial: Option<crate::trial::TrialSpec>,
+    /// 起動のしかた。旧形式の設定では固定版の中のファイル。
+    #[serde(default, skip_serializing_if = "Launch::is_file")]
+    pub launch: Launch,
+    /// Pythonの読み込み先と依存先。指定した場合は `-S -P` で起動し、PYTHONPATHを基盤が決める。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub python: Option<crate::python_env::PythonSetup>,
+    /// 操作するプロセスより先に起動して待つプロセス。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server: Option<crate::server::ServerSpec>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -133,6 +143,9 @@ pub struct ExecutionTrace {
     pub stderr_excerpt: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trial: Option<crate::trial::TrialOutcome>,
+    /// 依存先の固定コミット、基盤が作ったパッケージ情報、起動のしかたの解決結果。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub python: Option<crate::python_env::PythonTrace>,
 }
 struct ChildGuard(std::process::Child);
 impl Drop for ChildGuard {
@@ -172,8 +185,24 @@ pub fn validate_criterion(criterion: &Criterion) -> io::Result<()> {
 }
 pub fn validate_recipe(recipe: &Recipe) -> io::Result<()> {
     crate::workspace::validate_source(&recipe.source)?;
-    relative(&recipe.entrypoint)?;
+    let python = recipe.python.is_some();
+    crate::python_env::validate_launch(recipe.launch, &recipe.entrypoint, python, relative)?;
     relative(&recipe.source.path)?;
+    if let Some(setup) = &recipe.python {
+        if recipe.runtime != Runtime::Python3 {
+            return Err(invalid(
+                "Pythonの読み込み先は、Python 3の試行だけで指定できます",
+            ));
+        }
+        crate::python_env::validate(setup, &recipe.source.repository, relative)?;
+    }
+    if let Some(server) = &recipe.server {
+        if recipe.trial.is_none() {
+            return Err(invalid("待つプロセスを使う試行には、判定条件が必要です"));
+        }
+        crate::server::validate(server)?;
+        crate::python_env::validate_launch(server.launch, &server.entrypoint, python, relative)?;
+    }
     validate_criterion(&recipe.criterion)?;
     text(&recipe.check_id)?;
     if recipe.schema_version != 1
@@ -194,7 +223,7 @@ pub fn validate_recipe(recipe: &Recipe) -> io::Result<()> {
         ));
     }
     if let Some(trial) = &recipe.trial {
-        crate::trial::validate(trial, relative)?;
+        crate::trial::validate(trial, recipe.server.is_some(), python, relative)?;
     }
     Ok(())
 }
@@ -270,33 +299,29 @@ pub fn repository_name(root: &Path) -> io::Result<String> {
     })?;
     Ok(repository.into())
 }
-fn inventory(root: &Path, recipe: &Recipe) -> io::Result<(String, Vec<SnapshotFile>)> {
-    let commit = git_text(
+/// 固定コミットのファイル一覧を作る。`prefix` を指定した場合は、そのディレクトリの中だけを対象にする。
+fn inventory(
+    root: &Path,
+    repository: &str,
+    commit: &str,
+    prefix: Option<&str>,
+) -> io::Result<(String, Vec<SnapshotFile>)> {
+    let found = git_text(
         root,
-        &[
-            "rev-parse",
-            "--verify",
-            &format!("{}^{{commit}}", recipe.source.commit),
-        ],
+        &["rev-parse", "--verify", &format!("{commit}^{{commit}}")],
     )?;
-    if commit != recipe.source.commit
+    if found != commit
         || !expected_origin(
-            &recipe.source.repository,
+            repository,
             &git_text(root, &["remote", "get-url", "origin"])?,
         )
     {
-        return Err(invalid(
-            "ローカルのコミットまたはoriginがコード参照と一致しません",
-        ));
+        return Err(invalid(format!(
+            "{repository} のローカルのコミットまたはoriginが指定と一致しません"
+        )));
     }
-    let tree = git_text(
-        root,
-        &["rev-parse", &format!("{}^{{tree}}", recipe.source.commit)],
-    )?;
-    let entries = git(
-        root,
-        &["ls-tree", "-rz", "--full-tree", &recipe.source.commit],
-    )?;
+    let tree = git_text(root, &["rev-parse", &format!("{commit}^{{tree}}")])?;
+    let entries = git(root, &["ls-tree", "-rz", "--full-tree", commit])?;
     let mut files = vec![];
     let mut total = 0;
     for entry in entries.split(|b| *b == 0).filter(|e| !e.is_empty()) {
@@ -304,6 +329,9 @@ fn inventory(root: &Path, recipe: &Recipe) -> io::Result<(String, Vec<SnapshotFi
         let (header, path) = entry
             .split_once('\t')
             .ok_or_else(|| invalid("Gitのファイル情報が不正です"))?;
+        if prefix.is_some_and(|p| !path.starts_with(&format!("{p}/"))) {
+            continue;
+        }
         relative(path)?;
         let fields: Vec<_> = header.split_whitespace().collect();
         if fields.len() != 3 || fields[1] != "blob" || !["100644", "100755"].contains(&fields[0]) {
@@ -333,20 +361,31 @@ fn inventory(root: &Path, recipe: &Recipe) -> io::Result<(String, Vec<SnapshotFi
             lines,
         });
     }
-    let readback = recipe
-        .trial
-        .as_ref()
-        .and_then(|t| t.readback.as_ref())
-        .map(|r| r.entrypoint.as_str());
-    if !files.iter().any(|f| f.path == recipe.source.path)
-        || !files.iter().any(|f| f.path == recipe.entrypoint)
-        || readback.is_some_and(|path| !files.iter().any(|f| f.path == path))
+    Ok((tree, files))
+}
+/// ファイルとして起動するものが、対象の固定コミットにあるかを確かめる。
+fn check_target_files(recipe: &Recipe, files: &[SnapshotFile]) -> io::Result<()> {
+    let readback = recipe.trial.as_ref().and_then(|t| t.readback.as_ref());
+    let starts = [
+        Some((recipe.launch, recipe.entrypoint.as_str())),
+        readback.map(|r| (r.launch, r.entrypoint.as_str())),
+        recipe
+            .server
+            .as_ref()
+            .map(|s| (s.launch, s.entrypoint.as_str())),
+    ];
+    let has = |path: &str| files.iter().any(|f| f.path == path);
+    if !has(&recipe.source.path)
+        || starts
+            .iter()
+            .flatten()
+            .any(|(launch, path)| launch.is_file() && !has(path))
     {
         return Err(invalid(
             "参照ファイルまたは起動ファイルが固定コミットにありません",
         ));
     }
-    Ok((tree, files))
+    Ok(())
 }
 fn copy_snapshot(root: &Path, destination: &Path, files: &[SnapshotFile]) -> io::Result<()> {
     fs::create_dir(destination)?;
@@ -548,10 +587,12 @@ pub fn validate_trace(trace: &ExecutionTrace, manifest: &Manifest) -> io::Result
             .files
             .iter()
             .any(|f| f.path == trace.recipe.source.path)
-        || !trace
-            .files
-            .iter()
-            .any(|f| f.path == trace.recipe.entrypoint)
+        || trace.recipe.launch.is_file()
+            && !trace
+                .files
+                .iter()
+                .any(|f| f.path == trace.recipe.entrypoint)
+        || trace.python.is_some() != trace.recipe.python.is_some()
         || (trace.observation_read == ObservationRead::Missing
             || trace.observation_read == ObservationRead::Invalid)
             && !trace.observations.is_empty()
@@ -682,6 +723,34 @@ pub fn execute_with_mode(
     previous_run: Option<String>,
     mode: ExecutionMode,
 ) -> io::Result<RunResult> {
+    execute_with_dependencies(
+        repository_root,
+        None,
+        output,
+        recipe,
+        condition,
+        previous_run,
+        mode,
+    )
+}
+
+type FetchedDependency<'a> = (
+    &'a crate::python_env::Dependency,
+    PathBuf,
+    String,
+    Vec<SnapshotFile>,
+);
+
+/// 依存先を `dependency_base/owner/repo` に取得済みの固定コミットから読み込んで実行する。
+pub fn execute_with_dependencies(
+    repository_root: &Path,
+    dependency_base: Option<&Path>,
+    output: &Path,
+    recipe: Recipe,
+    condition: Condition,
+    previous_run: Option<String>,
+    mode: ExecutionMode,
+) -> io::Result<RunResult> {
     validate_recipe(&recipe)?;
     if mode == ExecutionMode::Local
         && recipe
@@ -693,9 +762,59 @@ pub fn execute_with_mode(
             "local方式では通信を遮断できません。Linuxのbubblewrap方式で試してください",
         ));
     }
+    if mode == ExecutionMode::Bubblewrap && recipe.server.is_some() {
+        return Err(invalid(
+            "bubblewrap方式ではプロセスごとにネットワークを分けるため、待つプロセスとの通信を試せません。ローカルへは自動で切り替えません",
+        ));
+    }
     let root = fs::canonicalize(repository_root)?;
-    let (tree, files) = inventory(&root, &recipe)?;
+    let (tree, files) = inventory(
+        &root,
+        &recipe.source.repository,
+        &recipe.source.commit,
+        None,
+    )?;
+    check_target_files(&recipe, &files)?;
     let (program, runtime_version) = runtime_available(&recipe.runtime).map_err(invalid)?;
+    let mut dependencies: Vec<FetchedDependency> = vec![];
+    if let Some(setup) = &recipe.python {
+        if !crate::python_env::supports_safe_path(&runtime_version) {
+            return Err(invalid(format!(
+                "Pythonの読み込み先を指定した試行には Python 3.11 以上が必要です（現在: {runtime_version}）"
+            )));
+        }
+        for dependency in &setup.dependencies {
+            let base = dependency_base.ok_or_else(|| {
+                invalid("この起動方法では依存先を扱えません。アプリの試験用の取得を使ってください")
+            })?;
+            let dependency_root =
+                fs::canonicalize(base.join(&dependency.repository)).map_err(|_| {
+                    invalid(format!(
+                        "依存先 {} のコミット {} を取得していません",
+                        dependency.repository, dependency.commit
+                    ))
+                })?;
+            let (dependency_tree, dependency_files) = inventory(
+                &dependency_root,
+                &dependency.repository,
+                &dependency.commit,
+                dependency.root.as_deref(),
+            )?;
+            if dependency_files.is_empty() {
+                return Err(invalid(format!(
+                    "依存先 {} の読み込み先 {} にファイルがありません",
+                    dependency.repository,
+                    dependency.root.as_deref().unwrap_or("（最上位）")
+                )));
+            }
+            dependencies.push((
+                dependency,
+                dependency_root,
+                dependency_tree,
+                dependency_files,
+            ));
+        }
+    }
     let (directory, correlation) = new_run_directory(output)?;
     let directory = fs::canonicalize(directory)?;
     let snapshot = directory.join("source");
@@ -706,11 +825,39 @@ pub fn execute_with_mode(
     if recipe.source.end_line as usize > source_text.lines().count() {
         return Err(invalid("コード参照の行範囲が固定版を超えています"));
     }
+    let python = match &recipe.python {
+        Some(setup) => Some(prepare_python(
+            &root,
+            &recipe,
+            setup,
+            &tree,
+            &files,
+            &dependencies,
+            &directory,
+        )?),
+        None => None,
+    };
     // 試行ごとに新しい架空の値を使い、既存のデータと区別する。
     let test_value = format!("eel-test-{}", correlation.run_id.trim_start_matches("run-"));
+    let port = match recipe.server {
+        Some(_) => Some(crate::server::free_port()?),
+        None => None,
+    };
+    let source_root = if mode == ExecutionMode::Bubblewrap {
+        "/source".to_owned()
+    } else {
+        snapshot.to_string_lossy().into_owned()
+    };
     let substitute = |args: &[String]| -> Vec<String> {
         args.iter()
-            .map(|a| crate::trial::substitute(a, &test_value))
+            .map(|a| {
+                let value = crate::trial::substitute(a, &test_value)
+                    .replace(crate::trial::SOURCE_ROOT, &source_root);
+                match port {
+                    Some(port) => value.replace(crate::server::PORT, &port.to_string()),
+                    None => value,
+                }
+            })
             .collect()
     };
     let args = substitute(&recipe.args);
@@ -718,10 +865,24 @@ pub fn execute_with_mode(
         &work.join("input.json"),
         &crate::trial::substitute_json(&recipe.input, &test_value),
     )?;
-    let fault = match &recipe.trial {
+    let mut fault = match &recipe.trial {
         Some(spec) => Some(crate::trial::apply_fault(spec, &work)?),
         None => None,
     };
+    let launch = Launcher {
+        mode,
+        program: &program,
+        snapshot: &snapshot,
+        work: &work,
+        correlation: &correlation,
+        python: python.as_ref().map(|p| &p.paths),
+    };
+    let operate = start_for(
+        recipe.launch,
+        &recipe.entrypoint,
+        python.as_ref(),
+        "operate",
+    )?;
     let mut manifest = make_manifest(correlation.clone(), condition)?;
     manifest.mode = "pinned_execution".into();
     manifest.timeout_ms = recipe.timeout_ms;
@@ -730,63 +891,89 @@ pub fn execute_with_mode(
         "固定コミットからsourceへコピー。workと入力は試行ごとに新規。外部ファイル・通信はOSで隔離していない"
     } else {
         "Linuxのnamespaceで外部ネットワークを分離する方式を要求。固定版は読み取り専用、workだけを書き込み共有。起動失敗時はローカルへ切り替えない"
-    }.into();
+    }.to_owned();
+    if python.is_some() {
+        manifest.initial_storage.push_str("。依存先は固定コミットの読み込み先だけをdepsへコピーし、インストール用のスクリプトは実行していない。パッケージ情報はpyproject.tomlの静的な値から基盤が作った");
+    }
+    if let Some(port) = port {
+        manifest.initial_storage.push_str(&format!(
+            "。待つプロセスとの通信用に127.0.0.1のポート{port}を基盤が割り当てた。待ち受けるアドレスは対象の引数で決まり、OSでは制限していない"
+        ));
+    }
     manifest.observation_scope =
         "固定版と構造化された自己申告の観測、stdout/stderr・終了。実行経路と外部依存先は未確認"
             .into();
-    manifest.command = [
-        vec![
-            program.to_string_lossy().into_owned(),
-            recipe.entrypoint.clone(),
-        ],
-        args.clone(),
-    ]
-    .concat();
+    manifest.command = launch.describe(&operate, &args);
     write_json_new(&directory.join("manifest.json"), &manifest)?;
     write_json_new(&directory.join("recipe.json"), &recipe)?;
     let recorder = Recorder::new(&directory, correlation.clone())?;
-    let launch = Launch {
-        mode,
-        program: &program,
-        snapshot: &snapshot,
-        work: &work,
-        correlation: &correlation,
+    let server = match (&recipe.server, port) {
+        (Some(spec), Some(port)) => Some(start_server(
+            &launch,
+            spec,
+            &substitute(&spec.args),
+            port,
+            python.as_ref(),
+            &recipe,
+            fault.as_mut(),
+            &directory,
+            &recorder,
+        )?),
+        _ => None,
     };
-    let mut command = launch.command(&recipe.entrypoint, &args)?;
-    command
-        .stdout(File::create(directory.join("stdout.txt"))?)
-        .stderr(File::create(directory.join("stderr.txt"))?);
-    let child = ChildGuard(command.spawn()?);
-    recorder.record(
-        Source::Process,
-        EventKind::ProcessStarted,
-        format!(
-            "pid={}、固定コミット{}、起動ファイル{}",
-            child.0.id(),
-            recipe.source.commit,
-            recipe.entrypoint
-        ),
-    )?;
-    let (status, timed_out, output_limit) = wait(
-        child,
-        &directory,
-        ["stdout.txt", "stderr.txt"],
-        recipe.timeout_ms,
-    )?;
-    recorder.record(
-        Source::Process,
-        if timed_out {
-            EventKind::ProcessTimedOut
-        } else {
-            EventKind::ProcessExited
-        },
-        format!("{status}、出力上限超過={output_limit}"),
-    )?;
-    let completed = !timed_out && !output_limit;
+    let proceed = server.as_ref().is_none_or(|(phase, _)| {
+        phase.ready
+            || recipe
+                .trial
+                .as_ref()
+                .is_some_and(|t| t.fault == crate::trial::TrialFault::ServerNotStarted)
+    });
+    let stdout = File::create(directory.join("stdout.txt"))?;
+    let stderr = File::create(directory.join("stderr.txt"))?;
+    let (status, timed_out, output_limit) = if proceed {
+        let mut command = launch.command(&operate, &args)?;
+        command.stdout(stdout).stderr(stderr);
+        let child = ChildGuard(command.spawn()?);
+        recorder.record(
+            Source::Process,
+            EventKind::ProcessStarted,
+            format!(
+                "pid={}、固定コミット{}、起動{}（{}）",
+                child.0.id(),
+                recipe.source.commit,
+                recipe.entrypoint,
+                recipe.launch.label()
+            ),
+        )?;
+        let (status, timed_out, output_limit) = wait(
+            child,
+            &directory,
+            ["stdout.txt", "stderr.txt"],
+            recipe.timeout_ms,
+        )?;
+        recorder.record(
+            Source::Process,
+            if timed_out {
+                EventKind::ProcessTimedOut
+            } else {
+                EventKind::ProcessExited
+            },
+            format!("{status}、出力上限超過={output_limit}"),
+        )?;
+        (Some(status), timed_out, output_limit)
+    } else {
+        (None, false, false)
+    };
+    let server = match server {
+        Some((phase, child)) => Some(finish_server(phase, child, &directory, &recorder)?),
+        None => None,
+    };
+    let completed = status.is_some() && !timed_out && !output_limit;
     let readback = match recipe.trial.as_ref().and_then(|t| t.readback.as_ref()) {
         Some(spec) if completed => {
             let readback_args = substitute(&spec.args);
-            let mut command = launch.command(&spec.entrypoint, &readback_args)?;
+            let start = start_for(spec.launch, &spec.entrypoint, python.as_ref(), "readback")?;
+            let mut command = launch.command(&start, &readback_args)?;
             command
                 .stdout(File::create(directory.join("readback-stdout.txt"))?)
                 .stderr(File::create(directory.join("readback-stderr.txt"))?);
@@ -816,14 +1003,7 @@ pub fn execute_with_mode(
                 format!("読み出し: {status}、出力上限超過={output_limit}"),
             )?;
             Some(crate::trial::Phase {
-                command: [
-                    vec![
-                        program.to_string_lossy().into_owned(),
-                        spec.entrypoint.clone(),
-                    ],
-                    readback_args,
-                ]
-                .concat(),
+                command: launch.describe(&start, &readback_args),
                 exit_code: status.code(),
                 timed_out,
                 output_limit,
@@ -837,12 +1017,16 @@ pub fn execute_with_mode(
         load_observations(&work.join("observations.jsonl"), &correlation, &files);
     let stdout_excerpt = excerpt(&directory.join("stdout.txt"), 8192)?;
     let stderr_excerpt = excerpt(&directory.join("stderr.txt"), 8192)?;
-    if !status.success() {
-        diagnostics.push(format!(
+    match status {
+        None => diagnostics
+            .push("待つプロセスが準備できなかったため、操作するプロセスを起動していない".into()),
+        Some(status) if !status.success() => diagnostics.push(format!(
             "起動・実行・終了を確認できませんでした: {}",
             stderr_excerpt.chars().take(2000).collect::<String>()
-        ));
+        )),
+        Some(_) => {}
     }
+    let exit_code = status.and_then(|s| s.code());
     let trial = match (&recipe.trial, fault) {
         (Some(spec), Some((fault_applied, fault_effective))) => {
             let (state, state_text) = crate::trial::read_state(spec, &work, &test_value);
@@ -852,17 +1036,26 @@ pub fn execute_with_mode(
                 Some(_) => excerpt(&directory.join("readback-stdout.txt"), MAX_TRACE as usize)?,
                 None => String::new(),
             };
+            let server_output = match &server {
+                Some(_) => format!(
+                    "{}\n{}",
+                    excerpt(&directory.join("server-stdout.txt"), MAX_TRACE as usize)?,
+                    excerpt(&directory.join("server-stderr.txt"), MAX_TRACE as usize)?
+                ),
+                None => String::new(),
+            };
             let results = crate::trial::evaluate(
                 spec,
                 &test_value,
                 &crate::trial::Outputs {
-                    exit_code: status.code(),
+                    exit_code,
                     completed,
                     stdout: &stdout,
                     stderr: &stderr,
                     readback: readback.as_ref().map(|p| (p, readback_stdout.as_str())),
                     state: state.as_ref(),
                     state_text: state_text.as_deref(),
+                    server: server.as_ref().map(|p| (p, server_output.as_str())),
                 },
             );
             Some(crate::trial::TrialOutcome {
@@ -873,11 +1066,22 @@ pub fn execute_with_mode(
                 readback,
                 state,
                 results,
+                server,
             })
         }
         _ => None,
     };
-    let unchanged = snapshot_unchanged(&root, &snapshot, &files);
+    let unchanged = snapshot_unchanged(&root, &snapshot, &files)
+        && dependencies
+            .iter()
+            .enumerate()
+            .all(|(i, (_, dependency_root, _, dependency_files))| {
+                snapshot_unchanged(
+                    dependency_root,
+                    &directory.join("deps").join(i.to_string()),
+                    dependency_files,
+                )
+            });
     let trace = ExecutionTrace {
         schema_version: 1,
         correlation,
@@ -886,7 +1090,7 @@ pub fn execute_with_mode(
         files,
         runtime_path: program.to_string_lossy().into_owned(),
         runtime_version,
-        exit_code: status.code(),
+        exit_code,
         timed_out,
         output_limit,
         snapshot_unchanged: unchanged,
@@ -897,6 +1101,7 @@ pub fn execute_with_mode(
         stdout_excerpt,
         stderr_excerpt,
         trial,
+        python: python.map(|p| p.trace),
     };
     write_json_new(&directory.join("execution.json"), &trace)?;
     // 観測は複製して取り込める。状態の答え合わせはこの判定へ混ぜない。
@@ -949,16 +1154,363 @@ fn wait(
     Ok((status, timed_out, output_limit))
 }
 
-struct Launch<'a> {
+/// Pythonの読み込み先。ホスト上の場所と、bubblewrapの中の場所を同じ順で持つ。
+struct PythonPaths {
+    deps: PathBuf,
+    meta: PathBuf,
+    host: Vec<PathBuf>,
+    sandbox: Vec<PathBuf>,
+}
+struct PreparedPython {
+    trace: crate::python_env::PythonTrace,
+    paths: PythonPaths,
+    programs: std::collections::BTreeMap<&'static str, Program>,
+}
+enum Start<'a> {
+    File(&'a str),
+    Program(&'a Program),
+}
+fn start_for<'a>(
+    launch: Launch,
+    entrypoint: &'a str,
+    python: Option<&'a PreparedPython>,
+    role: &str,
+) -> io::Result<Start<'a>> {
+    if launch.is_file() {
+        return Ok(Start::File(entrypoint));
+    }
+    python
+        .and_then(|p| p.programs.get(role))
+        .map(Start::Program)
+        .ok_or_else(|| invalid("起動のしかたを固定版の中で解決できません"))
+}
+fn package(
+    role: &str,
+    repository: &str,
+    commit: &str,
+    tree: &str,
+    root: Option<&str>,
+    files: usize,
+) -> crate::python_env::PackageRecord {
+    crate::python_env::PackageRecord {
+        role: role.into(),
+        repository: repository.into(),
+        commit: commit.into(),
+        tree: tree.into(),
+        root: root.map(String::from),
+        files,
+        pyproject_blob: None,
+        project: None,
+        metadata: None,
+        note: String::new(),
+    }
+}
+/// 固定コミットの pyproject.toml を、作業ツリーを展開せずに読み、パッケージ情報を作る。
+fn read_package(
+    git_root: &Path,
+    mut record: crate::python_env::PackageRecord,
+    meta: &Path,
+) -> io::Result<crate::python_env::PackageRecord> {
+    let listed = git_text(
+        git_root,
+        &["ls-tree", &record.commit, "--", "pyproject.toml"],
+    )?;
+    let blob = listed
+        .split_once('\t')
+        .and_then(|(header, _)| header.split_whitespace().nth(2))
+        .map(String::from);
+    record.pyproject_blob = blob.clone();
+    let Some(blob) = blob else {
+        record.note = "pyproject.toml がないため、パッケージ情報を作っていない".into();
+        return Ok(record);
+    };
+    let bytes = git(git_root, &["cat-file", "blob", &blob])?;
+    if bytes.len() > 1024 * 1024 {
+        record.note = "pyproject.toml が1MiBを超えるため読んでいない".into();
+        return Ok(record);
+    }
+    match crate::python_env::read_project(&String::from_utf8_lossy(&bytes)) {
+        Ok(Some(project)) => {
+            record.metadata = Some(crate::python_env::write_metadata(meta, &project)?);
+            record.note = format!(
+                "pyproject.toml の静的な値から、{} {} のパッケージ情報を基盤が作った",
+                project.name, project.version
+            );
+            record.project = Some(project);
+        }
+        Ok(None) => {
+            record.note =
+                "pyproject.toml に [project] がないため、パッケージ情報を作っていない".into();
+        }
+        Err(e) => record.note = format!("パッケージ情報を作っていない: {e}"),
+    }
+    Ok(record)
+}
+fn prepare_python(
+    root: &Path,
+    recipe: &Recipe,
+    setup: &crate::python_env::PythonSetup,
+    tree: &str,
+    files: &[SnapshotFile],
+    dependencies: &[FetchedDependency],
+    directory: &Path,
+) -> io::Result<PreparedPython> {
+    let meta = directory.join("python-meta");
+    let deps = directory.join("deps");
+    fs::create_dir(&meta)?;
+    fs::create_dir(&deps)?;
+    let target = package(
+        "target",
+        &recipe.source.repository,
+        &recipe.source.commit,
+        tree,
+        setup.root.as_deref(),
+        files.len(),
+    );
+    let mut packages = vec![read_package(root, target, &meta)?];
+    let mut host = vec![match &setup.root {
+        Some(r) => directory.join("source").join(r),
+        None => directory.join("source"),
+    }];
+    let mut sandbox = vec![match &setup.root {
+        Some(r) => Path::new("/source").join(r),
+        None => PathBuf::from("/source"),
+    }];
+    let mut import_path = vec![match &setup.root {
+        Some(r) => format!("source/{r}"),
+        None => "source".into(),
+    }];
+    for (i, (dependency, dependency_root, dependency_tree, dependency_files)) in
+        dependencies.iter().enumerate()
+    {
+        let copy = deps.join(i.to_string());
+        copy_snapshot(dependency_root, &copy, dependency_files)?;
+        let record = package(
+            "dependency",
+            &dependency.repository,
+            &dependency.commit,
+            dependency_tree,
+            dependency.root.as_deref(),
+            dependency_files.len(),
+        );
+        packages.push(read_package(dependency_root, record, &meta)?);
+        let relative = dependency.root.clone().unwrap_or_default();
+        host.push(copy.join(&relative));
+        sandbox.push(Path::new("/deps").join(i.to_string()).join(&relative));
+        import_path.push(format!("deps/{i}/{relative}").trim_end_matches('/').into());
+    }
+    host.push(meta.clone());
+    sandbox.push("/meta".into());
+    import_path.push("python-meta".into());
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        for entry in fs::read_dir(&meta)? {
+            fs::set_permissions(entry?.path(), fs::Permissions::from_mode(0o555))?;
+        }
+        fs::set_permissions(&meta, fs::Permissions::from_mode(0o555))?;
+    }
+    let sets: Vec<BTreeSet<String>> = std::iter::once(files)
+        .chain(dependencies.iter().map(|d| d.3.as_slice()))
+        .map(|f| f.iter().map(|f| f.path.clone()).collect())
+        .collect();
+    let roots: Vec<ImportRoot> = packages
+        .iter()
+        .zip(&sets)
+        .map(|(p, files)| ImportRoot {
+            repository: &p.repository,
+            commit: &p.commit,
+            root: p.root.as_deref(),
+            files,
+            project: p.project.as_ref(),
+        })
+        .collect();
+    let readback = recipe.trial.as_ref().and_then(|t| t.readback.as_ref());
+    let starts = [
+        Some(("operate", recipe.launch, recipe.entrypoint.as_str())),
+        recipe
+            .server
+            .as_ref()
+            .map(|s| ("wait", s.launch, s.entrypoint.as_str())),
+        readback.map(|r| ("readback", r.launch, r.entrypoint.as_str())),
+    ];
+    let mut programs = std::collections::BTreeMap::new();
+    let mut launches = vec![];
+    for (role, launch, name) in starts.into_iter().flatten() {
+        if launch.is_file() {
+            continue;
+        }
+        let (program, record) = crate::python_env::resolve(role, launch, name, &roots)?;
+        programs.insert(role, program);
+        launches.push(record);
+    }
+    Ok(PreparedPython {
+        trace: crate::python_env::PythonTrace {
+            flags: vec!["-S".into(), "-P".into()],
+            import_path,
+            packages,
+            launches,
+        },
+        paths: PythonPaths {
+            deps,
+            meta,
+            host,
+            sandbox,
+        },
+        programs,
+    })
+}
+
+/// 待つプロセスを起動し、準備ができるまで待つ。故障として起動しない場合は、ポートが応答しないことを確かめる。
+#[allow(clippy::too_many_arguments)]
+fn start_server(
+    launch: &Launcher,
+    spec: &crate::server::ServerSpec,
+    args: &[String],
+    port: u16,
+    python: Option<&PreparedPython>,
+    recipe: &Recipe,
+    fault: Option<&mut (String, bool)>,
+    directory: &Path,
+    recorder: &Recorder,
+) -> io::Result<(crate::server::ServerPhase, Option<ChildGuard>)> {
+    let start = start_for(spec.launch, &spec.entrypoint, python, "wait")?;
+    let mut phase = crate::server::ServerPhase {
+        command: launch.describe(&start, args),
+        port,
+        started: false,
+        ready: false,
+        ready_after_ms: None,
+        exited_before_stop: false,
+        exit_code: None,
+        stopped_by_platform: false,
+        output_limit: false,
+        stdout_excerpt: String::new(),
+        stderr_excerpt: String::new(),
+        detail: String::new(),
+    };
+    let stdout = File::create(directory.join("server-stdout.txt"))?;
+    let stderr = File::create(directory.join("server-stderr.txt"))?;
+    let not_started = recipe
+        .trial
+        .as_ref()
+        .is_some_and(|t| t.fault == crate::trial::TrialFault::ServerNotStarted);
+    if not_started {
+        phase.detail = "故障として、待つプロセスを起動していない".into();
+        if crate::server::listening(port)
+            && let Some((applied, effective)) = fault
+        {
+            *effective = false;
+            applied.push_str(&format!(
+                "。ただし割り当てたポート{port}が応答したため、故障を再現できなかった"
+            ));
+        }
+        return Ok((phase, None));
+    }
+    let mut command = launch.command(&start, args)?;
+    command.stdout(stdout).stderr(stderr);
+    let mut child = ChildGuard(command.spawn()?);
+    phase.started = true;
+    recorder.record(
+        Source::Process,
+        EventKind::ProcessStarted,
+        format!(
+            "待つプロセス: pid={}、起動{}（{}）、ポート{port}",
+            child.0.id(),
+            spec.entrypoint,
+            spec.launch.label()
+        ),
+    )?;
+    match crate::server::wait_ready(&mut child.0, port, spec.ready_timeout_ms)? {
+        crate::server::Ready::Ready(ms) => {
+            phase.ready = true;
+            phase.ready_after_ms = Some(ms);
+            phase.detail = format!(
+                "起動から{ms}ミリ秒後に、ポート{port}が接続を受け付けた（確かめるため基盤が接続した）"
+            );
+        }
+        crate::server::Ready::Exited(status) => {
+            phase.detail = format!("接続を受け付ける前に終了した（{status}）");
+        }
+        crate::server::Ready::TimedOut => {
+            phase.detail = format!(
+                "{}ミリ秒以内に、ポート{port}が接続を受け付けなかった",
+                spec.ready_timeout_ms
+            );
+        }
+    }
+    recorder.record(
+        Source::Process,
+        EventKind::ProcessStarted,
+        format!("待つプロセス: {}", phase.detail),
+    )?;
+    Ok((phase, Some(child)))
+}
+
+/// 操作の後に待つプロセスを止め、出力を記録へ移す。
+fn finish_server(
+    mut phase: crate::server::ServerPhase,
+    child: Option<ChildGuard>,
+    directory: &Path,
+    recorder: &Recorder,
+) -> io::Result<crate::server::ServerPhase> {
+    if let Some(mut child) = child {
+        let (exited, code) = crate::server::stop(&mut child.0)?;
+        phase.exited_before_stop = exited;
+        phase.stopped_by_platform = !exited;
+        phase.exit_code = code;
+        recorder.record(
+            Source::Process,
+            EventKind::ProcessExited,
+            if exited {
+                format!("待つプロセス: 基盤が止める前に終了していた（終了コード{code:?}）")
+            } else {
+                "待つプロセス: 操作の後に基盤が止めた（SIGKILL）".into()
+            },
+        )?;
+    }
+    phase.output_limit = ["server-stdout.txt", "server-stderr.txt"]
+        .iter()
+        .any(|p| fs::metadata(directory.join(p)).is_ok_and(|m| m.len() > MAX_TRACE));
+    phase.stdout_excerpt = excerpt(&directory.join("server-stdout.txt"), 8192)?;
+    phase.stderr_excerpt = excerpt(&directory.join("server-stderr.txt"), 8192)?;
+    Ok(phase)
+}
+
+struct Launcher<'a> {
     mode: ExecutionMode,
     program: &'a Path,
     snapshot: &'a Path,
     work: &'a Path,
     correlation: &'a Correlation,
+    python: Option<&'a PythonPaths>,
 }
-impl Launch<'_> {
+impl Launcher<'_> {
+    /// 実行環境に渡す、起動するものの部分（`-S -P` と、ファイル・`-m`・`-c`）。
+    fn start_args(&self, start: &Start, source: &Path) -> Vec<std::ffi::OsString> {
+        let mut out: Vec<std::ffi::OsString> = vec![];
+        if self.python.is_some() {
+            out.extend(["-S".into(), "-P".into()]);
+        }
+        match start {
+            Start::File(entrypoint) => out.push(source.join(entrypoint).into()),
+            Start::Program(program) => out.extend(program.args().into_iter().map(Into::into)),
+        }
+        out
+    }
+    /// 記録用の、ホスト上で見たコマンド。
+    fn describe(&self, start: &Start, args: &[String]) -> Vec<String> {
+        std::iter::once(self.program.to_string_lossy().into_owned())
+            .chain(
+                self.start_args(start, self.snapshot)
+                    .iter()
+                    .map(|a| a.to_string_lossy().into_owned()),
+            )
+            .chain(args.iter().cloned())
+            .collect()
+    }
     /// 試行用の環境変数だけを渡して起動する。標準入出力の接続は呼び出し側で行う。
-    fn command(&self, entrypoint: &str, args: &[String]) -> io::Result<Command> {
+    fn command(&self, start: &Start, args: &[String]) -> io::Result<Command> {
         let mut command;
         let (observation_path, input_path, work_path);
         if self.mode == ExecutionMode::Bubblewrap {
@@ -1002,16 +1554,27 @@ impl Launch<'_> {
                 .arg("/source")
                 .arg("--bind")
                 .arg(self.work)
-                .args(["/work", "--chdir", "/work", "--"])
+                .arg("/work");
+            if let Some(python) = self.python {
+                command
+                    .arg("--ro-bind")
+                    .arg(&python.deps)
+                    .arg("/deps")
+                    .arg("--ro-bind")
+                    .arg(&python.meta)
+                    .arg("/meta");
+            }
+            command
+                .args(["--chdir", "/work", "--"])
                 .arg(self.program)
-                .arg(Path::new("/source").join(entrypoint));
+                .args(self.start_args(start, Path::new("/source")));
             observation_path = PathBuf::from("/work/observations.jsonl");
             input_path = PathBuf::from("/work/input.json");
             work_path = PathBuf::from("/work");
             // 固定版は読み取り専用。workだけを共有し、外部ネットワークを分離する。
         } else {
             command = Command::new(self.program);
-            command.arg(self.snapshot.join(entrypoint));
+            command.args(self.start_args(start, self.snapshot));
             observation_path = self.work.join("observations.jsonl");
             input_path = self.work.join("input.json");
             work_path = self.work.to_path_buf();
@@ -1050,6 +1613,17 @@ impl Launch<'_> {
                 },
             )
             .stdin(Stdio::null());
+        if let Some(python) = self.python {
+            let paths = if bubblewrap {
+                &python.sandbox
+            } else {
+                &python.host
+            };
+            command.env(
+                "PYTHONPATH",
+                std::env::join_paths(paths).map_err(|e| invalid(e.to_string()))?,
+            );
+        }
         Ok(command)
     }
 }

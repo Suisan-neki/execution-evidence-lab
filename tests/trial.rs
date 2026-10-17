@@ -131,6 +131,9 @@ impl Fixture {
             },
             timeout_ms: 5000,
             trial: Some(spec),
+            launch: Default::default(),
+            python: None,
+            server: None,
         };
         git(&self.root, &["checkout", "-q", &self.commits[commit]]);
         execute(
@@ -200,6 +203,7 @@ fn saved(fault: TrialFault, readback: bool) -> TrialSpec {
         fault,
         storage: Some("notes".into()),
         readback: readback.then(|| Readback {
+            launch: Default::default(),
             entrypoint: "notes.py".into(),
             args: vec![".".into(), "list".into()],
         }),
@@ -439,6 +443,9 @@ fn invalid_specs_are_rejected_before_running() {
             },
             timeout_ms: 5000,
             trial: Some(spec),
+            launch: Default::default(),
+            python: None,
+            server: None,
         };
         assert!(validate_recipe(&recipe).is_err());
     }

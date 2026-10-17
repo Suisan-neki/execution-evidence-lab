@@ -9,6 +9,8 @@ use std::{
 };
 
 pub const TEST_VALUE: &str = "{{test_value}}";
+/// 引数の中で、固定版（読み取り専用の複製）の最上位の場所に置き換える文字列。
+pub const SOURCE_ROOT: &str = "{{source}}";
 const MAX_STATE: u64 = 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -19,6 +21,8 @@ pub enum TrialFault {
     StorageIsDirectory,
     SkipStateRead,
     NetworkUnavailable,
+    StorageDirectoryReadOnly,
+    ServerNotStarted,
 }
 impl TrialFault {
     pub fn label(self) -> &'static str {
@@ -28,6 +32,8 @@ impl TrialFault {
             Self::StorageIsDirectory => "保存先に同名のディレクトリを置く",
             Self::SkipStateRead => "基盤による保存先の読み出しを止める（観測の欠落）",
             Self::NetworkUnavailable => "外部への通信を遮断する",
+            Self::StorageDirectoryReadOnly => "保存先のディレクトリを書き込み不可にする",
+            Self::ServerNotStarted => "待つプロセス（受信側など）を起動しない",
         }
     }
 }
@@ -35,6 +41,8 @@ impl TrialFault {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Readback {
+    #[serde(default, skip_serializing_if = "crate::python_env::Launch::is_file")]
+    pub launch: crate::python_env::Launch,
     pub entrypoint: String,
     #[serde(default)]
     pub args: Vec<String>,
@@ -48,6 +56,7 @@ pub enum CheckMethod {
     Stderr,
     StoredFile,
     ReadbackOutput,
+    ServerOutput,
 }
 impl CheckMethod {
     /// 誰の観測かを示す。対象の報告と基盤の読み出しを同じ扱いにしない。
@@ -58,6 +67,7 @@ impl CheckMethod {
             }
             Self::StoredFile => "基盤が保存先を直接読み出した結果",
             Self::ReadbackOutput => "別のプロセスで対象の読み出し機能を動かした結果",
+            Self::ServerOutput => "待つプロセス（受信側など）の出力",
         }
     }
 }
@@ -141,13 +151,20 @@ pub struct TrialOutcome {
     pub readback: Option<Phase>,
     pub state: Option<StateRead>,
     pub results: Vec<CheckResult>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server: Option<crate::server::ServerPhase>,
 }
 
 fn invalid(text: impl Into<String>) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, text.into())
 }
 
-pub fn validate(spec: &TrialSpec, relative: impl Fn(&str) -> io::Result<()>) -> io::Result<()> {
+pub fn validate(
+    spec: &TrialSpec,
+    has_server: bool,
+    python: bool,
+    relative: impl Fn(&str) -> io::Result<()>,
+) -> io::Result<()> {
     if spec.schema_version != 1 || spec.checks.is_empty() || spec.checks.len() > 16 {
         return Err(invalid("判定条件は1〜16件で指定してください"));
     }
@@ -155,7 +172,12 @@ pub fn validate(spec: &TrialSpec, relative: impl Fn(&str) -> io::Result<()>) -> 
         relative(storage)?;
     }
     if let Some(readback) = &spec.readback {
-        relative(&readback.entrypoint)?;
+        crate::python_env::validate_launch(
+            readback.launch,
+            &readback.entrypoint,
+            python,
+            &relative,
+        )?;
         if readback.args.len() > 64
             || readback
                 .args
@@ -207,6 +229,21 @@ pub fn validate(spec: &TrialSpec, relative: impl Fn(&str) -> io::Result<()>) -> 
         if check.method == CheckMethod::ReadbackOutput && spec.readback.is_none() {
             return Err(invalid("読み出しの条件には読み出しのコマンドが必要です"));
         }
+        if check.method == CheckMethod::ServerOutput && !has_server {
+            return Err(invalid(
+                "待つプロセスの出力の条件には、待つプロセスが必要です",
+            ));
+        }
+    }
+    if spec.fault == TrialFault::ServerNotStarted && !has_server {
+        return Err(invalid("この故障には待つプロセスが必要です"));
+    }
+    if spec.fault == TrialFault::StorageDirectoryReadOnly
+        && !spec.storage.as_ref().is_some_and(|s| s.contains('/'))
+    {
+        return Err(invalid(
+            "この故障には、ディレクトリを含む保存先のパス（例: received/file）が必要です",
+        ));
     }
     if spec
         .checks
@@ -256,6 +293,44 @@ pub fn apply_fault(spec: &TrialSpec, work: &Path) -> io::Result<(String, bool)> 
             "bubblewrapで外部ネットワークを共有せずに起動する".into(),
             true,
         )),
+        // 効いたかどうかは、操作の直前にポートが応答しないことで確かめる。
+        (TrialFault::ServerNotStarted, _) => Ok((
+            "待つプロセスを起動せずに、操作するプロセスだけを動かす".into(),
+            true,
+        )),
+        (TrialFault::StorageDirectoryReadOnly, Some(path)) => {
+            let parent = path
+                .parent()
+                .filter(|p| *p != work)
+                .ok_or_else(|| invalid("保存先のディレクトリが必要です"))?;
+            fs::create_dir_all(parent)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(parent, fs::Permissions::from_mode(0o555))?;
+            }
+            let probe = parent.join(".eel-write-probe");
+            let effective = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&probe)
+                .is_err();
+            if !effective {
+                let _ = fs::remove_file(&probe);
+            }
+            Ok((
+                format!(
+                    "試行用の作業領域に、保存先のディレクトリ {} を空の読み取り専用ディレクトリとして先に作った{}",
+                    parent.strip_prefix(work).unwrap_or(parent).display(),
+                    if effective {
+                        ""
+                    } else {
+                        "。ただしこの権限では書き込めてしまい、故障を再現できなかった"
+                    }
+                ),
+                effective,
+            ))
+        }
         (TrialFault::StorageReadOnly, Some(path)) => {
             if let Some(parent) = path.parent() {
                 fs::create_dir_all(parent)?;
@@ -372,6 +447,8 @@ pub struct Outputs<'a> {
     pub readback: Option<(&'a Phase, &'a str)>,
     pub state: Option<&'a StateRead>,
     pub state_text: Option<&'a str>,
+    /// 待つプロセスの記録と、標準出力・標準エラーを続けた全文。
+    pub server: Option<(&'a crate::server::ServerPhase, &'a str)>,
 }
 
 fn contains(expect: Expectation, haystack: &str, needle: &str) -> Observed {
@@ -437,6 +514,15 @@ pub fn evaluate(spec: &TrialSpec, test_value: &str, out: &Outputs) -> Vec<CheckR
                     Some(_) => (Observed::NotObserved, "読み出しのプロセスが待機上限・出力上限に達した".into()),
                     None => (Observed::NotObserved, "読み出しを実行していない".into()),
                 },
+                CheckMethod::ServerOutput => match out.server {
+                    Some((phase, _)) if !phase.started => (Observed::NotObserved, "待つプロセスを起動していない".into()),
+                    Some((phase, _)) if phase.output_limit => (Observed::NotObserved, "待つプロセスの出力が上限に達した".into()),
+                    Some((_, output)) => {
+                        let has = output.contains(&text);
+                        (contains(check.expect, output, &text), format!("待つプロセスの出力に「{text}」が{}", if has { "含まれる" } else { "含まれない" }))
+                    }
+                    None => (Observed::NotObserved, "待つプロセスの記録がない".into()),
+                },
             };
             CheckResult { id: check.id.clone(), observed, detail }
         })
@@ -474,6 +560,27 @@ pub fn assess(
     if !outcome.fault_effective {
         result.reason = format!("故障を適用できなかった: {}", outcome.fault_applied);
         return result;
+    }
+    if let Some(server) = &outcome.server
+        && spec.fault != TrialFault::ServerNotStarted
+    {
+        if !server.ready {
+            result.reason = format!(
+                "待つプロセスが準備できず、操作するプロセスを動かしていない: {}",
+                server.detail
+            );
+            result.next_action =
+                "待つプロセスの標準エラー、起動のしかた、準備の待機上限を確認して再試験する".into();
+            return result;
+        }
+        if server.exited_before_stop {
+            result.reason = format!(
+                "待つプロセスが、基盤が止める前に終了していた（終了コード{:?}）。どの時点まで動いていたか確認できない",
+                server.exit_code
+            );
+            result.next_action = "待つプロセスの標準エラーを確認して再試験する".into();
+            return result;
+        }
     }
     let scope_of: BTreeMap<_, _> = spec
         .checks
@@ -584,6 +691,9 @@ pub fn describe(check: &TrialCheck, spec: &TrialSpec) -> String {
         CheckMethod::ReadbackOutput => {
             format!("書き込みのプロセスが終わった後、別のプロセスで読み出すと{text}{has}")
         }
+        CheckMethod::ServerOutput => {
+            format!("待つプロセス（受信側など）の出力に{text}{has}")
+        }
     }
 }
 
@@ -612,6 +722,11 @@ pub struct Summary {
     pub exit_code: Option<i32>,
     pub stdout_excerpt: String,
     pub stderr_excerpt: String,
+    #[serde(default)]
+    pub server: Option<crate::server::ServerPhase>,
+    /// 依存先の「リポジトリ@コミット（読み込み先）」。
+    #[serde(default)]
+    pub dependencies: Vec<String>,
 }
 
 pub fn observed_label(o: Observed) -> &'static str {
@@ -648,10 +763,43 @@ pub fn summarize(trace: &crate::execution::ExecutionTrace, command: &[String]) -
             }
         })
         .collect();
+    let launched = match trace.recipe.launch {
+        crate::python_env::Launch::File => trace.recipe.entrypoint.clone(),
+        launch => format!("{} {}", launch.label(), trace.recipe.entrypoint),
+    };
+    let waiting = match (
+        &trace.recipe.server,
+        outcome.and_then(|o| o.server.as_ref()),
+    ) {
+        (Some(server), Some(phase)) if phase.started => format!(
+            "。先に待つプロセス（{}）を起動し、ポート{}で待たせた",
+            server.entrypoint, phase.port
+        ),
+        (Some(server), _) => format!("。待つプロセス（{}）は起動していない", server.entrypoint),
+        (None, _) => String::new(),
+    };
+    let dependencies = trace
+        .python
+        .as_ref()
+        .map(|p| {
+            p.packages
+                .iter()
+                .filter(|r| r.role == "dependency")
+                .map(|r| {
+                    format!(
+                        "{}@{}（{}）",
+                        r.repository,
+                        &r.commit[..12.min(r.commit.len())],
+                        r.root.as_deref().unwrap_or("最上位")
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     Some(Summary {
         tried: format!(
-            "{} のコミット {short} にある {} を、{runtime}（{}方式）で起動した",
-            trace.recipe.source.repository, trace.recipe.entrypoint, trace.mode
+            "{} のコミット {short} にある {launched} を、{runtime}（{}方式）で起動した{waiting}",
+            trace.recipe.source.repository, trace.mode
         ),
         fault: spec.fault.label().into(),
         fault_applied: outcome.map(|o| o.fault_applied.clone()).unwrap_or_default(),
@@ -663,5 +811,7 @@ pub fn summarize(trace: &crate::execution::ExecutionTrace, command: &[String]) -
         exit_code: trace.exit_code,
         stdout_excerpt: trace.stdout_excerpt.clone(),
         stderr_excerpt: trace.stderr_excerpt.clone(),
+        server: outcome.and_then(|o| o.server.clone()),
+        dependencies,
     })
 }
