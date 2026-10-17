@@ -469,6 +469,15 @@ function renderDetails() {
     body.append(section);
   }
 }
+function reportedDetail(text) {
+  try {
+    const parsed = JSON.parse(text), details = document.createElement("details"), summary = document.createElement("summary"), pre = document.createElement("pre");
+    summary.textContent = "段階の報告内容";
+    pre.textContent = JSON.stringify(parsed, null, 2);
+    details.append(summary, pre);
+    return details;
+  } catch { return p(text); }
+}
 function showEvidence(e, obs, target) {
   const d = document.createElement("dialog"),
     back = button("元の構成図へ戻る", () => d.close());
@@ -501,7 +510,7 @@ function showEvidence(e, obs, target) {
     if (!matching.length) d.append(p("この段階の成功・失敗の報告はありません。処理の失敗とは断定しません。"));
     for (const o of matching) {
       const item = document.createElement("section"); item.className = "record-action"; item.setAttribute("aria-label", "選択した観測条件");
-      item.append(p(`${o.assertion}／${o.subject}／${outcome[o.outcome]}`), sourceLink(o.source), p(o.detail)); d.append(item);
+      item.append(p(`${o.assertion}／${o.subject}／${outcome[o.outcome]}`), sourceLink(o.source), reportedDetail(o.detail)); d.append(item);
     }
   }
   const browser = document.createElement("div");
