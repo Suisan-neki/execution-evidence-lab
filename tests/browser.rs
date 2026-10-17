@@ -174,3 +174,33 @@ fn validates_the_pinned_openemr_recipe_without_running_it() {
     execution_evidence_lab::execution::validate_recipe(&recipe).unwrap();
     assert_eq!(recipe.browser.as_ref().unwrap().database.len(), 2);
 }
+
+#[test]
+fn unknown_response_body_never_passes_negative_body_check_and_expressions_are_validated() {
+    let mut p = phase();
+    p.browser.as_mut().unwrap().responses.push(ResponseRecord {
+        watch: "save".into(),
+        method: "POST".into(),
+        path: "/save".into(),
+        status: 200,
+        body_match: None,
+        request_step: Some("message".into()),
+    });
+    assert_eq!(
+        evaluate(
+            &check(
+                CheckMethod::BrowserResponse,
+                Expectation::NotContains,
+                "save"
+            ),
+            Some(&p),
+            "body_match=true"
+        )
+        .0,
+        Observed::NotObserved
+    );
+    let mut recipe: execution_evidence_lab::execution::Recipe =
+        serde_json::from_str(include_str!("../examples/openemr-browser/recipe.json")).unwrap();
+    recipe.trial.as_mut().unwrap().checks[1].text = Some("false".into());
+    assert!(execution_evidence_lab::execution::validate_recipe(&recipe).is_err());
+}

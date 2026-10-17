@@ -17,6 +17,7 @@ async function steps(list,phase){
    if(step.action==='goto'){const url=new URL(replace(step.path),request.origin);if(url.origin!==request.origin)throw Error('操作先のオリジンが不一致');await page.goto(url.href,{...options,waitUntil:'domcontentloaded'});}
    else if(step.action==='fill'){const value=step.value.source==='secret'?secrets[step.value.key]:replace(step.value.value);if(typeof value!=='string')throw Error('試験用の認証情報が未設定');const locator=target(step.target);if(step.value.source==='secret')masks.push(locator);await locator.fill(value,options);}
    else if(step.action==='click'){await target(step.target).click(options);}
+   else if(step.action==='expand'){const content=target(step.content);await target(step.target).waitFor({...options,state:'visible'});if(!await content.isVisible())await target(step.target).click(options);await content.waitFor({...options,state:'visible'});}
    else if(step.action==='select'){await target(step.target).selectOption(replace(step.value),options);}
    else if(step.action==='read_text'){const base=target(step.target);const locator=step.contains?base.filter({hasText:replace(step.contains)}):base;await locator.waitFor({...options,state:'visible'});const text=await locator.innerText(options);if(text.length>8192)throw Error('表示の文字列が上限を超えた');r.text=redact(text);}
    else throw Error('未対応の操作');

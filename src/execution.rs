@@ -307,9 +307,15 @@ pub fn validate_recipe(recipe: &Recipe) -> io::Result<()> {
                     })
                 }),
                 CheckMethod::BrowserResponse => recipe.browser.as_ref().is_some_and(|b| {
-                    b.responses
-                        .iter()
-                        .any(|w| Some(w.id.as_str()) == check.target.as_deref())
+                    let text = check.text.as_deref().unwrap_or("");
+                    let valid_expression = ["body_match=true", "body_match=false"].contains(&text)
+                        || text.strip_prefix("status=").is_some_and(|s| {
+                            s.len() == 3 && s.parse::<u16>().is_ok_and(|n| (100..=599).contains(&n))
+                        });
+                    valid_expression
+                        && b.responses
+                            .iter()
+                            .any(|w| Some(w.id.as_str()) == check.target.as_deref())
                 }),
                 CheckMethod::DatabaseRows => recipe.browser.as_ref().is_some_and(|b| {
                     b.database
