@@ -297,3 +297,5 @@ dialog .dads-button {
     padding: 1rem;
   }
 }
+
+.browser-evidence { overflow-wrap: anywhere; }

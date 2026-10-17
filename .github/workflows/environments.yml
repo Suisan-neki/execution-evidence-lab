@@ -24,6 +24,14 @@ jobs:
           node-version: 24.19.0
       - name: Build or infer, distinguish failures and retain dependency evidence
         run: node tools/environment-smoke.mjs ${{ matrix.target }}
+      - name: Prepare the pinned browser for OHIF
+        if: matrix.target == 'ohif-build'
+        run: |
+          npm ci --ignore-scripts
+          npx playwright install --with-deps chromium
+      - name: Observe OHIF list and images, reject image requests and retry
+        if: matrix.target == 'ohif-build'
+        run: node tools/ohif-smoke.mjs
       - name: Keep synthetic environment records
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -33,5 +41,8 @@ jobs:
             evaluations/ci-environments/**/*.json
             evaluations/ci-environments/**/*.log
             evaluations/ci-environments/**/*.npy
+            evaluations/ci-ohif/**/*.json
+            evaluations/ci-ohif/**/*.png
+            evaluations/ci-ohif/**/*.log
           if-no-files-found: ignore
           retention-days: 7

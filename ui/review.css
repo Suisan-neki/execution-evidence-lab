@@ -232,3 +232,5 @@ footer {
 .browser-photo-dialog { width: min(96vw, 1100px); max-height: 92vh; overflow: auto; border: 2px solid #1a3f75; padding: 1.25rem; }
 .browser-photo-dialog img { display: block; max-width: 100%; height: auto; margin-block: 1rem; }
 .browser-photo-dialog::backdrop { background: rgb(0 0 0 / 55%); }
+
+.browser-evidence { overflow-wrap: anywhere; }

@@ -57,6 +57,17 @@ pub enum Action {
         #[serde(default)]
         contains: Option<String>,
     },
+    ReadCanvas {
+        target: Target,
+        min_levels: u16,
+        min_pixels: u32,
+    },
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RejectionWatch {
+    pub watch: String,
+    pub status: u16,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Step {
@@ -72,6 +83,8 @@ pub struct ResponseWatch {
     pub method: String,
     #[serde(default)]
     pub contains: Option<String>,
+    #[serde(default)]
+    pub payload: Option<crate::http_probe::Payload>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -97,6 +110,19 @@ pub struct BrowserSpec {
     pub responses: Vec<ResponseWatch>,
     #[serde(default)]
     pub database: Vec<DatabaseProbe>,
+    #[serde(default)]
+    pub http_reads: Vec<crate::http_probe::Probe>,
+    #[serde(default)]
+    pub rejection: Option<RejectionWatch>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CanvasRead {
+    pub width: u32,
+    pub height: u32,
+    pub levels: u16,
+    pub non_black_pixels: u32,
+    pub rgba_sha256: String,
+    pub variation: bool,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepRecord {
@@ -106,6 +132,8 @@ pub struct StepRecord {
     pub text: Option<String>,
     pub screenshot: Option<String>,
     pub detail: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub canvas: Option<CanvasRead>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResponseRecord {
@@ -115,12 +143,16 @@ pub struct ResponseRecord {
     pub status: u16,
     pub body_match: Option<bool>,
     pub request_step: Option<String>,
+    #[serde(default)]
+    pub payload_sha256: Option<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowserReport {
     pub schema_version: u32,
     pub run_id: String,
     pub version: String,
+    #[serde(default)]
+    pub launch_args: Vec<String>,
     pub prepared: bool,
     pub completed: bool,
     pub steps: Vec<StepRecord>,
@@ -188,6 +220,7 @@ pub fn validate(spec: &BrowserSpec, containers: &ContainerSpec) -> io::Result<()
         || spec.actions.len() + spec.preparation.len() > 64
         || spec.responses.len() > 16
         || spec.database.len() > 16
+        || spec.http_reads.len() > 16
     {
         return Err(invalid(
             "ブラウザの操作先、固定した版、手順の上限を確認してください",
@@ -214,6 +247,13 @@ pub fn validate(spec: &BrowserSpec, containers: &ContainerSpec) -> io::Result<()
                 contains,
             } => target(t) && contains.as_ref().is_none_or(|s| bounded(s)),
             Action::Select { target: t, value } => target(t) && bounded(value),
+            Action::ReadCanvas {
+                target: t,
+                min_levels,
+                min_pixels,
+            } => {
+                target(t) && (2..=256).contains(min_levels) && (1..=2_000_000).contains(min_pixels)
+            }
         };
         if !valid {
             return Err(invalid("ブラウザの選択要素と入力値を確認してください"));
@@ -230,6 +270,23 @@ pub fn validate(spec: &BrowserSpec, containers: &ContainerSpec) -> io::Result<()
         {
             return Err(invalid("HTTP応答の観測先を確認してください"));
         }
+    }
+    ids.clear();
+    for probe in &spec.http_reads {
+        if !id(&probe.id)
+            || !ids.insert(&probe.id)
+            || !path(&probe.path)
+            || probe.path.contains('#')
+            || !containers.services.iter().any(|s| s.name == probe.service)
+        {
+            return Err(invalid("サーバーの直接読取先を確認してください"));
+        }
+    }
+    if let Some(rejection) = &spec.rejection
+        && (!(400..=599).contains(&rejection.status)
+            || !spec.responses.iter().any(|w| w.id == rejection.watch))
+    {
+        return Err(invalid("HTTP拒否を確認する観測先と状態コードが必要です"));
     }
     ids.clear();
     for q in &spec.database {
@@ -252,6 +309,29 @@ pub fn validate(spec: &BrowserSpec, containers: &ContainerSpec) -> io::Result<()
         }
     }
     Ok(())
+}
+pub fn rejection_observed(spec: &BrowserSpec, report: &BrowserReport) -> bool {
+    let Some(rejection) = &spec.rejection else {
+        return false;
+    };
+    let responses = report
+        .responses
+        .iter()
+        .filter(|r| r.watch == rejection.watch)
+        .collect::<Vec<_>>();
+    report.prepared
+        && !report.response_limit
+        && !responses.is_empty()
+        && responses.iter().all(|r| {
+            r.status == rejection.status
+                && r.request_step.as_ref().is_some_and(|id| {
+                    spec.actions.iter().any(|s| &s.id == id)
+                        && report
+                            .steps
+                            .iter()
+                            .any(|s| &s.id == id && s.phase == "action")
+                })
+        })
 }
 /// 列名と検索値を別々に検査し、1件の試験値に一致する行だけを読む。任意のSQLは受け取らない。
 pub fn query(q: &DatabaseProbe, test_value: &str) -> String {
@@ -276,6 +356,7 @@ fn unavailable(run_id: &str, detail: &str) -> BrowserReport {
         schema_version: 1,
         run_id: run_id.into(),
         version: String::new(),
+        launch_args: vec![],
         prepared: false,
         completed: false,
         steps: vec![],
@@ -337,6 +418,22 @@ impl Session {
         cmd.env_clear()
             .env("HOME", &directory)
             .env("EEL_PLAYWRIGHT_MODULE", module);
+        if spec
+            .actions
+            .iter()
+            .chain(&spec.preparation)
+            .any(|s| matches!(s.action, Action::ReadCanvas { .. }))
+        {
+            let png = std::env::var_os("EEL_PNGJS_MODULE")
+                .map(PathBuf::from)
+                .unwrap_or(std::env::current_dir()?.join("node_modules/pngjs/lib/png.js"));
+            cmd.env(
+                "EEL_PNGJS_MODULE",
+                fs::canonicalize(png).map_err(|_| {
+                    invalid("canvasの画素の観測にはnpm ciでpngjsを用意してください")
+                })?,
+            );
+        }
         // HOMEは試行用に分ける。Playwrightの導入済みブラウザはホストの固定したキャッシュから探す。
         if std::env::var_os("PLAYWRIGHT_BROWSERS_PATH").is_none() {
             let cache = if cfg!(target_os = "macos") {
@@ -354,6 +451,7 @@ impl Session {
             "PATH",
             "PLAYWRIGHT_BROWSERS_PATH",
             "EEL_BROWSER_EXECUTABLE",
+            "EEL_BROWSER_EXTRA_ARGS",
             "EEL_BROWSER_SECRETS_FILE",
         ] {
             if let Some(v) = std::env::var_os(key) {
@@ -480,6 +578,36 @@ pub fn evaluate(
         )
     };
     match check.method {
+        CheckMethod::BrowserCanvas => phase
+            .browser
+            .as_ref()
+            .and_then(|b| {
+                b.steps
+                    .iter()
+                    .find(|s| s.id == target && s.phase == "action" && s.completed)
+            })
+            .and_then(|s| s.canvas.as_ref())
+            .map(|canvas| result(format!("variation={}", canvas.variation).contains(text)))
+            .unwrap_or_else(missing),
+        CheckMethod::ServerHttp => phase
+            .http_reads
+            .iter()
+            .find(|r| r.id == target && r.performed)
+            .map(|r| {
+                if text.starts_with("sha256=") && r.sha256.is_none() {
+                    missing()
+                } else {
+                    result(
+                        format!(
+                            "status={} sha256={}",
+                            r.status.map(|s| s.to_string()).unwrap_or_default(),
+                            r.sha256.as_deref().unwrap_or("")
+                        )
+                        .contains(text),
+                    )
+                }
+            })
+            .unwrap_or_else(missing),
         CheckMethod::BrowserText => {
             let Some(step) = phase.browser.as_ref().and_then(|b| {
                 b.steps
@@ -523,11 +651,12 @@ pub fn evaluate(
                 .iter()
                 .map(|r| {
                     format!(
-                        "status={} body_match={}",
+                        "status={} body_match={} sha256={}",
                         r.status,
                         r.body_match
                             .map(|b| b.to_string())
-                            .unwrap_or("unobserved".into())
+                            .unwrap_or("unobserved".into()),
+                        r.payload_sha256.as_deref().unwrap_or("unobserved")
                     )
                     .contains(text)
                 })
@@ -535,6 +664,8 @@ pub fn evaluate(
             if values.iter().any(|v| *v != values[0])
                 || (text.starts_with("body_match=")
                     && responses.iter().any(|r| r.body_match.is_none()))
+                || (text.starts_with("sha256=")
+                    && responses.iter().any(|r| r.payload_sha256.is_none()))
             {
                 (
                     Observed::NotObserved,

@@ -64,6 +64,7 @@ fn nginx(name: &str, role: ServiceRole) -> Service {
         expose: 80,
         env: Default::default(),
         volumes: vec![],
+        web_build: None,
         command: vec![],
         ready: ReadyCheck::Http {
             path: "/".into(),
@@ -376,6 +377,7 @@ fn orthanc_stores_the_sample_dicom() {
             expose: 8042,
             env,
             volumes: vec![],
+            web_build: None,
             command: vec![],
             ready: ReadyCheck::Http {
                 path: "/system".into(),
@@ -462,6 +464,7 @@ fn openemr_becomes_ready_with_pinned_images() {
                     name: "db".into(),
                     path: "/var/lib/mysql".into(),
                 }],
+                web_build: None,
                 command: vec!["mariadbd".into(), "--character-set-server=utf8mb4".into()],
                 ready: ReadyCheck::Exec {
                     args: vec![
@@ -480,6 +483,7 @@ fn openemr_becomes_ready_with_pinned_images() {
                 expose: 443,
                 env: app_env,
                 volumes: vec![],
+                web_build: None,
                 command: vec![],
                 ready: ReadyCheck::Http {
                     path: "/meta/health/readyz".into(),
