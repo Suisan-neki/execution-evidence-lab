@@ -102,14 +102,17 @@ function modelKey(m) {
 async function load() {
   const key = model && modelKey(model),
     trial = $("trial").value;
+  let loadedState, loadedData;
   for (let attempt = 0; attempt < 3; attempt++) {
-    state = await api("case");
-    data = await api("architecture");
-    if (state.workspace.revision === data.revision) break;
+    loadedState = await api("case");
+    loadedData = await api("architecture");
+    if (loadedState.workspace.revision === loadedData.revision) break;
     if (attempt === 2)
       throw Error("読み込み中に更新が続いています。最新版を読み直してください");
   }
   ids ??= await fetch("/ui/architecture-ids.json").then((r) => r.json());
+  state = loadedState;
+  data = loadedData;
   $("model").replaceChildren();
   for (const m of data.models.length ? data.models : [data.builtin]) {
     const o = new Option(
@@ -511,14 +514,19 @@ function makeSelect(id, options) {
   for (const [value, text] of options) s.append(new Option(text, value));
   return s;
 }
-async function addLink(target) {
+async function addLink(
+  target,
+  context = {
+    model_id: model.id,
+    model_version: model.version,
+    object_id: selected,
+  },
+) {
   await change({
     op: "add_architecture_link",
     link: {
       id: "link-" + crypto.randomUUID(),
-      model_id: model.id,
-      model_version: model.version,
-      object_id: selected,
+      ...context,
       target,
     },
   });
@@ -578,6 +586,11 @@ function renderControls() {
         if (!note.value.trim())
           throw Error("疑問や期待する動作を入力してください");
         const id = "statement-" + crypto.randomUUID();
+        const context = {
+          model_id: model.id,
+          model_version: model.version,
+          object_id: selected,
+        };
         await change({
           op: "add_statement",
           statement: {
@@ -589,7 +602,7 @@ function renderControls() {
             check_ids: [],
           },
         });
-        await addLink({ kind: "statement", statement_id: id });
+        await addLink({ kind: "statement", statement_id: id }, context);
       },
     ),
   );

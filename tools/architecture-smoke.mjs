@@ -246,9 +246,41 @@ try {
       await page
         .getByLabel("自分の言葉で記入")
         .fill("DB停止時に誰が対応する？ <img src=x onerror=alert(1)>");
+      let release, arrived;
+      const held = new Promise((resolve) => {
+        release = resolve;
+      });
+      const received = new Promise((resolve) => {
+        arrived = resolve;
+      });
+      const holdStatement = async (route) => {
+        if (route.request().postDataJSON()?.action?.op !== "add_statement")
+          return route.continue();
+        const response = await route.fetch();
+        arrived();
+        await held;
+        await route.fulfill({ response });
+      };
+      await page.route("**/api/v1/change", holdStatement);
       await page
         .getByRole("button", { name: "疑問・期待を記録して対応づける" })
         .click();
+      await received;
+      await page.locator("[data-object=app]").click();
+      release();
+      await page
+        .getByText("対応づけを記録しました。", { exact: true })
+        .waitFor();
+      await page.waitForFunction(async () => {
+        const token = document.querySelector("meta[name=review-token]").content;
+        const response = await fetch("/api/v1/case", {
+          headers: { "X-Review-Token": token },
+        });
+        const value = await response.json();
+        return value.workspace.architecture_links.length === 2;
+      });
+      await page.unroute("**/api/v1/change", holdStatement);
+      await page.locator("[data-object=db]").click();
       await page
         .locator("#details-body")
         .getByText("DB停止時に誰が対応する？ <img src=x onerror=alert(1)>", {
@@ -261,6 +293,11 @@ try {
       ).workspace;
       assert.equal(saved.architecture_links.length, 2);
       assert.equal(saved.statements.length, 1);
+      assert.equal(
+        saved.architecture_links.find((l) => l.target.kind === "statement")
+          .object_id,
+        "db",
+      );
       w = saved;
       const next = structuredClone(saved.architecture_models[0]);
       next.version = 2;
