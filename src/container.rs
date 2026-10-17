@@ -63,6 +63,8 @@ pub struct Service {
     pub env: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub volumes: Vec<VolumeMount>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub web_build: Option<crate::prepared_web::WebBuild>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub command: Vec<String>,
     pub ready: ReadyCheck,
@@ -102,6 +104,8 @@ pub struct ServicePhase {
     pub running_after_stop: bool,
     pub log_excerpt: String,
     pub detail: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub web_build: Option<crate::prepared_web::BuildBasis>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,6 +121,8 @@ pub struct ContainerPhase {
     pub browser: Option<crate::browser::BrowserReport>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub database_reads: Vec<crate::browser::DatabaseRead>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub http_reads: Vec<crate::http_probe::HttpRead>,
     pub detail: String,
 }
 
@@ -148,6 +154,7 @@ struct Running {
     ready: bool,
     ready_after_ms: Option<u64>,
     detail: String,
+    web_build: Option<crate::prepared_web::BuildBasis>,
 }
 
 fn invalid(text: impl Into<String>) -> io::Error {
@@ -187,6 +194,9 @@ pub fn validate_spec(spec: &ContainerSpec) -> io::Result<()> {
     let mut names = std::collections::BTreeSet::new();
     let mut databases = 0;
     for service in &spec.services {
+        if let Some(build) = &service.web_build {
+            crate::prepared_web::validate(build)?;
+        }
         token(&service.name, "コンテナの名前", 32)?;
         if !names.insert(service.name.as_str()) {
             return Err(invalid("コンテナの名前が重複しています"));
@@ -432,6 +442,16 @@ impl Session {
     }
 
     fn run(&mut self, service: &Service) -> io::Result<()> {
+        let assets = service
+            .web_build
+            .as_ref()
+            .map(|build| {
+                let root = std::env::var_os("EEL_PREPARED_ENVIRONMENTS").ok_or_else(|| {
+                    invalid("ビルド済みファイルを使うにはEEL_PREPARED_ENVIRONMENTSが必要です")
+                })?;
+                crate::prepared_web::snapshot(Path::new(&root), build)
+            })
+            .transpose()?;
         let digest = pull(&service.image)?;
         let port = crate::server::free_port()?;
         let container = format!("eel-{}-{}", self.trial, service.name);
@@ -470,7 +490,23 @@ impl Session {
         args.push(service.image.clone());
         args.extend(service.command.iter().cloned());
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        docker_text(&arg_refs)?;
+        if let Some(assets) = &assets {
+            let mut create = vec!["create"];
+            create.extend(arg_refs.iter().copied().skip(2));
+            docker_text(&create)?;
+            let copied = docker_text(&[
+                "cp",
+                &format!("{}/.", assets.directory.display()),
+                &format!("{container}:/usr/share/nginx/html"),
+            ])
+            .and_then(|_| docker_text(&["start", &container]));
+            if let Err(error) = copied {
+                let _ = docker(&["rm", "-f", &container]);
+                return Err(error);
+            }
+        } else {
+            docker_text(&arg_refs)?;
+        }
         let mut running = Running {
             spec: service.clone(),
             container,
@@ -480,6 +516,7 @@ impl Session {
             ready: false,
             ready_after_ms: None,
             detail: String::new(),
+            web_build: assets.as_ref().map(|s| s.basis.clone()),
         };
         match wait_ready(&running) {
             Ok(ms) => {
@@ -773,6 +810,7 @@ impl Session {
                     running_after_stop: inspect_running(&s.container).unwrap_or(false),
                     log_excerpt: logs(&s.container),
                     detail: s.detail.clone(),
+                    web_build: s.web_build.clone(),
                 })
                 .collect(),
             leftovers: leftovers.clone(),
@@ -780,6 +818,7 @@ impl Session {
             http: None,
             browser: None,
             database_reads: vec![],
+            http_reads: vec![],
             detail: if leftovers.is_empty() {
                 "試行用のコンテナ・ネットワーク・ボリュームをこの試行だけで使っている".into()
             } else {
@@ -1104,6 +1143,7 @@ mod tests {
                 expose: 80,
                 env: BTreeMap::new(),
                 volumes: vec![],
+                web_build: None,
                 command: vec![],
                 ready: ReadyCheck::Tcp,
                 ready_timeout_ms: 5000,
@@ -1122,6 +1162,7 @@ mod tests {
                 expose: 80,
                 env: BTreeMap::new(),
                 volumes: vec![],
+            web_build: None,
                 command: vec![],
                 ready: ReadyCheck::Http { path: "/".into(), tls: false },
                 ready_timeout_ms: 5000,

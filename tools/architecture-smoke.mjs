@@ -280,6 +280,9 @@ try {
         return value.workspace.architecture_links.length === 2;
       });
       await page.unroute("**/api/v1/change", holdStatement);
+      // The backend write can finish before the UI's matched-revision reload is published.
+      const linked = (await (await fetch(url + "/api/v1/case", { headers })).json()).workspace;
+      await page.waitForFunction(revision => document.querySelector("#model-description").textContent.includes("事例の版" + revision), linked.revision);
       await page.locator("[data-object=db]").click();
       await page
         .locator("#details-body")

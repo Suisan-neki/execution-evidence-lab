@@ -39,6 +39,8 @@ const basisLabels = {
   };
 const methods = {
   browser_text: "画面表示",
+  browser_canvas: "canvasの画素",
+  server_http: "サーバーの直接読取",
   browser_response: "HTTP応答",
   database_rows: "DBの直接読取",
   database_query: "DBの直接読取",
@@ -80,6 +82,7 @@ async function api(path, body) {
   return v;
 }
 async function guard(fn) {
+  status("");
   try {
     await fn();
   } catch (e) {

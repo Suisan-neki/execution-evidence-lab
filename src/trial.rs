@@ -26,10 +26,12 @@ pub enum TrialFault {
     DatabaseStopped,
     DatabaseUnreachable,
     VolumeReadOnly,
+    HttpRejected,
 }
 impl TrialFault {
     pub fn label(self) -> &'static str {
         match self {
+            Self::HttpRejected => "宣言したHTTP要求を試験用サーバーで拒否する",
             Self::Normal => "故障なし（通常時）",
             Self::StorageReadOnly => "保存先を書き込み不可にする",
             Self::StorageIsDirectory => "保存先に同名のディレクトリを置く",
@@ -67,6 +69,8 @@ pub enum CheckMethod {
     DatabaseQuery,
     BrowserText,
     BrowserResponse,
+    BrowserCanvas,
+    ServerHttp,
     DatabaseRows,
 }
 impl CheckMethod {
@@ -80,6 +84,8 @@ impl CheckMethod {
             Self::ReadbackOutput => "別のプロセスで対象の読み出し機能を動かした結果",
             Self::ServerOutput => "待つプロセス（受信側など）の出力",
             Self::ContainerLog => "コンテナのログ（対象の応答とは別）",
+            Self::BrowserCanvas => "canvasの画面写真から読み出した画素",
+            Self::ServerHttp => "基盤が試験用サーバーへ直接要求して読み出した応答",
             Self::BrowserText => "試験用ブラウザで読み出した表示の文字列",
             Self::BrowserResponse => "試験操作中にブラウザが受け取ったHTTP応答",
             Self::DatabaseRows => "基盤が試験値に一致するDBの行を直接読み出した結果",
@@ -260,6 +266,8 @@ pub fn validate(
             check.method,
             CheckMethod::ContainerLog
                 | CheckMethod::DatabaseQuery
+                | CheckMethod::BrowserCanvas
+                | CheckMethod::ServerHttp
                 | CheckMethod::BrowserText
                 | CheckMethod::BrowserResponse
                 | CheckMethod::DatabaseRows
@@ -326,6 +334,10 @@ pub fn substitute_json(value: &serde_json::Value, test_value: &str) -> serde_jso
 pub fn apply_fault(spec: &TrialSpec, work: &Path) -> io::Result<(String, bool)> {
     let target = spec.storage.as_ref().map(|s| work.join(s));
     match (spec.fault, target) {
+        (TrialFault::HttpRejected, _) => Ok((
+            "レシピの試験用サーバー設定で要求を拒否する。実際のHTTP応答で効いたか確認する".into(),
+            false,
+        )),
         (TrialFault::Normal, _) => Ok(("故障は加えていない".into(), true)),
         (TrialFault::SkipStateRead, _) => Ok((
             "対象は通常どおり動かし、基盤による保存先の読み出しだけを行わない".into(),
@@ -608,7 +620,7 @@ pub fn evaluate(spec: &TrialSpec, test_value: &str, out: &Outputs) -> Vec<CheckR
                     }
                     None => (Observed::NotObserved, "コンテナの記録がない".into()),
                 },
-                CheckMethod::BrowserText | CheckMethod::BrowserResponse | CheckMethod::DatabaseRows =>
+                CheckMethod::BrowserCanvas | CheckMethod::ServerHttp | CheckMethod::BrowserText | CheckMethod::BrowserResponse | CheckMethod::DatabaseRows =>
                     crate::browser::evaluate(check, out.containers, &text),
                 CheckMethod::DatabaseQuery => {
                     match out.containers.and_then(|c| c.database_query.as_deref()) {
@@ -821,6 +833,8 @@ pub fn describe(check: &TrialCheck, spec: &TrialSpec) -> String {
         CheckMethod::ServerOutput => {
             format!("待つプロセス（受信側など）の出力に{text}{has}")
         }
+        CheckMethod::BrowserCanvas => format!("canvasの画素の観測に{text}{has}"),
+        CheckMethod::ServerHttp => format!("サーバーの直接読取の応答に{text}{has}"),
         CheckMethod::BrowserText => format!("画面の文字列に{text}{has}"),
         CheckMethod::BrowserResponse => format!("ブラウザが受け取ったHTTP応答に{text}{has}"),
         CheckMethod::DatabaseRows => format!("DBから直接読み出した行に{text}{has}"),

@@ -83,12 +83,14 @@ mod tests {
             crate::recording::new_run_directory(&std::env::temp_dir().join("eel-browser-evidence"))
                 .unwrap();
         let mut report = BrowserReport {
+            launch_args: vec![],
             schema_version: 1,
             run_id: correlation.run_id.clone(),
             version: "test".into(),
             prepared: true,
             completed: true,
             steps: vec![StepRecord {
+                canvas: None,
                 id: "saved".into(),
                 phase: "action".into(),
                 completed: true,
