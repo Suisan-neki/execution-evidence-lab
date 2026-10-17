@@ -187,7 +187,7 @@ pub fn explain(
         ],
     });
     let bytes = serde_json::to_vec(&body).map_err(io::Error::other)?;
-    let response = match crate::reader::run_script(
+    let response = match crate::ai_transport::run_script(
         SCRIPT,
         &bytes,
         Duration::from_secs(75),

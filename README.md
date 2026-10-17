@@ -63,7 +63,7 @@ cargo run -- review cases/general
 
 ## 実行する
 
-Rust 1.99.0、cargo、rustfmt、clippyを使用して確認した。外部アダプターにはNode.jsと対象バックエンドが別途必要。
+Rust 1.99.0、cargo、rustfmt、clippyを使用して確認した。理解と試験の画面および読取・解析APIは、Rustだけで公開GitHubを読み取り、静的解析する。Node.js製の対象を実行するときと、任意設定のAI説明にはNode.jsが別途必要。旧`explore`画面はブラウザ内のJavaScript解析を残している。
 
 ```bash
 cargo run -- suite
@@ -122,6 +122,8 @@ cargo clippy --all-targets -- -D warnings
 # 画面の自動確認。Node.js 22以上とブラウザが必要。
 cargo build --locked
 npm run test:reader
+# サーバーのPATHからNode.jsを外して、Rustの読取・解析APIを確認する。
+npm run test:reader-native
 npm ci --ignore-scripts
 npx playwright install --with-deps chromium
 npm run test:ui

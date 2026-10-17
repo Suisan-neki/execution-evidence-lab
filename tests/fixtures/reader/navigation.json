@@ -1,0 +1,4033 @@
+{
+  "snapshot": {
+    "schema": 1,
+    "fullName": "example/project",
+    "reference": "main",
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "truncated": false,
+    "files": {
+      "Cargo.toml": "[package]\nname=\"example-app\"",
+      "src/main.rs": "use example_app::{storage::{save as persist, self as disk}, other};\nfn main(input: &str) {\n  persist(input);\n  disk::save(input);\n  other::save(input);\n}\nfn shadow(persist: fn()) { persist(); }",
+      "src/storage.rs": "pub fn save(input: &str) {}",
+      "src/other.rs": "pub fn save(input: &str) {}",
+      "ui/app.ts": "import {\n save as persist,\n type Value\n} from \"./store.js\";\nimport * as disk from \"./store.js\";\nimport decode from \"./codec.js\";\nimport { save } from \"external-package\";\nfunction run(input: string) {\n persist(input);\n disk.save(input);\n decode(input);\n save(input);\n unknown.save(input);\n}\nfunction shadow(persist) { persist(); }\nfunction localShadow() { const persist = input => input; persist(1); }\nfunction destructured({persist}) { persist(1); }",
+      "ui/store.js": "export function save(data) { return data; }",
+      "ui/other.js": "export function persist(data) { return data; }",
+      "ui/codec.js": "export default function parse(data) { return data; }",
+      "service/app.py": "from .storage import (\n save as persist,\n)\nfrom . import storage as disk\ndef run(data):\n    persist(data)\n    disk.save(data)\ndef shadow(persist):\n    persist(1)\ndef later():\n    persist(1)",
+      "service/storage.py": "def save(data):\n    return data"
+    },
+    "omitted": [],
+    "inventory": [
+      {
+        "path": "Cargo.toml",
+        "mode": "100644",
+        "size": 28
+      },
+      {
+        "path": "src/main.rs",
+        "mode": "100644",
+        "size": 193
+      },
+      {
+        "path": "src/storage.rs",
+        "mode": "100644",
+        "size": 27
+      },
+      {
+        "path": "src/other.rs",
+        "mode": "100644",
+        "size": 27
+      },
+      {
+        "path": "ui/app.ts",
+        "mode": "100644",
+        "size": 449
+      },
+      {
+        "path": "ui/store.js",
+        "mode": "100644",
+        "size": 43
+      },
+      {
+        "path": "ui/other.js",
+        "mode": "100644",
+        "size": 46
+      },
+      {
+        "path": "ui/codec.js",
+        "mode": "100644",
+        "size": 52
+      },
+      {
+        "path": "service/app.py",
+        "mode": "100644",
+        "size": 189
+      },
+      {
+        "path": "service/storage.py",
+        "mode": "100644",
+        "size": 31
+      }
+    ]
+  },
+  "model": {
+    "files": [
+      {
+        "path": "Cargo.toml",
+        "text": "[package]\nname=\"example-app\"",
+        "symbols": [],
+        "imports": [],
+        "bindings": [],
+        "role": "起動設定・依存パッケージ"
+      },
+      {
+        "path": "src/main.rs",
+        "text": "use example_app::{storage::{save as persist, self as disk}, other};\nfn main(input: &str) {\n  persist(input);\n  disk::save(input);\n  other::save(input);\n}\nfn shadow(persist: fn()) { persist(); }",
+        "symbols": [
+          {
+            "name": "main",
+            "line": 2,
+            "end": 6
+          },
+          {
+            "name": "shadow",
+            "line": 7,
+            "end": 7
+          }
+        ],
+        "imports": [
+          {
+            "from": "src/main.rs",
+            "to": "src/storage.rs",
+            "line": 1,
+            "kind": "参照宣言"
+          },
+          {
+            "from": "src/main.rs",
+            "to": "src/other.rs",
+            "line": 1,
+            "kind": "参照宣言"
+          }
+        ],
+        "bindings": [
+          {
+            "kind": "named",
+            "local": "persist",
+            "imported": "save",
+            "target": "src/storage.rs",
+            "specifier": "example_app::storage::save",
+            "nested": false,
+            "line": 1,
+            "end_line": 1,
+            "declaration": "use example_app::{storage::{save as persist, self as disk}, other};"
+          },
+          {
+            "kind": "namespace",
+            "local": "disk",
+            "imported": null,
+            "target": "src/storage.rs",
+            "specifier": "example_app::storage::self",
+            "nested": false,
+            "line": 1,
+            "end_line": 1,
+            "declaration": "use example_app::{storage::{save as persist, self as disk}, other};"
+          },
+          {
+            "kind": "namespace",
+            "local": "other",
+            "imported": null,
+            "target": "src/other.rs",
+            "specifier": "example_app::other",
+            "nested": false,
+            "line": 1,
+            "end_line": 1,
+            "declaration": "use example_app::{storage::{save as persist, self as disk}, other};"
+          }
+        ],
+        "role": "Rustのコード"
+      },
+      {
+        "path": "src/storage.rs",
+        "text": "pub fn save(input: &str) {}",
+        "symbols": [
+          {
+            "name": "save",
+            "line": 1,
+            "end": 1
+          }
+        ],
+        "imports": [],
+        "bindings": [],
+        "role": "Rustのコード"
+      },
+      {
+        "path": "src/other.rs",
+        "text": "pub fn save(input: &str) {}",
+        "symbols": [
+          {
+            "name": "save",
+            "line": 1,
+            "end": 1
+          }
+        ],
+        "imports": [],
+        "bindings": [],
+        "role": "Rustのコード"
+      },
+      {
+        "path": "ui/app.ts",
+        "text": "import {\n save as persist,\n type Value\n} from \"./store.js\";\nimport * as disk from \"./store.js\";\nimport decode from \"./codec.js\";\nimport { save } from \"external-package\";\nfunction run(input: string) {\n persist(input);\n disk.save(input);\n decode(input);\n save(input);\n unknown.save(input);\n}\nfunction shadow(persist) { persist(); }\nfunction localShadow() { const persist = input => input; persist(1); }\nfunction destructured({persist}) { persist(1); }",
+        "symbols": [
+          {
+            "name": "run",
+            "line": 8,
+            "end": 14
+          },
+          {
+            "name": "shadow",
+            "line": 15,
+            "end": 15
+          },
+          {
+            "name": "localShadow",
+            "line": 16,
+            "end": 16
+          },
+          {
+            "name": "destructured",
+            "line": 17,
+            "end": 17
+          }
+        ],
+        "imports": [
+          {
+            "from": "ui/app.ts",
+            "to": "ui/store.js",
+            "line": 5,
+            "kind": "参照宣言"
+          },
+          {
+            "from": "ui/app.ts",
+            "to": "ui/codec.js",
+            "line": 6,
+            "kind": "参照宣言"
+          },
+          {
+            "from": "ui/app.ts",
+            "to": "ui/store.js",
+            "line": 1,
+            "kind": "参照宣言"
+          }
+        ],
+        "bindings": [
+          {
+            "kind": "named",
+            "local": "persist",
+            "imported": "save",
+            "target": "ui/store.js",
+            "specifier": "./store.js",
+            "nested": false,
+            "line": 1,
+            "end_line": 4,
+            "declaration": "import {\n save as persist,\n type Value\n} from \"./store.js\";"
+          },
+          {
+            "kind": "namespace",
+            "local": "disk",
+            "imported": null,
+            "target": "ui/store.js",
+            "specifier": "./store.js",
+            "nested": false,
+            "line": 5,
+            "end_line": 5,
+            "declaration": "import * as disk from \"./store.js\";"
+          },
+          {
+            "kind": "default",
+            "local": "decode",
+            "imported": "default",
+            "target": "ui/codec.js",
+            "specifier": "./codec.js",
+            "nested": false,
+            "line": 6,
+            "end_line": 6,
+            "declaration": "import decode from \"./codec.js\";"
+          },
+          {
+            "kind": "named",
+            "local": "save",
+            "imported": "save",
+            "target": null,
+            "specifier": "external-package",
+            "nested": false,
+            "line": 7,
+            "end_line": 7,
+            "declaration": "import { save } from \"external-package\";"
+          }
+        ],
+        "role": "JavaScript / TypeScriptのコード"
+      },
+      {
+        "path": "ui/store.js",
+        "text": "export function save(data) { return data; }",
+        "symbols": [
+          {
+            "name": "save",
+            "line": 1,
+            "end": 1
+          }
+        ],
+        "imports": [],
+        "bindings": [],
+        "role": "JavaScript / TypeScriptのコード"
+      },
+      {
+        "path": "ui/other.js",
+        "text": "export function persist(data) { return data; }",
+        "symbols": [
+          {
+            "name": "persist",
+            "line": 1,
+            "end": 1
+          }
+        ],
+        "imports": [],
+        "bindings": [],
+        "role": "JavaScript / TypeScriptのコード"
+      },
+      {
+        "path": "ui/codec.js",
+        "text": "export default function parse(data) { return data; }",
+        "symbols": [
+          {
+            "name": "parse",
+            "line": 1,
+            "end": 1
+          }
+        ],
+        "imports": [],
+        "bindings": [],
+        "role": "JavaScript / TypeScriptのコード"
+      },
+      {
+        "path": "service/app.py",
+        "text": "from .storage import (\n save as persist,\n)\nfrom . import storage as disk\ndef run(data):\n    persist(data)\n    disk.save(data)\ndef shadow(persist):\n    persist(1)\ndef later():\n    persist(1)",
+        "symbols": [
+          {
+            "name": "run",
+            "line": 5,
+            "end": 7
+          },
+          {
+            "name": "shadow",
+            "line": 8,
+            "end": 9
+          },
+          {
+            "name": "later",
+            "line": 10,
+            "end": 11
+          }
+        ],
+        "imports": [
+          {
+            "from": "service/app.py",
+            "to": "service/storage.py",
+            "line": 1,
+            "kind": "参照宣言"
+          },
+          {
+            "from": "service/app.py",
+            "to": "service/storage.py",
+            "line": 4,
+            "kind": "参照宣言"
+          }
+        ],
+        "bindings": [
+          {
+            "kind": "named",
+            "local": "persist",
+            "imported": "save",
+            "target": "service/storage.py",
+            "specifier": "./storage",
+            "nested": false,
+            "line": 1,
+            "end_line": 3,
+            "declaration": "from .storage import (\n save as persist,\n)"
+          },
+          {
+            "kind": "namespace",
+            "local": "disk",
+            "imported": null,
+            "target": "service/storage.py",
+            "specifier": "./",
+            "nested": false,
+            "line": 4,
+            "end_line": 4,
+            "declaration": "from . import storage as disk"
+          }
+        ],
+        "role": "Pythonのコード"
+      },
+      {
+        "path": "service/storage.py",
+        "text": "def save(data):\n    return data",
+        "symbols": [
+          {
+            "name": "save",
+            "line": 1,
+            "end": 2
+          }
+        ],
+        "imports": [],
+        "bindings": [],
+        "role": "Pythonのコード"
+      }
+    ],
+    "entries": [
+      {
+        "path": "src/main.rs",
+        "line": 2,
+        "reason": "Rustの実行入口に使われるファイル"
+      },
+      {
+        "path": "ui/app.ts",
+        "line": 1,
+        "reason": "名前から選んだ入口の候補"
+      }
+    ],
+    "scripts": [],
+    "inventory": [
+      {
+        "path": "Cargo.toml",
+        "mode": "100644",
+        "size": 28
+      },
+      {
+        "path": "src/main.rs",
+        "mode": "100644",
+        "size": 193
+      },
+      {
+        "path": "src/storage.rs",
+        "mode": "100644",
+        "size": 27
+      },
+      {
+        "path": "src/other.rs",
+        "mode": "100644",
+        "size": 27
+      },
+      {
+        "path": "ui/app.ts",
+        "mode": "100644",
+        "size": 449
+      },
+      {
+        "path": "ui/store.js",
+        "mode": "100644",
+        "size": 43
+      },
+      {
+        "path": "ui/other.js",
+        "mode": "100644",
+        "size": 46
+      },
+      {
+        "path": "ui/codec.js",
+        "mode": "100644",
+        "size": 52
+      },
+      {
+        "path": "service/app.py",
+        "mode": "100644",
+        "size": 189
+      },
+      {
+        "path": "service/storage.py",
+        "mode": "100644",
+        "size": 31
+      }
+    ],
+    "inventory_truncated": false,
+    "edges": [
+      {
+        "from": "src/main.rs",
+        "to": "src/storage.rs",
+        "line": 1,
+        "kind": "参照宣言"
+      },
+      {
+        "from": "src/main.rs",
+        "to": "src/other.rs",
+        "line": 1,
+        "kind": "参照宣言"
+      },
+      {
+        "from": "ui/app.ts",
+        "to": "ui/store.js",
+        "line": 5,
+        "kind": "参照宣言"
+      },
+      {
+        "from": "ui/app.ts",
+        "to": "ui/codec.js",
+        "line": 6,
+        "kind": "参照宣言"
+      },
+      {
+        "from": "ui/app.ts",
+        "to": "ui/store.js",
+        "line": 1,
+        "kind": "参照宣言"
+      },
+      {
+        "from": "service/app.py",
+        "to": "service/storage.py",
+        "line": 1,
+        "kind": "参照宣言"
+      },
+      {
+        "from": "service/app.py",
+        "to": "service/storage.py",
+        "line": 4,
+        "kind": "参照宣言"
+      }
+    ]
+  },
+  "overview": {
+    "schema_version": 1,
+    "repository": "example/project",
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "reference": "main",
+    "read": {
+      "inventory": 10,
+      "files_read": 10,
+      "unread": [],
+      "truncated": false
+    },
+    "languages": [
+      {
+        "name": "Rust",
+        "files": 3,
+        "execution": "Rust の実行は未対応。理解と試験計画だけを表示する",
+        "executable": false
+      },
+      {
+        "name": "JavaScript",
+        "files": 3,
+        "execution": "Node.js で実行できる（JavaScript。TypeScriptは変換が必要なため未対応）",
+        "executable": true
+      },
+      {
+        "name": "Python",
+        "files": 2,
+        "execution": "Python 3 で実行できる（標準ライブラリで動く範囲）",
+        "executable": true
+      },
+      {
+        "name": "TypeScript",
+        "files": 1,
+        "execution": "TypeScript の実行は未対応。理解と試験計画だけを表示する",
+        "executable": false
+      }
+    ],
+    "purpose": [],
+    "start": [
+      {
+        "text": "src/main.rs: Rustの実行入口に使われるファイル",
+        "kind": "code",
+        "refs": [
+          {
+            "path": "src/main.rs",
+            "line": 2,
+            "end_line": 2
+          }
+        ]
+      },
+      {
+        "text": "ui/app.ts: 名前から選んだ入口の候補",
+        "kind": "inference",
+        "refs": [
+          {
+            "path": "ui/app.ts",
+            "line": 1,
+            "end_line": 1
+          }
+        ]
+      }
+    ],
+    "components": [
+      {
+        "path": "src/main.rs",
+        "role": "Rustのコード",
+        "lines": 7,
+        "description": null,
+        "functions": [
+          {
+            "name": "main",
+            "line": 2,
+            "end_line": 6,
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 2,
+                "end_line": 6
+              }
+            ]
+          },
+          {
+            "name": "shadow",
+            "line": 7,
+            "end_line": 7,
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 7,
+                "end_line": 7
+              }
+            ]
+          }
+        ],
+        "effect_counts": {},
+        "refs": [
+          {
+            "path": "src/main.rs",
+            "line": 1,
+            "end_line": 7
+          }
+        ]
+      },
+      {
+        "path": "src/storage.rs",
+        "role": "Rustのコード",
+        "lines": 1,
+        "description": null,
+        "functions": [
+          {
+            "name": "save",
+            "line": 1,
+            "end_line": 1,
+            "refs": [
+              {
+                "path": "src/storage.rs",
+                "line": 1,
+                "end_line": 1
+              }
+            ]
+          }
+        ],
+        "effect_counts": {},
+        "refs": [
+          {
+            "path": "src/storage.rs",
+            "line": 1,
+            "end_line": 1
+          }
+        ]
+      },
+      {
+        "path": "src/other.rs",
+        "role": "Rustのコード",
+        "lines": 1,
+        "description": null,
+        "functions": [
+          {
+            "name": "save",
+            "line": 1,
+            "end_line": 1,
+            "refs": [
+              {
+                "path": "src/other.rs",
+                "line": 1,
+                "end_line": 1
+              }
+            ]
+          }
+        ],
+        "effect_counts": {},
+        "refs": [
+          {
+            "path": "src/other.rs",
+            "line": 1,
+            "end_line": 1
+          }
+        ]
+      },
+      {
+        "path": "ui/app.ts",
+        "role": "JavaScript / TypeScriptのコード",
+        "lines": 17,
+        "description": null,
+        "functions": [
+          {
+            "name": "run",
+            "line": 8,
+            "end_line": 14,
+            "refs": [
+              {
+                "path": "ui/app.ts",
+                "line": 8,
+                "end_line": 14
+              }
+            ]
+          },
+          {
+            "name": "shadow",
+            "line": 15,
+            "end_line": 15,
+            "refs": [
+              {
+                "path": "ui/app.ts",
+                "line": 15,
+                "end_line": 15
+              }
+            ]
+          },
+          {
+            "name": "localShadow",
+            "line": 16,
+            "end_line": 16,
+            "refs": [
+              {
+                "path": "ui/app.ts",
+                "line": 16,
+                "end_line": 16
+              }
+            ]
+          },
+          {
+            "name": "destructured",
+            "line": 17,
+            "end_line": 17,
+            "refs": [
+              {
+                "path": "ui/app.ts",
+                "line": 17,
+                "end_line": 17
+              }
+            ]
+          }
+        ],
+        "effect_counts": {
+          "write": 2
+        },
+        "refs": [
+          {
+            "path": "ui/app.ts",
+            "line": 1,
+            "end_line": 17
+          }
+        ]
+      },
+      {
+        "path": "ui/store.js",
+        "role": "JavaScript / TypeScriptのコード",
+        "lines": 1,
+        "description": null,
+        "functions": [
+          {
+            "name": "save",
+            "line": 1,
+            "end_line": 1,
+            "refs": [
+              {
+                "path": "ui/store.js",
+                "line": 1,
+                "end_line": 1
+              }
+            ]
+          }
+        ],
+        "effect_counts": {},
+        "refs": [
+          {
+            "path": "ui/store.js",
+            "line": 1,
+            "end_line": 1
+          }
+        ]
+      },
+      {
+        "path": "ui/other.js",
+        "role": "JavaScript / TypeScriptのコード",
+        "lines": 1,
+        "description": null,
+        "functions": [
+          {
+            "name": "persist",
+            "line": 1,
+            "end_line": 1,
+            "refs": [
+              {
+                "path": "ui/other.js",
+                "line": 1,
+                "end_line": 1
+              }
+            ]
+          }
+        ],
+        "effect_counts": {},
+        "refs": [
+          {
+            "path": "ui/other.js",
+            "line": 1,
+            "end_line": 1
+          }
+        ]
+      },
+      {
+        "path": "ui/codec.js",
+        "role": "JavaScript / TypeScriptのコード",
+        "lines": 1,
+        "description": null,
+        "functions": [
+          {
+            "name": "parse",
+            "line": 1,
+            "end_line": 1,
+            "refs": [
+              {
+                "path": "ui/codec.js",
+                "line": 1,
+                "end_line": 1
+              }
+            ]
+          }
+        ],
+        "effect_counts": {},
+        "refs": [
+          {
+            "path": "ui/codec.js",
+            "line": 1,
+            "end_line": 1
+          }
+        ]
+      },
+      {
+        "path": "service/app.py",
+        "role": "Pythonのコード",
+        "lines": 11,
+        "description": null,
+        "functions": [
+          {
+            "name": "run",
+            "line": 5,
+            "end_line": 7,
+            "refs": [
+              {
+                "path": "service/app.py",
+                "line": 5,
+                "end_line": 7
+              }
+            ]
+          },
+          {
+            "name": "shadow",
+            "line": 8,
+            "end_line": 9,
+            "refs": [
+              {
+                "path": "service/app.py",
+                "line": 8,
+                "end_line": 9
+              }
+            ]
+          },
+          {
+            "name": "later",
+            "line": 10,
+            "end_line": 11,
+            "refs": [
+              {
+                "path": "service/app.py",
+                "line": 10,
+                "end_line": 11
+              }
+            ]
+          }
+        ],
+        "effect_counts": {},
+        "refs": [
+          {
+            "path": "service/app.py",
+            "line": 1,
+            "end_line": 11
+          }
+        ]
+      },
+      {
+        "path": "service/storage.py",
+        "role": "Pythonのコード",
+        "lines": 2,
+        "description": null,
+        "functions": [
+          {
+            "name": "save",
+            "line": 1,
+            "end_line": 2,
+            "refs": [
+              {
+                "path": "service/storage.py",
+                "line": 1,
+                "end_line": 2
+              }
+            ]
+          }
+        ],
+        "effect_counts": {},
+        "refs": [
+          {
+            "path": "service/storage.py",
+            "line": 1,
+            "end_line": 2
+          }
+        ]
+      }
+    ],
+    "behaviors": [
+      {
+        "function": "run",
+        "path": "ui/app.ts",
+        "line": 8,
+        "text": "run には、ファイル等へ書き込む記述（10・13行目）がある",
+        "kind": "code",
+        "kinds": [
+          "write"
+        ],
+        "refs": [
+          {
+            "path": "ui/app.ts",
+            "line": 10,
+            "end_line": 10
+          },
+          {
+            "path": "ui/app.ts",
+            "line": 13,
+            "end_line": 13
+          }
+        ]
+      }
+    ],
+    "flows": [
+      {
+        "entry": {
+          "path": "src/main.rs",
+          "line": 2,
+          "reason": "Rustの実行入口に使われるファイル",
+          "code": "fn main(input: &str) {"
+        },
+        "kind": "inference",
+        "basis": "入口から、名前と参照宣言で対応づけた呼び出し候補をたどった。分岐の条件・実際に実行される順序・到達は確かめていない",
+        "inputs": [],
+        "storage": [],
+        "sending": [],
+        "outputs": [],
+        "errors": [],
+        "steps": [
+          {
+            "function": "main",
+            "path": "src/main.rs",
+            "line": 2,
+            "end_line": 6,
+            "depth": 0,
+            "called_from": null,
+            "effects": [],
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 2,
+                "end_line": 6
+              }
+            ]
+          },
+          {
+            "function": "save",
+            "path": "src/storage.rs",
+            "line": 1,
+            "end_line": 1,
+            "depth": 1,
+            "called_from": {
+              "path": "src/main.rs",
+              "line": 3,
+              "end_line": 3
+            },
+            "effects": [],
+            "refs": [
+              {
+                "path": "src/storage.rs",
+                "line": 1,
+                "end_line": 1
+              }
+            ]
+          },
+          {
+            "function": "save",
+            "path": "src/other.rs",
+            "line": 1,
+            "end_line": 1,
+            "depth": 1,
+            "called_from": {
+              "path": "src/main.rs",
+              "line": 5,
+              "end_line": 5
+            },
+            "effects": [],
+            "refs": [
+              {
+                "path": "src/other.rs",
+                "line": 1,
+                "end_line": 1
+              }
+            ]
+          }
+        ],
+        "truncated": false,
+        "unresolved_calls": 0
+      },
+      {
+        "entry": {
+          "path": "ui/app.ts",
+          "line": 1,
+          "reason": "名前から選んだ入口の候補",
+          "code": "import {"
+        },
+        "kind": "inference",
+        "basis": "入口から、名前と参照宣言で対応づけた呼び出し候補をたどった。分岐の条件・実際に実行される順序・到達は確かめていない",
+        "inputs": [],
+        "storage": [],
+        "sending": [],
+        "outputs": [],
+        "errors": [],
+        "steps": [],
+        "truncated": false,
+        "unresolved_calls": 0
+      }
+    ],
+    "tests": [],
+    "unknown": [
+      {
+        "text": "README やコメントの説明が、現在のコードの動作と一致するかは確かめていない",
+        "kind": "inference",
+        "refs": []
+      },
+      {
+        "text": "処理の関係は、名前と参照宣言から作った呼び出し候補。実際にどの経路が実行されるかは、試験で確かめる必要がある",
+        "kind": "inference",
+        "refs": []
+      },
+      {
+        "text": "外部サービス、実行環境の設定、利用者の権限、保存先の実際の状態は、コードを読むだけでは確かめられない",
+        "kind": "inference",
+        "refs": []
+      }
+    ],
+    "kinds": {
+      "author": "作者の説明（README・コメント等）。コードで確かめていない",
+      "code": "コードの記述から確認した事実",
+      "inference": "解析による推測。実行して確かめていない"
+    },
+    "limits": "コードの記述から作った説明です。実行していないため、実際の動作・到達・成否は試験で確かめる必要があります。"
+  },
+  "plan": {
+    "schema_version": 1,
+    "repository": "example/project",
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "languages": [
+      {
+        "name": "Rust",
+        "files": 3,
+        "execution": "Rust の実行は未対応。理解と試験計画だけを表示する",
+        "executable": false
+      },
+      {
+        "name": "JavaScript",
+        "files": 3,
+        "execution": "Node.js で実行できる（JavaScript。TypeScriptは変換が必要なため未対応）",
+        "executable": true
+      },
+      {
+        "name": "Python",
+        "files": 2,
+        "execution": "Python 3 で実行できる（標準ライブラリで動く範囲）",
+        "executable": true
+      },
+      {
+        "name": "TypeScript",
+        "files": 1,
+        "execution": "TypeScript の実行は未対応。理解と試験計画だけを表示する",
+        "executable": false
+      }
+    ],
+    "executable": false,
+    "unsupported_reason": "Rust・JavaScript・Python・TypeScript の実行は未対応。理解と試験計画だけを表示する",
+    "entries": [
+      {
+        "entrypoint": "src/main.rs",
+        "launch": "file",
+        "runtime": null,
+        "reason": "Rustの実行入口に使われるファイル",
+        "kind": "inference",
+        "refs": [
+          {
+            "path": "src/main.rs",
+            "line": 2,
+            "end_line": 2
+          }
+        ],
+        "supported": false,
+        "unsupported_reason": "この言語の実行は未対応"
+      },
+      {
+        "entrypoint": "ui/app.ts",
+        "launch": "file",
+        "runtime": null,
+        "reason": "名前から選んだ入口の候補",
+        "kind": "inference",
+        "refs": [
+          {
+            "path": "ui/app.ts",
+            "line": 1,
+            "end_line": 1
+          }
+        ],
+        "supported": false,
+        "unsupported_reason": "この言語の実行は未対応"
+      }
+    ],
+    "options": [],
+    "storage": [
+      {
+        "text": "run の10行目に書き込みの記述がある: disk.save(input);",
+        "kind": "code",
+        "refs": [
+          {
+            "path": "ui/app.ts",
+            "line": 10,
+            "end_line": 10
+          }
+        ]
+      },
+      {
+        "text": "run の13行目に書き込みの記述がある: unknown.save(input);",
+        "kind": "code",
+        "refs": [
+          {
+            "path": "ui/app.ts",
+            "line": 13,
+            "end_line": 13
+          }
+        ]
+      }
+    ],
+    "tests": [],
+    "test_commands": [],
+    "examples": [],
+    "dependencies": [],
+    "faults": [
+      {
+        "id": "normal",
+        "label": "故障なし（通常時）",
+        "needs_storage": false,
+        "applicable": "使える"
+      },
+      {
+        "id": "storage_read_only",
+        "label": "保存先を書き込み不可にする",
+        "needs_storage": true,
+        "how": "試行の前に、基盤が保存先へ空のファイルを作り、書き込み権限を外す。書き込めないことを基盤が確かめてから対象を起動する",
+        "applicable": "保存先のパスを指定したときに使える"
+      },
+      {
+        "id": "storage_is_directory",
+        "label": "保存先に同名のディレクトリを置く",
+        "needs_storage": true,
+        "how": "試行の前に、基盤が保存先と同じ名前のディレクトリを作る。ファイルとして開けない状態になる",
+        "applicable": "保存先のパスを指定したときに使える"
+      },
+      {
+        "id": "skip_state_read",
+        "label": "基盤による保存先の読み出しを止める（観測の欠落）",
+        "needs_storage": false,
+        "how": "対象は通常どおり動かし、試行後に基盤が保存先を読み出す処理だけを止める。観測がないときに成功と扱わないかを確かめる",
+        "applicable": "使える"
+      },
+      {
+        "id": "network_unavailable",
+        "label": "外部への通信を遮断する",
+        "needs_storage": false,
+        "how": "Linuxのbubblewrap方式で、ネットワークを持たない環境で起動する。local方式では使えない",
+        "applicable": "送信の記述が見つからないため、効果を確かめにくい。bubblewrap方式（Linux）でだけ使える"
+      },
+      {
+        "id": "storage_directory_read_only",
+        "label": "保存先のディレクトリを書き込み不可にする",
+        "needs_storage": true,
+        "how": "試行の前に、基盤が保存先のディレクトリを空で作り、書き込み権限を外す。ディレクトリへ書き込めないことを基盤が確かめてから起動する",
+        "applicable": "ディレクトリを含む保存先のパス（例: received/file）を指定したときに使える"
+      },
+      {
+        "id": "server_not_started",
+        "label": "待つプロセス（受信側など）を起動しない",
+        "needs_server": true,
+        "how": "待つプロセスを起動せず、操作するプロセスだけを動かす。割り当てたポートが応答しないことを基盤が確かめる",
+        "applicable": "待つプロセスを指定したときに使える"
+      },
+      {
+        "id": "database_stopped",
+        "label": "データベースのコンテナを止める",
+        "needs_containers": true,
+        "how": "コンテナが準備できたあと、データベースの役割のコンテナを止める。止まったことを確かめてから操作する",
+        "applicable": "試験専用のコンテナを指定したときに使える"
+      },
+      {
+        "id": "database_unreachable",
+        "label": "対象とデータベースの間の通信を切る",
+        "needs_containers": true,
+        "how": "コンテナが準備できたあと、データベースを試験用ネットワークから外す。外れたことを確かめてから操作する",
+        "applicable": "試験専用のコンテナを指定したときに使える"
+      },
+      {
+        "id": "volume_read_only",
+        "label": "保存先のボリュームを読み取り専用にする",
+        "needs_containers": true,
+        "how": "コンテナが準備できたあと、データベースの保存先ボリュームを読み取り専用で載せ直す。書き込めないことを確かめる",
+        "applicable": "試験専用のコンテナを指定したときに使える"
+      }
+    ],
+    "observation": [
+      {
+        "method": "exit_code",
+        "label": "終了コード",
+        "source": "対象プログラムの報告"
+      },
+      {
+        "method": "stdout",
+        "label": "標準出力",
+        "source": "対象プログラムの報告"
+      },
+      {
+        "method": "stderr",
+        "label": "標準エラー（エラー表示）",
+        "source": "対象プログラムの報告"
+      },
+      {
+        "method": "stored_file",
+        "label": "保存先の内容",
+        "source": "基盤が保存先を直接読み出した結果"
+      },
+      {
+        "method": "readback_output",
+        "label": "後からの読み出し",
+        "source": "別のプロセスで対象の読み出し機能を動かした結果"
+      },
+      {
+        "method": "server_output",
+        "label": "待つプロセスの出力",
+        "source": "待つプロセス（受信側など）の出力"
+      }
+    ],
+    "missing": [
+      {
+        "text": "実行できる入口が見つからない。この基盤は Python 3 と Node.js（JavaScript）だけを実行できる",
+        "kind": "code"
+      },
+      {
+        "text": "試行で使う引数。試験用の値を入れる場所には {{test_value}} と書く",
+        "kind": "inference"
+      },
+      {
+        "text": "保存先のパス（試行用の作業ディレクトリからの相対パス）。保存先を指定しないと、基盤による保存先の読み出しと保存先の故障は使えない",
+        "kind": "inference"
+      },
+      {
+        "text": "後から読み出すコマンド（任意）。書き込みとは別のプロセスで読み出せるかを確かめる",
+        "kind": "inference"
+      },
+      {
+        "text": "先に起動して待つプロセス（任意）。受信サーバーのように待ち受けるプロセスは、引数のポートを {{port}} と書くと、基盤が 127.0.0.1 の空いているポートを割り当てる",
+        "kind": "inference"
+      }
+    ],
+    "isolation": "対象は試行ごとに新しい作業ディレクトリで動く。固定コミットのファイルは読み取り専用で複製し、環境変数は消し、HOMEも作業ディレクトリにする。local方式はOSによる隔離を行わないため、対象が絶対パスで書き込む処理は止められない",
+    "origin": "コード・テストからの提案。人が確認して保存するまで、期待や判定条件の決定ではない"
+  },
+  "functions": [
+    {
+      "path": "src/main.rs",
+      "line": 2,
+      "guide": {
+        "name": "main",
+        "range": {
+          "start": 2,
+          "end": 6,
+          "header_end": 89
+        },
+        "signature": "fn main(input: &str)",
+        "steps": [],
+        "calls": [
+          {
+            "name": "persist",
+            "line": 3,
+            "macro": false,
+            "candidates": [
+              {
+                "path": "src/storage.rs",
+                "line": 1,
+                "name": "save"
+              }
+            ],
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "persist",
+                "imported": "save",
+                "target": "src/storage.rs",
+                "specifier": "example_app::storage::save",
+                "nested": false,
+                "line": 1,
+                "end_line": 1,
+                "declaration": "use example_app::{storage::{save as persist, self as disk}, other};"
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          },
+          {
+            "name": "disk::save",
+            "line": 4,
+            "macro": false,
+            "candidates": [
+              {
+                "path": "src/storage.rs",
+                "line": 1,
+                "name": "save"
+              }
+            ],
+            "bindings": [
+              {
+                "kind": "namespace",
+                "local": "disk",
+                "imported": null,
+                "target": "src/storage.rs",
+                "specifier": "example_app::storage::self",
+                "nested": false,
+                "line": 1,
+                "end_line": 1,
+                "declaration": "use example_app::{storage::{save as persist, self as disk}, other};"
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          },
+          {
+            "name": "other::save",
+            "line": 5,
+            "macro": false,
+            "candidates": [
+              {
+                "path": "src/other.rs",
+                "line": 1,
+                "name": "save"
+              }
+            ],
+            "bindings": [
+              {
+                "kind": "namespace",
+                "local": "other",
+                "imported": null,
+                "target": "src/other.rs",
+                "specifier": "example_app::other",
+                "nested": false,
+                "line": 1,
+                "end_line": 1,
+                "declaration": "use example_app::{storage::{save as persist, self as disk}, other};"
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          }
+        ],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 15,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "main",
+        "path": "src/main.rs",
+        "line": 2,
+        "end_line": 6,
+        "signature": "fn main(input: &str)",
+        "parameters": [
+          "input: &str"
+        ],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [
+          {
+            "name": "persist",
+            "line": 3,
+            "candidates": [
+              {
+                "path": "src/storage.rs",
+                "line": 1,
+                "name": "save",
+                "refs": [
+                  {
+                    "path": "src/storage.rs",
+                    "line": 1,
+                    "end_line": 1
+                  }
+                ]
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 3,
+                "end_line": 3
+              }
+            ]
+          },
+          {
+            "name": "disk::save",
+            "line": 4,
+            "candidates": [
+              {
+                "path": "src/storage.rs",
+                "line": 1,
+                "name": "save",
+                "refs": [
+                  {
+                    "path": "src/storage.rs",
+                    "line": 1,
+                    "end_line": 1
+                  }
+                ]
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 4,
+                "end_line": 4
+              }
+            ]
+          },
+          {
+            "name": "other::save",
+            "line": 5,
+            "candidates": [
+              {
+                "path": "src/other.rs",
+                "line": 1,
+                "name": "save",
+                "refs": [
+                  {
+                    "path": "src/other.rs",
+                    "line": 1,
+                    "end_line": 1
+                  }
+                ]
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 5,
+                "end_line": 5
+              }
+            ]
+          }
+        ],
+        "callers": [],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "src/main.rs",
+            "line": 2,
+            "end_line": 6
+          }
+        ]
+      }
+    },
+    {
+      "path": "src/main.rs",
+      "line": 7,
+      "guide": {
+        "name": "shadow",
+        "range": {
+          "start": 7,
+          "end": 7,
+          "header_end": 179
+        },
+        "signature": "fn shadow(persist: fn())",
+        "steps": [],
+        "calls": [
+          {
+            "name": "persist",
+            "line": 7,
+            "macro": false,
+            "candidates": [],
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "persist",
+                "imported": "save",
+                "target": "src/storage.rs",
+                "specifier": "example_app::storage::save",
+                "nested": false,
+                "line": 1,
+                "end_line": 1,
+                "declaration": "use example_app::{storage::{save as persist, self as disk}, other};"
+              }
+            ],
+            "unread": [],
+            "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。"
+          }
+        ],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 15,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "shadow",
+        "path": "src/main.rs",
+        "line": 7,
+        "end_line": 7,
+        "signature": "fn shadow(persist: fn())",
+        "parameters": [
+          "persist: fn()"
+        ],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [
+          {
+            "name": "persist",
+            "line": 7,
+            "candidates": [],
+            "unread": [],
+            "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。",
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 7,
+                "end_line": 7
+              }
+            ]
+          }
+        ],
+        "callers": [],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "src/main.rs",
+            "line": 7,
+            "end_line": 7
+          }
+        ]
+      }
+    },
+    {
+      "path": "src/storage.rs",
+      "line": 1,
+      "guide": {
+        "name": "save",
+        "range": {
+          "start": 1,
+          "end": 1,
+          "header_end": 25
+        },
+        "signature": "pub fn save(input: &str)",
+        "steps": [],
+        "calls": [],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [
+          {
+            "path": "src/main.rs",
+            "line": 3,
+            "function": "main",
+            "function_line": 2,
+            "call": "persist",
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "persist",
+                "imported": "save",
+                "target": "src/storage.rs",
+                "specifier": "example_app::storage::save",
+                "nested": false,
+                "line": 1,
+                "end_line": 1,
+                "declaration": "use example_app::{storage::{save as persist, self as disk}, other};"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          },
+          {
+            "path": "src/main.rs",
+            "line": 4,
+            "function": "main",
+            "function_line": 2,
+            "call": "disk::save",
+            "bindings": [
+              {
+                "kind": "namespace",
+                "local": "disk",
+                "imported": null,
+                "target": "src/storage.rs",
+                "specifier": "example_app::storage::self",
+                "nested": false,
+                "line": 1,
+                "end_line": 1,
+                "declaration": "use example_app::{storage::{save as persist, self as disk}, other};"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          }
+        ],
+        "scanned_functions": 15,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "save",
+        "path": "src/storage.rs",
+        "line": 1,
+        "end_line": 1,
+        "signature": "pub fn save(input: &str)",
+        "parameters": [
+          "input: &str"
+        ],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [],
+        "callers": [
+          {
+            "path": "src/main.rs",
+            "line": 3,
+            "function": "main",
+            "function_line": 2,
+            "call": "persist",
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "persist",
+                "imported": "save",
+                "target": "src/storage.rs",
+                "specifier": "example_app::storage::save",
+                "nested": false,
+                "line": 1,
+                "end_line": 1,
+                "declaration": "use example_app::{storage::{save as persist, self as disk}, other};"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 3,
+                "end_line": 3
+              }
+            ]
+          },
+          {
+            "path": "src/main.rs",
+            "line": 4,
+            "function": "main",
+            "function_line": 2,
+            "call": "disk::save",
+            "bindings": [
+              {
+                "kind": "namespace",
+                "local": "disk",
+                "imported": null,
+                "target": "src/storage.rs",
+                "specifier": "example_app::storage::self",
+                "nested": false,
+                "line": 1,
+                "end_line": 1,
+                "declaration": "use example_app::{storage::{save as persist, self as disk}, other};"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 4,
+                "end_line": 4
+              }
+            ]
+          }
+        ],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "src/storage.rs",
+            "line": 1,
+            "end_line": 1
+          }
+        ]
+      }
+    },
+    {
+      "path": "src/other.rs",
+      "line": 1,
+      "guide": {
+        "name": "save",
+        "range": {
+          "start": 1,
+          "end": 1,
+          "header_end": 25
+        },
+        "signature": "pub fn save(input: &str)",
+        "steps": [],
+        "calls": [],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [
+          {
+            "path": "src/main.rs",
+            "line": 5,
+            "function": "main",
+            "function_line": 2,
+            "call": "other::save",
+            "bindings": [
+              {
+                "kind": "namespace",
+                "local": "other",
+                "imported": null,
+                "target": "src/other.rs",
+                "specifier": "example_app::other",
+                "nested": false,
+                "line": 1,
+                "end_line": 1,
+                "declaration": "use example_app::{storage::{save as persist, self as disk}, other};"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          }
+        ],
+        "scanned_functions": 15,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "save",
+        "path": "src/other.rs",
+        "line": 1,
+        "end_line": 1,
+        "signature": "pub fn save(input: &str)",
+        "parameters": [
+          "input: &str"
+        ],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [],
+        "callers": [
+          {
+            "path": "src/main.rs",
+            "line": 5,
+            "function": "main",
+            "function_line": 2,
+            "call": "other::save",
+            "bindings": [
+              {
+                "kind": "namespace",
+                "local": "other",
+                "imported": null,
+                "target": "src/other.rs",
+                "specifier": "example_app::other",
+                "nested": false,
+                "line": 1,
+                "end_line": 1,
+                "declaration": "use example_app::{storage::{save as persist, self as disk}, other};"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 5,
+                "end_line": 5
+              }
+            ]
+          }
+        ],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "src/other.rs",
+            "line": 1,
+            "end_line": 1
+          }
+        ]
+      }
+    },
+    {
+      "path": "ui/app.ts",
+      "line": 8,
+      "guide": {
+        "name": "run",
+        "range": {
+          "start": 8,
+          "end": 14,
+          "header_end": 198
+        },
+        "signature": "function run(input: string)",
+        "steps": [],
+        "calls": [
+          {
+            "name": "persist",
+            "line": 9,
+            "macro": false,
+            "candidates": [
+              {
+                "path": "ui/store.js",
+                "line": 1,
+                "name": "save"
+              }
+            ],
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "persist",
+                "imported": "save",
+                "target": "ui/store.js",
+                "specifier": "./store.js",
+                "nested": false,
+                "line": 1,
+                "end_line": 4,
+                "declaration": "import {\n save as persist,\n type Value\n} from \"./store.js\";"
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          },
+          {
+            "name": "disk.save",
+            "line": 10,
+            "macro": false,
+            "candidates": [
+              {
+                "path": "ui/store.js",
+                "line": 1,
+                "name": "save"
+              }
+            ],
+            "bindings": [
+              {
+                "kind": "namespace",
+                "local": "disk",
+                "imported": null,
+                "target": "ui/store.js",
+                "specifier": "./store.js",
+                "nested": false,
+                "line": 5,
+                "end_line": 5,
+                "declaration": "import * as disk from \"./store.js\";"
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          },
+          {
+            "name": "decode",
+            "line": 11,
+            "macro": false,
+            "candidates": [
+              {
+                "path": "ui/codec.js",
+                "line": 1,
+                "name": "parse"
+              }
+            ],
+            "bindings": [
+              {
+                "kind": "default",
+                "local": "decode",
+                "imported": "default",
+                "target": "ui/codec.js",
+                "specifier": "./codec.js",
+                "nested": false,
+                "line": 6,
+                "end_line": 6,
+                "declaration": "import decode from \"./codec.js\";"
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          },
+          {
+            "name": "save",
+            "line": 12,
+            "macro": false,
+            "candidates": [],
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "save",
+                "imported": "save",
+                "target": null,
+                "specifier": "external-package",
+                "nested": false,
+                "line": 7,
+                "end_line": 7,
+                "declaration": "import { save } from \"external-package\";"
+              }
+            ],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。"
+          },
+          {
+            "name": "unknown.save",
+            "line": 13,
+            "macro": false,
+            "candidates": [],
+            "bindings": [],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。"
+          }
+        ],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 15,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "run",
+        "path": "ui/app.ts",
+        "line": 8,
+        "end_line": 14,
+        "signature": "function run(input: string)",
+        "parameters": [
+          "input: string"
+        ],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [
+          {
+            "kind": "write",
+            "label": "ファイル等へ書き込む記述",
+            "certainty": "statement",
+            "line": 10,
+            "code": "disk.save(input);",
+            "refs": [
+              {
+                "path": "ui/app.ts",
+                "line": 10,
+                "end_line": 10
+              }
+            ]
+          },
+          {
+            "kind": "write",
+            "label": "ファイル等へ書き込む記述",
+            "certainty": "statement",
+            "line": 13,
+            "code": "unknown.save(input);",
+            "refs": [
+              {
+                "path": "ui/app.ts",
+                "line": 13,
+                "end_line": 13
+              }
+            ]
+          }
+        ],
+        "callees": [
+          {
+            "name": "persist",
+            "line": 9,
+            "candidates": [
+              {
+                "path": "ui/store.js",
+                "line": 1,
+                "name": "save",
+                "refs": [
+                  {
+                    "path": "ui/store.js",
+                    "line": 1,
+                    "end_line": 1
+                  }
+                ]
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "ui/app.ts",
+                "line": 9,
+                "end_line": 9
+              }
+            ]
+          },
+          {
+            "name": "disk.save",
+            "line": 10,
+            "candidates": [
+              {
+                "path": "ui/store.js",
+                "line": 1,
+                "name": "save",
+                "refs": [
+                  {
+                    "path": "ui/store.js",
+                    "line": 1,
+                    "end_line": 1
+                  }
+                ]
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "ui/app.ts",
+                "line": 10,
+                "end_line": 10
+              }
+            ]
+          },
+          {
+            "name": "decode",
+            "line": 11,
+            "candidates": [
+              {
+                "path": "ui/codec.js",
+                "line": 1,
+                "name": "parse",
+                "refs": [
+                  {
+                    "path": "ui/codec.js",
+                    "line": 1,
+                    "end_line": 1
+                  }
+                ]
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "ui/app.ts",
+                "line": 11,
+                "end_line": 11
+              }
+            ]
+          },
+          {
+            "name": "save",
+            "line": 12,
+            "candidates": [],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+            "refs": [
+              {
+                "path": "ui/app.ts",
+                "line": 12,
+                "end_line": 12
+              }
+            ]
+          },
+          {
+            "name": "unknown.save",
+            "line": 13,
+            "candidates": [],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+            "refs": [
+              {
+                "path": "ui/app.ts",
+                "line": 13,
+                "end_line": 13
+              }
+            ]
+          }
+        ],
+        "callers": [],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "ui/app.ts",
+            "line": 8,
+            "end_line": 14
+          }
+        ]
+      }
+    },
+    {
+      "path": "ui/app.ts",
+      "line": 15,
+      "guide": {
+        "name": "shadow",
+        "range": {
+          "start": 15,
+          "end": 15,
+          "header_end": 315
+        },
+        "signature": "function shadow(persist)",
+        "steps": [],
+        "calls": [
+          {
+            "name": "persist",
+            "line": 15,
+            "macro": false,
+            "candidates": [],
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "persist",
+                "imported": "save",
+                "target": "ui/store.js",
+                "specifier": "./store.js",
+                "nested": false,
+                "line": 1,
+                "end_line": 4,
+                "declaration": "import {\n save as persist,\n type Value\n} from \"./store.js\";"
+              }
+            ],
+            "unread": [],
+            "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。"
+          }
+        ],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 15,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "shadow",
+        "path": "ui/app.ts",
+        "line": 15,
+        "end_line": 15,
+        "signature": "function shadow(persist)",
+        "parameters": [
+          "persist"
+        ],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [
+          {
+            "name": "persist",
+            "line": 15,
+            "candidates": [],
+            "unread": [],
+            "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。",
+            "refs": [
+              {
+                "path": "ui/app.ts",
+                "line": 15,
+                "end_line": 15
+              }
+            ]
+          }
+        ],
+        "callers": [],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "ui/app.ts",
+            "line": 15,
+            "end_line": 15
+          }
+        ]
+      }
+    },
+    {
+      "path": "ui/app.ts",
+      "line": 16,
+      "guide": {
+        "name": "localShadow",
+        "range": {
+          "start": 16,
+          "end": 16,
+          "header_end": 353
+        },
+        "signature": "function localShadow()",
+        "steps": [],
+        "calls": [
+          {
+            "name": "persist",
+            "line": 16,
+            "macro": false,
+            "candidates": [],
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "persist",
+                "imported": "save",
+                "target": "ui/store.js",
+                "specifier": "./store.js",
+                "nested": false,
+                "line": 1,
+                "end_line": 4,
+                "declaration": "import {\n save as persist,\n type Value\n} from \"./store.js\";"
+              }
+            ],
+            "unread": [],
+            "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。"
+          }
+        ],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 15,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "localShadow",
+        "path": "ui/app.ts",
+        "line": 16,
+        "end_line": 16,
+        "signature": "function localShadow()",
+        "parameters": [],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [
+          {
+            "name": "persist",
+            "line": 16,
+            "candidates": [],
+            "unread": [],
+            "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。",
+            "refs": [
+              {
+                "path": "ui/app.ts",
+                "line": 16,
+                "end_line": 16
+              }
+            ]
+          }
+        ],
+        "callers": [],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "ui/app.ts",
+            "line": 16,
+            "end_line": 16
+          }
+        ]
+      }
+    },
+    {
+      "path": "ui/app.ts",
+      "line": 17,
+      "guide": {
+        "name": "destructured",
+        "range": {
+          "start": 17,
+          "end": 17,
+          "header_end": 434
+        },
+        "signature": "function destructured({persist})",
+        "steps": [],
+        "calls": [
+          {
+            "name": "persist",
+            "line": 17,
+            "macro": false,
+            "candidates": [],
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "persist",
+                "imported": "save",
+                "target": "ui/store.js",
+                "specifier": "./store.js",
+                "nested": false,
+                "line": 1,
+                "end_line": 4,
+                "declaration": "import {\n save as persist,\n type Value\n} from \"./store.js\";"
+              }
+            ],
+            "unread": [],
+            "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。"
+          }
+        ],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 15,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "destructured",
+        "path": "ui/app.ts",
+        "line": 17,
+        "end_line": 17,
+        "signature": "function destructured({persist})",
+        "parameters": [
+          "{persist}"
+        ],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [
+          {
+            "name": "persist",
+            "line": 17,
+            "candidates": [],
+            "unread": [],
+            "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。",
+            "refs": [
+              {
+                "path": "ui/app.ts",
+                "line": 17,
+                "end_line": 17
+              }
+            ]
+          }
+        ],
+        "callers": [],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "ui/app.ts",
+            "line": 17,
+            "end_line": 17
+          }
+        ]
+      }
+    },
+    {
+      "path": "ui/store.js",
+      "line": 1,
+      "guide": {
+        "name": "save",
+        "range": {
+          "start": 1,
+          "end": 1,
+          "header_end": 27
+        },
+        "signature": "export function save(data)",
+        "steps": [
+          {
+            "kind": "return",
+            "line": 1,
+            "text": "この位置で呼び出し元へ戻る記述があります。返す値をコードで確認してください。"
+          }
+        ],
+        "calls": [],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [
+          {
+            "path": "ui/app.ts",
+            "line": 9,
+            "function": "run",
+            "function_line": 8,
+            "call": "persist",
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "persist",
+                "imported": "save",
+                "target": "ui/store.js",
+                "specifier": "./store.js",
+                "nested": false,
+                "line": 1,
+                "end_line": 4,
+                "declaration": "import {\n save as persist,\n type Value\n} from \"./store.js\";"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          },
+          {
+            "path": "ui/app.ts",
+            "line": 10,
+            "function": "run",
+            "function_line": 8,
+            "call": "disk.save",
+            "bindings": [
+              {
+                "kind": "namespace",
+                "local": "disk",
+                "imported": null,
+                "target": "ui/store.js",
+                "specifier": "./store.js",
+                "nested": false,
+                "line": 5,
+                "end_line": 5,
+                "declaration": "import * as disk from \"./store.js\";"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          }
+        ],
+        "scanned_functions": 15,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "save",
+        "path": "ui/store.js",
+        "line": 1,
+        "end_line": 1,
+        "signature": "export function save(data)",
+        "parameters": [
+          "data"
+        ],
+        "returns": [
+          {
+            "line": 1,
+            "code": "export function save(data) { return data; }",
+            "refs": [
+              {
+                "path": "ui/store.js",
+                "line": 1,
+                "end_line": 1
+              }
+            ]
+          }
+        ],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [],
+        "callers": [
+          {
+            "path": "ui/app.ts",
+            "line": 9,
+            "function": "run",
+            "function_line": 8,
+            "call": "persist",
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "persist",
+                "imported": "save",
+                "target": "ui/store.js",
+                "specifier": "./store.js",
+                "nested": false,
+                "line": 1,
+                "end_line": 4,
+                "declaration": "import {\n save as persist,\n type Value\n} from \"./store.js\";"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "ui/app.ts",
+                "line": 9,
+                "end_line": 9
+              }
+            ]
+          },
+          {
+            "path": "ui/app.ts",
+            "line": 10,
+            "function": "run",
+            "function_line": 8,
+            "call": "disk.save",
+            "bindings": [
+              {
+                "kind": "namespace",
+                "local": "disk",
+                "imported": null,
+                "target": "ui/store.js",
+                "specifier": "./store.js",
+                "nested": false,
+                "line": 5,
+                "end_line": 5,
+                "declaration": "import * as disk from \"./store.js\";"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "ui/app.ts",
+                "line": 10,
+                "end_line": 10
+              }
+            ]
+          }
+        ],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "ui/store.js",
+            "line": 1,
+            "end_line": 1
+          }
+        ]
+      }
+    },
+    {
+      "path": "ui/other.js",
+      "line": 1,
+      "guide": {
+        "name": "persist",
+        "range": {
+          "start": 1,
+          "end": 1,
+          "header_end": 30
+        },
+        "signature": "export function persist(data)",
+        "steps": [
+          {
+            "kind": "return",
+            "line": 1,
+            "text": "この位置で呼び出し元へ戻る記述があります。返す値をコードで確認してください。"
+          }
+        ],
+        "calls": [],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 15,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "persist",
+        "path": "ui/other.js",
+        "line": 1,
+        "end_line": 1,
+        "signature": "export function persist(data)",
+        "parameters": [
+          "data"
+        ],
+        "returns": [
+          {
+            "line": 1,
+            "code": "export function persist(data) { return data; }",
+            "refs": [
+              {
+                "path": "ui/other.js",
+                "line": 1,
+                "end_line": 1
+              }
+            ]
+          }
+        ],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [],
+        "callers": [],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "ui/other.js",
+            "line": 1,
+            "end_line": 1
+          }
+        ]
+      }
+    },
+    {
+      "path": "ui/codec.js",
+      "line": 1,
+      "guide": {
+        "name": "parse",
+        "range": {
+          "start": 1,
+          "end": 1,
+          "header_end": 36
+        },
+        "signature": "export default function parse(data)",
+        "steps": [
+          {
+            "kind": "return",
+            "line": 1,
+            "text": "この位置で呼び出し元へ戻る記述があります。返す値をコードで確認してください。"
+          }
+        ],
+        "calls": [],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [
+          {
+            "path": "ui/app.ts",
+            "line": 11,
+            "function": "run",
+            "function_line": 8,
+            "call": "decode",
+            "bindings": [
+              {
+                "kind": "default",
+                "local": "decode",
+                "imported": "default",
+                "target": "ui/codec.js",
+                "specifier": "./codec.js",
+                "nested": false,
+                "line": 6,
+                "end_line": 6,
+                "declaration": "import decode from \"./codec.js\";"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          }
+        ],
+        "scanned_functions": 15,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "parse",
+        "path": "ui/codec.js",
+        "line": 1,
+        "end_line": 1,
+        "signature": "export default function parse(data)",
+        "parameters": [
+          "data"
+        ],
+        "returns": [
+          {
+            "line": 1,
+            "code": "export default function parse(data) { return data; }",
+            "refs": [
+              {
+                "path": "ui/codec.js",
+                "line": 1,
+                "end_line": 1
+              }
+            ]
+          }
+        ],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [],
+        "callers": [
+          {
+            "path": "ui/app.ts",
+            "line": 11,
+            "function": "run",
+            "function_line": 8,
+            "call": "decode",
+            "bindings": [
+              {
+                "kind": "default",
+                "local": "decode",
+                "imported": "default",
+                "target": "ui/codec.js",
+                "specifier": "./codec.js",
+                "nested": false,
+                "line": 6,
+                "end_line": 6,
+                "declaration": "import decode from \"./codec.js\";"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "ui/app.ts",
+                "line": 11,
+                "end_line": 11
+              }
+            ]
+          }
+        ],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "ui/codec.js",
+            "line": 1,
+            "end_line": 1
+          }
+        ]
+      }
+    },
+    {
+      "path": "service/app.py",
+      "line": 5,
+      "guide": {
+        "name": "run",
+        "range": {
+          "start": 5,
+          "end": 7
+        },
+        "signature": "def run(data):",
+        "steps": [],
+        "calls": [
+          {
+            "name": "persist",
+            "line": 6,
+            "macro": false,
+            "candidates": [
+              {
+                "path": "service/storage.py",
+                "line": 1,
+                "name": "save"
+              }
+            ],
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "persist",
+                "imported": "save",
+                "target": "service/storage.py",
+                "specifier": "./storage",
+                "nested": false,
+                "line": 1,
+                "end_line": 3,
+                "declaration": "from .storage import (\n save as persist,\n)"
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          },
+          {
+            "name": "disk.save",
+            "line": 7,
+            "macro": false,
+            "candidates": [
+              {
+                "path": "service/storage.py",
+                "line": 1,
+                "name": "save"
+              }
+            ],
+            "bindings": [
+              {
+                "kind": "namespace",
+                "local": "disk",
+                "imported": null,
+                "target": "service/storage.py",
+                "specifier": "./",
+                "nested": false,
+                "line": 4,
+                "end_line": 4,
+                "declaration": "from . import storage as disk"
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          }
+        ],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 15,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "run",
+        "path": "service/app.py",
+        "line": 5,
+        "end_line": 7,
+        "signature": "def run(data):",
+        "parameters": [
+          "data"
+        ],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [
+          {
+            "name": "persist",
+            "line": 6,
+            "candidates": [
+              {
+                "path": "service/storage.py",
+                "line": 1,
+                "name": "save",
+                "refs": [
+                  {
+                    "path": "service/storage.py",
+                    "line": 1,
+                    "end_line": 1
+                  }
+                ]
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "service/app.py",
+                "line": 6,
+                "end_line": 6
+              }
+            ]
+          },
+          {
+            "name": "disk.save",
+            "line": 7,
+            "candidates": [
+              {
+                "path": "service/storage.py",
+                "line": 1,
+                "name": "save",
+                "refs": [
+                  {
+                    "path": "service/storage.py",
+                    "line": 1,
+                    "end_line": 1
+                  }
+                ]
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "service/app.py",
+                "line": 7,
+                "end_line": 7
+              }
+            ]
+          }
+        ],
+        "callers": [],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "service/app.py",
+            "line": 5,
+            "end_line": 7
+          }
+        ]
+      }
+    },
+    {
+      "path": "service/app.py",
+      "line": 8,
+      "guide": {
+        "name": "shadow",
+        "range": {
+          "start": 8,
+          "end": 9
+        },
+        "signature": "def shadow(persist):",
+        "steps": [],
+        "calls": [
+          {
+            "name": "persist",
+            "line": 9,
+            "macro": false,
+            "candidates": [],
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "persist",
+                "imported": "save",
+                "target": "service/storage.py",
+                "specifier": "./storage",
+                "nested": false,
+                "line": 1,
+                "end_line": 3,
+                "declaration": "from .storage import (\n save as persist,\n)"
+              }
+            ],
+            "unread": [],
+            "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。"
+          }
+        ],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 15,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "shadow",
+        "path": "service/app.py",
+        "line": 8,
+        "end_line": 9,
+        "signature": "def shadow(persist):",
+        "parameters": [
+          "persist"
+        ],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [
+          {
+            "name": "persist",
+            "line": 9,
+            "candidates": [],
+            "unread": [],
+            "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。",
+            "refs": [
+              {
+                "path": "service/app.py",
+                "line": 9,
+                "end_line": 9
+              }
+            ]
+          }
+        ],
+        "callers": [],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "service/app.py",
+            "line": 8,
+            "end_line": 9
+          }
+        ]
+      }
+    },
+    {
+      "path": "service/app.py",
+      "line": 10,
+      "guide": {
+        "name": "later",
+        "range": {
+          "start": 10,
+          "end": 11
+        },
+        "signature": "def later():",
+        "steps": [],
+        "calls": [
+          {
+            "name": "persist",
+            "line": 11,
+            "macro": false,
+            "candidates": [
+              {
+                "path": "service/storage.py",
+                "line": 1,
+                "name": "save"
+              }
+            ],
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "persist",
+                "imported": "save",
+                "target": "service/storage.py",
+                "specifier": "./storage",
+                "nested": false,
+                "line": 1,
+                "end_line": 3,
+                "declaration": "from .storage import (\n save as persist,\n)"
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          }
+        ],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 15,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "later",
+        "path": "service/app.py",
+        "line": 10,
+        "end_line": 11,
+        "signature": "def later():",
+        "parameters": [],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [
+          {
+            "name": "persist",
+            "line": 11,
+            "candidates": [
+              {
+                "path": "service/storage.py",
+                "line": 1,
+                "name": "save",
+                "refs": [
+                  {
+                    "path": "service/storage.py",
+                    "line": 1,
+                    "end_line": 1
+                  }
+                ]
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "service/app.py",
+                "line": 11,
+                "end_line": 11
+              }
+            ]
+          }
+        ],
+        "callers": [],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "service/app.py",
+            "line": 10,
+            "end_line": 11
+          }
+        ]
+      }
+    },
+    {
+      "path": "service/storage.py",
+      "line": 1,
+      "guide": {
+        "name": "save",
+        "range": {
+          "start": 1,
+          "end": 2
+        },
+        "signature": "def save(data):",
+        "steps": [
+          {
+            "kind": "return",
+            "line": 2,
+            "text": "この位置で呼び出し元へ戻る記述があります。返す値をコードで確認してください。"
+          }
+        ],
+        "calls": [],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [
+          {
+            "path": "service/app.py",
+            "line": 6,
+            "function": "run",
+            "function_line": 5,
+            "call": "persist",
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "persist",
+                "imported": "save",
+                "target": "service/storage.py",
+                "specifier": "./storage",
+                "nested": false,
+                "line": 1,
+                "end_line": 3,
+                "declaration": "from .storage import (\n save as persist,\n)"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          },
+          {
+            "path": "service/app.py",
+            "line": 7,
+            "function": "run",
+            "function_line": 5,
+            "call": "disk.save",
+            "bindings": [
+              {
+                "kind": "namespace",
+                "local": "disk",
+                "imported": null,
+                "target": "service/storage.py",
+                "specifier": "./",
+                "nested": false,
+                "line": 4,
+                "end_line": 4,
+                "declaration": "from . import storage as disk"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          },
+          {
+            "path": "service/app.py",
+            "line": 11,
+            "function": "later",
+            "function_line": 10,
+            "call": "persist",
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "persist",
+                "imported": "save",
+                "target": "service/storage.py",
+                "specifier": "./storage",
+                "nested": false,
+                "line": 1,
+                "end_line": 3,
+                "declaration": "from .storage import (\n save as persist,\n)"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          }
+        ],
+        "scanned_functions": 15,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "save",
+        "path": "service/storage.py",
+        "line": 1,
+        "end_line": 2,
+        "signature": "def save(data):",
+        "parameters": [
+          "data"
+        ],
+        "returns": [
+          {
+            "line": 2,
+            "code": "return data",
+            "refs": [
+              {
+                "path": "service/storage.py",
+                "line": 2,
+                "end_line": 2
+              }
+            ]
+          }
+        ],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [],
+        "callers": [
+          {
+            "path": "service/app.py",
+            "line": 6,
+            "function": "run",
+            "function_line": 5,
+            "call": "persist",
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "persist",
+                "imported": "save",
+                "target": "service/storage.py",
+                "specifier": "./storage",
+                "nested": false,
+                "line": 1,
+                "end_line": 3,
+                "declaration": "from .storage import (\n save as persist,\n)"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "service/app.py",
+                "line": 6,
+                "end_line": 6
+              }
+            ]
+          },
+          {
+            "path": "service/app.py",
+            "line": 7,
+            "function": "run",
+            "function_line": 5,
+            "call": "disk.save",
+            "bindings": [
+              {
+                "kind": "namespace",
+                "local": "disk",
+                "imported": null,
+                "target": "service/storage.py",
+                "specifier": "./",
+                "nested": false,
+                "line": 4,
+                "end_line": 4,
+                "declaration": "from . import storage as disk"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "service/app.py",
+                "line": 7,
+                "end_line": 7
+              }
+            ]
+          },
+          {
+            "path": "service/app.py",
+            "line": 11,
+            "function": "later",
+            "function_line": 10,
+            "call": "persist",
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "persist",
+                "imported": "save",
+                "target": "service/storage.py",
+                "specifier": "./storage",
+                "nested": false,
+                "line": 1,
+                "end_line": 3,
+                "declaration": "from .storage import (\n save as persist,\n)"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "service/app.py",
+                "line": 11,
+                "end_line": 11
+              }
+            ]
+          }
+        ],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "service/storage.py",
+            "line": 1,
+            "end_line": 2
+          }
+        ]
+      }
+    }
+  ],
+  "questions": [
+    {
+      "question": "保存できなかったらどうなる？",
+      "result": {
+        "schema_version": 1,
+        "question": "保存できなかったらどうなる？",
+        "intents": [
+          {
+            "id": "storage",
+            "label": "保存・書き込み"
+          },
+          {
+            "id": "failure",
+            "label": "失敗したときの扱い"
+          }
+        ],
+        "terms": [],
+        "findings": [
+          {
+            "intent": "storage",
+            "text": "run（ui/app.ts） に、ファイル等へ書き込む記述（10・13行目）がある",
+            "kind": "code",
+            "refs": [
+              {
+                "path": "ui/app.ts",
+                "line": 10,
+                "end_line": 10
+              },
+              {
+                "path": "ui/app.ts",
+                "line": 13,
+                "end_line": 13
+              }
+            ],
+            "lines": [
+              {
+                "line": 10,
+                "code": "disk.save(input);",
+                "label": "ファイル等へ書き込む記述",
+                "refs": [
+                  {
+                    "path": "ui/app.ts",
+                    "line": 10,
+                    "end_line": 10
+                  }
+                ]
+              },
+              {
+                "line": 13,
+                "code": "unknown.save(input);",
+                "label": "ファイル等へ書き込む記述",
+                "refs": [
+                  {
+                    "path": "ui/app.ts",
+                    "line": 13,
+                    "end_line": 13
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "functions": [
+          {
+            "found": true,
+            "name": "run",
+            "path": "ui/app.ts",
+            "line": 8,
+            "end_line": 14,
+            "signature": "function run(input: string)",
+            "parameters": [
+              "input: string"
+            ],
+            "returns": [],
+            "branches": [],
+            "raised": [],
+            "caught": [],
+            "effects": [
+              {
+                "kind": "write",
+                "label": "ファイル等へ書き込む記述",
+                "certainty": "statement",
+                "line": 10,
+                "code": "disk.save(input);",
+                "refs": [
+                  {
+                    "path": "ui/app.ts",
+                    "line": 10,
+                    "end_line": 10
+                  }
+                ]
+              },
+              {
+                "kind": "write",
+                "label": "ファイル等へ書き込む記述",
+                "certainty": "statement",
+                "line": 13,
+                "code": "unknown.save(input);",
+                "refs": [
+                  {
+                    "path": "ui/app.ts",
+                    "line": 13,
+                    "end_line": 13
+                  }
+                ]
+              }
+            ],
+            "callees": [
+              {
+                "name": "persist",
+                "line": 9,
+                "candidates": [
+                  {
+                    "path": "ui/store.js",
+                    "line": 1,
+                    "name": "save",
+                    "refs": [
+                      {
+                        "path": "ui/store.js",
+                        "line": 1,
+                        "end_line": 1
+                      }
+                    ]
+                  }
+                ],
+                "unread": [],
+                "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+                "refs": [
+                  {
+                    "path": "ui/app.ts",
+                    "line": 9,
+                    "end_line": 9
+                  }
+                ]
+              },
+              {
+                "name": "disk.save",
+                "line": 10,
+                "candidates": [
+                  {
+                    "path": "ui/store.js",
+                    "line": 1,
+                    "name": "save",
+                    "refs": [
+                      {
+                        "path": "ui/store.js",
+                        "line": 1,
+                        "end_line": 1
+                      }
+                    ]
+                  }
+                ],
+                "unread": [],
+                "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+                "refs": [
+                  {
+                    "path": "ui/app.ts",
+                    "line": 10,
+                    "end_line": 10
+                  }
+                ]
+              },
+              {
+                "name": "decode",
+                "line": 11,
+                "candidates": [
+                  {
+                    "path": "ui/codec.js",
+                    "line": 1,
+                    "name": "parse",
+                    "refs": [
+                      {
+                        "path": "ui/codec.js",
+                        "line": 1,
+                        "end_line": 1
+                      }
+                    ]
+                  }
+                ],
+                "unread": [],
+                "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+                "refs": [
+                  {
+                    "path": "ui/app.ts",
+                    "line": 11,
+                    "end_line": 11
+                  }
+                ]
+              },
+              {
+                "name": "save",
+                "line": 12,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "ui/app.ts",
+                    "line": 12,
+                    "end_line": 12
+                  }
+                ]
+              },
+              {
+                "name": "unknown.save",
+                "line": 13,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "ui/app.ts",
+                    "line": 13,
+                    "end_line": 13
+                  }
+                ]
+              }
+            ],
+            "callers": [],
+            "name_callers": [],
+            "config": {
+              "options": [],
+              "env": []
+            },
+            "tests": [],
+            "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+            "refs": [
+              {
+                "path": "ui/app.ts",
+                "line": 8,
+                "end_line": 14
+              }
+            ]
+          }
+        ],
+        "missing": [
+          {
+            "text": "読み取った 10 件のファイルに、「失敗したときの扱い」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "needed_files": [],
+        "unread_files": 0,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "入力と設定を調べたい",
+      "result": {
+        "schema_version": 1,
+        "question": "入力と設定を調べたい",
+        "intents": [
+          {
+            "id": "input",
+            "label": "入力"
+          },
+          {
+            "id": "config",
+            "label": "設定"
+          }
+        ],
+        "terms": [],
+        "findings": [],
+        "functions": [],
+        "options": [],
+        "missing": [
+          {
+            "text": "読み取った 10 件のファイルに、「入力」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          },
+          {
+            "text": "読み取った 10 件のファイルに、「設定」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "needed_files": [],
+        "unread_files": 0,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "送信と読み出しのテスト",
+      "result": {
+        "schema_version": 1,
+        "question": "送信と読み出しのテスト",
+        "intents": [
+          {
+            "id": "send",
+            "label": "送信・通知"
+          },
+          {
+            "id": "read",
+            "label": "読み出し・表示"
+          },
+          {
+            "id": "test",
+            "label": "既存のテスト"
+          }
+        ],
+        "terms": [],
+        "findings": [],
+        "functions": [],
+        "tests": [],
+        "missing": [
+          {
+            "text": "読み取った 10 件のファイルに、「送信・通知」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          },
+          {
+            "text": "読み取った 10 件のファイルに、「読み出し・表示」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "needed_files": [],
+        "unread_files": 0,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "main はどこ？",
+      "result": {
+        "schema_version": 1,
+        "question": "main はどこ？",
+        "intents": [],
+        "terms": [
+          "main"
+        ],
+        "findings": [
+          {
+            "intent": "name",
+            "text": "質問の「main」と同じ名前の関数 main が src/main.rs の2行目にある",
+            "kind": "code",
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 2,
+                "end_line": 6
+              }
+            ]
+          }
+        ],
+        "functions": [
+          {
+            "found": true,
+            "name": "main",
+            "path": "src/main.rs",
+            "line": 2,
+            "end_line": 6,
+            "signature": "fn main(input: &str)",
+            "parameters": [
+              "input: &str"
+            ],
+            "returns": [],
+            "branches": [],
+            "raised": [],
+            "caught": [],
+            "effects": [],
+            "callees": [
+              {
+                "name": "persist",
+                "line": 3,
+                "candidates": [
+                  {
+                    "path": "src/storage.rs",
+                    "line": 1,
+                    "name": "save",
+                    "refs": [
+                      {
+                        "path": "src/storage.rs",
+                        "line": 1,
+                        "end_line": 1
+                      }
+                    ]
+                  }
+                ],
+                "unread": [],
+                "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+                "refs": [
+                  {
+                    "path": "src/main.rs",
+                    "line": 3,
+                    "end_line": 3
+                  }
+                ]
+              },
+              {
+                "name": "disk::save",
+                "line": 4,
+                "candidates": [
+                  {
+                    "path": "src/storage.rs",
+                    "line": 1,
+                    "name": "save",
+                    "refs": [
+                      {
+                        "path": "src/storage.rs",
+                        "line": 1,
+                        "end_line": 1
+                      }
+                    ]
+                  }
+                ],
+                "unread": [],
+                "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+                "refs": [
+                  {
+                    "path": "src/main.rs",
+                    "line": 4,
+                    "end_line": 4
+                  }
+                ]
+              },
+              {
+                "name": "other::save",
+                "line": 5,
+                "candidates": [
+                  {
+                    "path": "src/other.rs",
+                    "line": 1,
+                    "name": "save",
+                    "refs": [
+                      {
+                        "path": "src/other.rs",
+                        "line": 1,
+                        "end_line": 1
+                      }
+                    ]
+                  }
+                ],
+                "unread": [],
+                "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+                "refs": [
+                  {
+                    "path": "src/main.rs",
+                    "line": 5,
+                    "end_line": 5
+                  }
+                ]
+              }
+            ],
+            "callers": [],
+            "name_callers": [],
+            "config": {
+              "options": [],
+              "env": []
+            },
+            "tests": [],
+            "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 2,
+                "end_line": 6
+              }
+            ]
+          }
+        ],
+        "missing": [],
+        "needed_files": [],
+        "unread_files": 0,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "起動方法",
+      "result": {
+        "schema_version": 1,
+        "question": "起動方法",
+        "intents": [
+          {
+            "id": "start",
+            "label": "起動方法"
+          }
+        ],
+        "terms": [],
+        "findings": [],
+        "functions": [],
+        "missing": [],
+        "needed_files": [],
+        "unread_files": 0,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "？？？",
+      "result": {
+        "schema_version": 1,
+        "question": "？？？",
+        "intents": [],
+        "terms": [],
+        "findings": [],
+        "functions": [],
+        "missing": [
+          {
+            "text": "質問から、調べる観点（保存・失敗・送信・入力・表示・起動・テスト・設定）や関数名を読み取れなかった。関数名や「保存」「失敗」などの語を含めてください",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "needed_files": [],
+        "unread_files": 0,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    }
+  ]
+}

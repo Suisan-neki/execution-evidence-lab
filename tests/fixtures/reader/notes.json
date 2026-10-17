@@ -1,0 +1,3834 @@
+{
+  "snapshot": {
+    "schema": 1,
+    "fullName": "example/notes",
+    "description": "架空の記録アプリ",
+    "reference": "main",
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "truncated": false,
+    "inventory": [
+      {
+        "path": "notes.py",
+        "size": 994,
+        "mode": "100644",
+        "sha": "0000000000000000000000000000000000000000"
+      },
+      {
+        "path": "README.md",
+        "size": 70,
+        "mode": "100644",
+        "sha": "0000000000000000000000000000000000000000"
+      },
+      {
+        "path": "tests/basic.t",
+        "size": 82,
+        "mode": "100644",
+        "sha": "0000000000000000000000000000000000000000"
+      },
+      {
+        "path": "requirements.txt",
+        "size": 5,
+        "mode": "100644",
+        "sha": "0000000000000000000000000000000000000000"
+      },
+      {
+        "path": "docs/large.md",
+        "size": 10,
+        "mode": "100644",
+        "sha": "0000000000000000000000000000000000000000"
+      }
+    ],
+    "files": {
+      "notes.py": "import os\nimport sys\nfrom optparse import OptionParser\n\nclass BadFile(Exception):\n    def __init__(self, path):\n        super(BadFile, self).__init__()\n        self.path = path\n\nclass Store(object):\n    def __init__(self, directory):\n        self.directory = directory\n\n    def write(self, text):\n        path = os.path.join(self.directory, 'notes')\n        try:\n            with open(path, 'w') as f:\n                f.write(text)\n        except IOError:\n            raise BadFile(path)\n\ndef main():\n    parser = OptionParser()\n    parser.add_option(\"-d\", \"--dir\", dest=\"directory\", default=\"\", metavar=\"DIR\", help=\"保存するディレクトリ\")\n    parser.add_option(\"-n\", \"--name\", dest=\"name\", default=\"notes\", metavar=\"NAME\", help=\"保存するファイル名\")\n    (options, args) = parser.parse_args()\n    store = Store(options.directory)\n    try:\n        store.write(' '.join(args))\n    except BadFile as e:\n        sys.stderr.write('保存できませんでした: %s\\n' % e.path)\n        sys.exit(1)\n\nif __name__ == '__main__':\n    main()\n",
+      "README.md": "# notes\n\nnotes は、短いメモをファイルに保存するための架空のコマンドです。\n\n    python notes.py 買い物\n",
+      "tests/basic.t": "  $ alias xn=\"python $TESTDIR/../notes.py --dir .\"\n  $ xn 買い物\n  $ cat notes\n  買い物\n",
+      "requirements.txt": "cram\n"
+    },
+    "omitted": [
+      {
+        "path": "docs/large.md",
+        "reason": "初回の読取範囲外"
+      }
+    ]
+  },
+  "model": {
+    "files": [
+      {
+        "path": "notes.py",
+        "text": "import os\nimport sys\nfrom optparse import OptionParser\n\nclass BadFile(Exception):\n    def __init__(self, path):\n        super(BadFile, self).__init__()\n        self.path = path\n\nclass Store(object):\n    def __init__(self, directory):\n        self.directory = directory\n\n    def write(self, text):\n        path = os.path.join(self.directory, 'notes')\n        try:\n            with open(path, 'w') as f:\n                f.write(text)\n        except IOError:\n            raise BadFile(path)\n\ndef main():\n    parser = OptionParser()\n    parser.add_option(\"-d\", \"--dir\", dest=\"directory\", default=\"\", metavar=\"DIR\", help=\"保存するディレクトリ\")\n    parser.add_option(\"-n\", \"--name\", dest=\"name\", default=\"notes\", metavar=\"NAME\", help=\"保存するファイル名\")\n    (options, args) = parser.parse_args()\n    store = Store(options.directory)\n    try:\n        store.write(' '.join(args))\n    except BadFile as e:\n        sys.stderr.write('保存できませんでした: %s\\n' % e.path)\n        sys.exit(1)\n\nif __name__ == '__main__':\n    main()\n",
+        "symbols": [
+          {
+            "name": "__init__",
+            "line": 6,
+            "end": 10
+          },
+          {
+            "name": "__init__",
+            "line": 11,
+            "end": 13
+          },
+          {
+            "name": "write",
+            "line": 14,
+            "end": 21
+          },
+          {
+            "name": "main",
+            "line": 22,
+            "end": 36
+          }
+        ],
+        "imports": [],
+        "bindings": [
+          {
+            "kind": "named",
+            "local": "OptionParser",
+            "imported": "OptionParser",
+            "target": null,
+            "specifier": "optparse",
+            "nested": false,
+            "line": 3,
+            "end_line": 3,
+            "declaration": "from optparse import OptionParser"
+          },
+          {
+            "kind": "namespace",
+            "local": "os",
+            "imported": null,
+            "target": null,
+            "specifier": "os",
+            "nested": false,
+            "line": 1,
+            "end_line": 1,
+            "declaration": "import os"
+          },
+          {
+            "kind": "namespace",
+            "local": "sys",
+            "imported": null,
+            "target": null,
+            "specifier": "sys",
+            "nested": false,
+            "line": 2,
+            "end_line": 2,
+            "declaration": "import sys"
+          }
+        ],
+        "role": "Pythonのコード"
+      },
+      {
+        "path": "README.md",
+        "text": "# notes\n\nnotes は、短いメモをファイルに保存するための架空のコマンドです。\n\n    python notes.py 買い物\n",
+        "symbols": [],
+        "imports": [],
+        "bindings": [],
+        "role": "プロジェクトの説明"
+      },
+      {
+        "path": "tests/basic.t",
+        "text": "  $ alias xn=\"python $TESTDIR/../notes.py --dir .\"\n  $ xn 買い物\n  $ cat notes\n  買い物\n",
+        "symbols": [],
+        "imports": [],
+        "bindings": [],
+        "role": "テスト・補助処理"
+      },
+      {
+        "path": "requirements.txt",
+        "text": "cram\n",
+        "symbols": [],
+        "imports": [],
+        "bindings": [],
+        "role": "起動設定・依存パッケージ"
+      }
+    ],
+    "entries": [
+      {
+        "path": "notes.py",
+        "line": 34,
+        "reason": "直接起動したときに動く記述（if __name__ == '__main__'）があるファイル"
+      }
+    ],
+    "scripts": [],
+    "inventory": [
+      {
+        "path": "notes.py",
+        "size": 994,
+        "mode": "100644",
+        "sha": "0000000000000000000000000000000000000000"
+      },
+      {
+        "path": "README.md",
+        "size": 70,
+        "mode": "100644",
+        "sha": "0000000000000000000000000000000000000000"
+      },
+      {
+        "path": "tests/basic.t",
+        "size": 82,
+        "mode": "100644",
+        "sha": "0000000000000000000000000000000000000000"
+      },
+      {
+        "path": "requirements.txt",
+        "size": 5,
+        "mode": "100644",
+        "sha": "0000000000000000000000000000000000000000"
+      },
+      {
+        "path": "docs/large.md",
+        "size": 10,
+        "mode": "100644",
+        "sha": "0000000000000000000000000000000000000000"
+      }
+    ],
+    "inventory_truncated": false,
+    "edges": []
+  },
+  "overview": {
+    "schema_version": 1,
+    "repository": "example/notes",
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "reference": "main",
+    "read": {
+      "inventory": 5,
+      "files_read": 4,
+      "unread": [
+        {
+          "path": "docs/large.md",
+          "reason": "初回の読取範囲外"
+        }
+      ],
+      "truncated": false
+    },
+    "languages": [
+      {
+        "name": "Python",
+        "files": 1,
+        "execution": "Python 3 で実行できる（標準ライブラリで動く範囲）",
+        "executable": true
+      }
+    ],
+    "purpose": [
+      {
+        "text": "架空の記録アプリ",
+        "kind": "author",
+        "origin": "GitHubのリポジトリ説明（作者の記入）",
+        "refs": []
+      },
+      {
+        "text": "notes は、短いメモをファイルに保存するための架空のコマンドです。",
+        "refs": [
+          {
+            "path": "README.md",
+            "line": 3,
+            "end_line": 3
+          }
+        ],
+        "kind": "author",
+        "origin": "README.md（作者の説明）"
+      }
+    ],
+    "start": [
+      {
+        "text": "notes.py: 直接起動したときに動く記述（if __name__ == '__main__'）があるファイル",
+        "kind": "code",
+        "refs": [
+          {
+            "path": "notes.py",
+            "line": 34,
+            "end_line": 34
+          }
+        ]
+      },
+      {
+        "text": "README に書かれたコマンド: python notes.py 買い物",
+        "kind": "author",
+        "refs": [
+          {
+            "path": "README.md",
+            "line": 5,
+            "end_line": 5
+          }
+        ]
+      }
+    ],
+    "components": [
+      {
+        "path": "notes.py",
+        "role": "Pythonのコード",
+        "lines": 35,
+        "description": null,
+        "functions": [
+          {
+            "name": "BadFile.__init__",
+            "line": 6,
+            "end_line": 8,
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 6,
+                "end_line": 8
+              }
+            ]
+          },
+          {
+            "name": "Store.__init__",
+            "line": 11,
+            "end_line": 12,
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 11,
+                "end_line": 12
+              }
+            ]
+          },
+          {
+            "name": "Store.write",
+            "line": 14,
+            "end_line": 20,
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 14,
+                "end_line": 20
+              }
+            ]
+          },
+          {
+            "name": "main",
+            "line": 22,
+            "end_line": 32,
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 22,
+                "end_line": 32
+              }
+            ]
+          }
+        ],
+        "effect_counts": {
+          "write": 3,
+          "catch": 2,
+          "raise": 1,
+          "input": 1,
+          "error_output": 1,
+          "exit": 1
+        },
+        "refs": [
+          {
+            "path": "notes.py",
+            "line": 1,
+            "end_line": 35
+          }
+        ]
+      }
+    ],
+    "behaviors": [
+      {
+        "function": "Store.write",
+        "path": "notes.py",
+        "line": 14,
+        "text": "Store.write には、ファイル等へ書き込む記述（17行目）、名前が write の呼び出し。ファイル等への書き込みの候補（18行目）、例外・エラーを捕捉する記述（19行目）、例外・エラーを発生させる記述（20行目）がある",
+        "kind": "code",
+        "kinds": [
+          "write",
+          "catch",
+          "raise"
+        ],
+        "refs": [
+          {
+            "path": "notes.py",
+            "line": 17,
+            "end_line": 17
+          },
+          {
+            "path": "notes.py",
+            "line": 18,
+            "end_line": 18
+          },
+          {
+            "path": "notes.py",
+            "line": 19,
+            "end_line": 19
+          },
+          {
+            "path": "notes.py",
+            "line": 20,
+            "end_line": 20
+          }
+        ]
+      },
+      {
+        "function": "main",
+        "path": "notes.py",
+        "line": 22,
+        "text": "main には、外部からの入力（引数・標準入力・リクエスト）を受け取る記述（26行目）、名前が write の呼び出し。ファイル等への書き込みの候補（29行目）、例外・エラーを捕捉する記述（30行目）、エラー表示（標準エラー）へ出力する記述（31行目）、プロセスを終了させる記述（32行目）がある",
+        "kind": "code",
+        "kinds": [
+          "input",
+          "write",
+          "catch",
+          "error_output",
+          "exit"
+        ],
+        "refs": [
+          {
+            "path": "notes.py",
+            "line": 26,
+            "end_line": 26
+          },
+          {
+            "path": "notes.py",
+            "line": 29,
+            "end_line": 29
+          },
+          {
+            "path": "notes.py",
+            "line": 30,
+            "end_line": 30
+          },
+          {
+            "path": "notes.py",
+            "line": 31,
+            "end_line": 31
+          },
+          {
+            "path": "notes.py",
+            "line": 32,
+            "end_line": 32
+          }
+        ]
+      }
+    ],
+    "flows": [
+      {
+        "entry": {
+          "path": "notes.py",
+          "line": 34,
+          "reason": "直接起動したときに動く記述（if __name__ == '__main__'）があるファイル",
+          "code": "if __name__ == '__main__':"
+        },
+        "kind": "inference",
+        "basis": "入口から、名前と参照宣言で対応づけた呼び出し候補をたどった。分岐の条件・実際に実行される順序・到達は確かめていない",
+        "inputs": [
+          {
+            "kind": "input",
+            "label": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+            "certainty": "statement",
+            "line": 26,
+            "code": "(options, args) = parser.parse_args()",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 26,
+                "end_line": 26
+              }
+            ],
+            "function": "main"
+          }
+        ],
+        "storage": [
+          {
+            "kind": "write",
+            "label": "名前が write の呼び出し。ファイル等への書き込みの候補",
+            "certainty": "name",
+            "line": 29,
+            "code": "store.write(' '.join(args))",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 29,
+                "end_line": 29
+              }
+            ],
+            "function": "main"
+          },
+          {
+            "kind": "write",
+            "label": "ファイル等へ書き込む記述",
+            "certainty": "statement",
+            "line": 17,
+            "code": "with open(path, 'w') as f:",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 17,
+                "end_line": 17
+              }
+            ],
+            "function": "Store.write"
+          },
+          {
+            "kind": "write",
+            "label": "名前が write の呼び出し。ファイル等への書き込みの候補",
+            "certainty": "name",
+            "line": 18,
+            "code": "f.write(text)",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 18,
+                "end_line": 18
+              }
+            ],
+            "function": "Store.write"
+          }
+        ],
+        "sending": [],
+        "outputs": [
+          {
+            "kind": "error_output",
+            "label": "エラー表示（標準エラー）へ出力する記述",
+            "certainty": "statement",
+            "line": 31,
+            "code": "sys.stderr.write('保存できませんでした: %s\\n' % e.path)",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 31,
+                "end_line": 31
+              }
+            ],
+            "function": "main"
+          }
+        ],
+        "errors": [
+          {
+            "kind": "catch",
+            "label": "例外・エラーを捕捉する記述",
+            "certainty": "statement",
+            "line": 30,
+            "code": "except BadFile as e:",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 30,
+                "end_line": 30
+              }
+            ],
+            "function": "main"
+          },
+          {
+            "kind": "exit",
+            "label": "プロセスを終了させる記述",
+            "certainty": "statement",
+            "line": 32,
+            "code": "sys.exit(1)",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 32,
+                "end_line": 32
+              }
+            ],
+            "function": "main"
+          },
+          {
+            "kind": "catch",
+            "label": "例外・エラーを捕捉する記述",
+            "certainty": "statement",
+            "line": 19,
+            "code": "except IOError:",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 19,
+                "end_line": 19
+              }
+            ],
+            "function": "Store.write"
+          },
+          {
+            "kind": "raise",
+            "label": "例外・エラーを発生させる記述",
+            "certainty": "statement",
+            "line": 20,
+            "code": "raise BadFile(path)",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 20,
+                "end_line": 20
+              }
+            ],
+            "function": "Store.write"
+          }
+        ],
+        "steps": [
+          {
+            "function": "main",
+            "path": "notes.py",
+            "line": 22,
+            "end_line": 32,
+            "depth": 0,
+            "called_from": {
+              "path": "notes.py",
+              "line": 35,
+              "end_line": 35
+            },
+            "effects": [
+              {
+                "kind": "input",
+                "label": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+                "certainty": "statement",
+                "line": 26,
+                "code": "(options, args) = parser.parse_args()",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 26,
+                    "end_line": 26
+                  }
+                ]
+              },
+              {
+                "kind": "write",
+                "label": "名前が write の呼び出し。ファイル等への書き込みの候補",
+                "certainty": "name",
+                "line": 29,
+                "code": "store.write(' '.join(args))",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 29,
+                    "end_line": 29
+                  }
+                ]
+              },
+              {
+                "kind": "catch",
+                "label": "例外・エラーを捕捉する記述",
+                "certainty": "statement",
+                "line": 30,
+                "code": "except BadFile as e:",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 30,
+                    "end_line": 30
+                  }
+                ]
+              },
+              {
+                "kind": "error_output",
+                "label": "エラー表示（標準エラー）へ出力する記述",
+                "certainty": "statement",
+                "line": 31,
+                "code": "sys.stderr.write('保存できませんでした: %s\\n' % e.path)",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 31,
+                    "end_line": 31
+                  }
+                ]
+              },
+              {
+                "kind": "exit",
+                "label": "プロセスを終了させる記述",
+                "certainty": "statement",
+                "line": 32,
+                "code": "sys.exit(1)",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 32,
+                    "end_line": 32
+                  }
+                ]
+              }
+            ],
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 22,
+                "end_line": 32
+              }
+            ]
+          },
+          {
+            "function": "Store.__init__",
+            "path": "notes.py",
+            "line": 11,
+            "end_line": 12,
+            "depth": 1,
+            "called_from": {
+              "path": "notes.py",
+              "line": 27,
+              "end_line": 27
+            },
+            "effects": [],
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 11,
+                "end_line": 12
+              }
+            ]
+          },
+          {
+            "function": "Store.write",
+            "path": "notes.py",
+            "line": 14,
+            "end_line": 20,
+            "depth": 1,
+            "called_from": {
+              "path": "notes.py",
+              "line": 29,
+              "end_line": 29
+            },
+            "effects": [
+              {
+                "kind": "write",
+                "label": "ファイル等へ書き込む記述",
+                "certainty": "statement",
+                "line": 17,
+                "code": "with open(path, 'w') as f:",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 17,
+                    "end_line": 17
+                  }
+                ]
+              },
+              {
+                "kind": "write",
+                "label": "名前が write の呼び出し。ファイル等への書き込みの候補",
+                "certainty": "name",
+                "line": 18,
+                "code": "f.write(text)",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 18,
+                    "end_line": 18
+                  }
+                ]
+              },
+              {
+                "kind": "catch",
+                "label": "例外・エラーを捕捉する記述",
+                "certainty": "statement",
+                "line": 19,
+                "code": "except IOError:",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 19,
+                    "end_line": 19
+                  }
+                ]
+              },
+              {
+                "kind": "raise",
+                "label": "例外・エラーを発生させる記述",
+                "certainty": "statement",
+                "line": 20,
+                "code": "raise BadFile(path)",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 20,
+                    "end_line": 20
+                  }
+                ]
+              }
+            ],
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 14,
+                "end_line": 20
+              }
+            ]
+          },
+          {
+            "function": "BadFile.__init__",
+            "path": "notes.py",
+            "line": 6,
+            "end_line": 8,
+            "depth": 2,
+            "called_from": {
+              "path": "notes.py",
+              "line": 20,
+              "end_line": 20
+            },
+            "effects": [],
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 6,
+                "end_line": 8
+              }
+            ]
+          }
+        ],
+        "truncated": false,
+        "unresolved_calls": 0
+      }
+    ],
+    "tests": [
+      {
+        "path": "tests/basic.t",
+        "kind": "cram（シェルのコマンドと期待する出力を並べた形式）",
+        "read": true,
+        "refs": [
+          {
+            "path": "tests/basic.t",
+            "line": 1,
+            "end_line": 4
+          }
+        ]
+      }
+    ],
+    "unknown": [
+      {
+        "text": "読み取っていないファイルが 1 件ある。必要に応じて読み込む",
+        "kind": "code",
+        "refs": []
+      },
+      {
+        "text": "README やコメントの説明が、現在のコードの動作と一致するかは確かめていない",
+        "kind": "inference",
+        "refs": []
+      },
+      {
+        "text": "処理の関係は、名前と参照宣言から作った呼び出し候補。実際にどの経路が実行されるかは、試験で確かめる必要がある",
+        "kind": "inference",
+        "refs": []
+      },
+      {
+        "text": "外部サービス、実行環境の設定、利用者の権限、保存先の実際の状態は、コードを読むだけでは確かめられない",
+        "kind": "inference",
+        "refs": []
+      }
+    ],
+    "kinds": {
+      "author": "作者の説明（README・コメント等）。コードで確かめていない",
+      "code": "コードの記述から確認した事実",
+      "inference": "解析による推測。実行して確かめていない"
+    },
+    "limits": "コードの記述から作った説明です。実行していないため、実際の動作・到達・成否は試験で確かめる必要があります。"
+  },
+  "plan": {
+    "schema_version": 1,
+    "repository": "example/notes",
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "languages": [
+      {
+        "name": "Python",
+        "files": 1,
+        "execution": "Python 3 で実行できる（標準ライブラリで動く範囲）",
+        "executable": true
+      }
+    ],
+    "executable": true,
+    "unsupported_reason": null,
+    "entries": [
+      {
+        "entrypoint": "notes.py",
+        "launch": "file",
+        "runtime": "python3",
+        "reason": "直接起動したときに動く記述（if __name__ == '__main__'）があるファイル",
+        "kind": "code",
+        "refs": [
+          {
+            "path": "notes.py",
+            "line": 34,
+            "end_line": 34
+          }
+        ],
+        "supported": true,
+        "unsupported_reason": null
+      }
+    ],
+    "options": [
+      {
+        "flags": [
+          "-d",
+          "--dir"
+        ],
+        "dest": "directory",
+        "default": "",
+        "help": "保存するディレクトリ",
+        "metavar": "DIR",
+        "action": null,
+        "path": "notes.py",
+        "line": 24,
+        "refs": [
+          {
+            "path": "notes.py",
+            "line": 24,
+            "end_line": 24
+          }
+        ]
+      },
+      {
+        "flags": [
+          "-n",
+          "--name"
+        ],
+        "dest": "name",
+        "default": "notes",
+        "help": "保存するファイル名",
+        "metavar": "NAME",
+        "action": null,
+        "path": "notes.py",
+        "line": 25,
+        "refs": [
+          {
+            "path": "notes.py",
+            "line": 25,
+            "end_line": 25
+          }
+        ]
+      }
+    ],
+    "storage": [
+      {
+        "text": "Store.write の17行目に書き込みの記述がある: with open(path, 'w') as f:",
+        "kind": "code",
+        "refs": [
+          {
+            "path": "notes.py",
+            "line": 17,
+            "end_line": 17
+          }
+        ]
+      },
+      {
+        "text": "オプション -d / --dir（説明: 保存するディレクトリ）、既定値 。保存先の指定に関係する可能性がある",
+        "kind": "inference",
+        "refs": [
+          {
+            "path": "notes.py",
+            "line": 24,
+            "end_line": 24
+          }
+        ],
+        "option": {
+          "flags": [
+            "-d",
+            "--dir"
+          ],
+          "dest": "directory",
+          "default": "",
+          "help": "保存するディレクトリ",
+          "metavar": "DIR",
+          "action": null,
+          "path": "notes.py",
+          "line": 24,
+          "refs": [
+            {
+              "path": "notes.py",
+              "line": 24,
+              "end_line": 24
+            }
+          ]
+        }
+      },
+      {
+        "text": "オプション -n / --name（説明: 保存するファイル名）、既定値 notes。保存先の指定に関係する可能性がある",
+        "kind": "inference",
+        "refs": [
+          {
+            "path": "notes.py",
+            "line": 25,
+            "end_line": 25
+          }
+        ],
+        "option": {
+          "flags": [
+            "-n",
+            "--name"
+          ],
+          "dest": "name",
+          "default": "notes",
+          "help": "保存するファイル名",
+          "metavar": "NAME",
+          "action": null,
+          "path": "notes.py",
+          "line": 25,
+          "refs": [
+            {
+              "path": "notes.py",
+              "line": 25,
+              "end_line": 25
+            }
+          ]
+        }
+      }
+    ],
+    "tests": [
+      {
+        "path": "tests/basic.t",
+        "kind": "cram（シェルのコマンドと期待する出力を並べた形式）",
+        "read": true,
+        "refs": [
+          {
+            "path": "tests/basic.t",
+            "line": 1,
+            "end_line": 4
+          }
+        ]
+      }
+    ],
+    "test_commands": [
+      {
+        "text": "cram tests/*.t（cram形式のテスト）",
+        "refs": [
+          {
+            "path": "requirements.txt",
+            "line": 1,
+            "end_line": 1
+          }
+        ],
+        "runnable": false,
+        "reason": "cram は requirements.txt に依存パッケージとして書かれている。この基盤は依存パッケージをインストールしないため、既存テストは実行しない。テストの例を判定条件の案に使う"
+      }
+    ],
+    "examples": [
+      {
+        "path": "tests/basic.t",
+        "command": "xn 買い物",
+        "expected": [],
+        "alias": "python $TESTDIR/../notes.py --dir .",
+        "refs": [
+          {
+            "path": "tests/basic.t",
+            "line": 2,
+            "end_line": 2
+          }
+        ]
+      },
+      {
+        "path": "tests/basic.t",
+        "command": "cat notes",
+        "expected": [
+          "買い物"
+        ],
+        "alias": null,
+        "refs": [
+          {
+            "path": "tests/basic.t",
+            "line": 3,
+            "end_line": 4
+          }
+        ]
+      }
+    ],
+    "dependencies": [
+      {
+        "name": "cram",
+        "file": "requirements.txt",
+        "refs": [
+          {
+            "path": "requirements.txt",
+            "line": 1,
+            "end_line": 1
+          }
+        ]
+      }
+    ],
+    "faults": [
+      {
+        "id": "normal",
+        "label": "故障なし（通常時）",
+        "needs_storage": false,
+        "applicable": "使える"
+      },
+      {
+        "id": "storage_read_only",
+        "label": "保存先を書き込み不可にする",
+        "needs_storage": true,
+        "how": "試行の前に、基盤が保存先へ空のファイルを作り、書き込み権限を外す。書き込めないことを基盤が確かめてから対象を起動する",
+        "applicable": "保存先のパスを指定したときに使える"
+      },
+      {
+        "id": "storage_is_directory",
+        "label": "保存先に同名のディレクトリを置く",
+        "needs_storage": true,
+        "how": "試行の前に、基盤が保存先と同じ名前のディレクトリを作る。ファイルとして開けない状態になる",
+        "applicable": "保存先のパスを指定したときに使える"
+      },
+      {
+        "id": "skip_state_read",
+        "label": "基盤による保存先の読み出しを止める（観測の欠落）",
+        "needs_storage": false,
+        "how": "対象は通常どおり動かし、試行後に基盤が保存先を読み出す処理だけを止める。観測がないときに成功と扱わないかを確かめる",
+        "applicable": "使える"
+      },
+      {
+        "id": "network_unavailable",
+        "label": "外部への通信を遮断する",
+        "needs_storage": false,
+        "how": "Linuxのbubblewrap方式で、ネットワークを持たない環境で起動する。local方式では使えない",
+        "applicable": "送信の記述が見つからないため、効果を確かめにくい。bubblewrap方式（Linux）でだけ使える"
+      },
+      {
+        "id": "storage_directory_read_only",
+        "label": "保存先のディレクトリを書き込み不可にする",
+        "needs_storage": true,
+        "how": "試行の前に、基盤が保存先のディレクトリを空で作り、書き込み権限を外す。ディレクトリへ書き込めないことを基盤が確かめてから起動する",
+        "applicable": "ディレクトリを含む保存先のパス（例: received/file）を指定したときに使える"
+      },
+      {
+        "id": "server_not_started",
+        "label": "待つプロセス（受信側など）を起動しない",
+        "needs_server": true,
+        "how": "待つプロセスを起動せず、操作するプロセスだけを動かす。割り当てたポートが応答しないことを基盤が確かめる",
+        "applicable": "待つプロセスを指定したときに使える"
+      },
+      {
+        "id": "database_stopped",
+        "label": "データベースのコンテナを止める",
+        "needs_containers": true,
+        "how": "コンテナが準備できたあと、データベースの役割のコンテナを止める。止まったことを確かめてから操作する",
+        "applicable": "試験専用のコンテナを指定したときに使える"
+      },
+      {
+        "id": "database_unreachable",
+        "label": "対象とデータベースの間の通信を切る",
+        "needs_containers": true,
+        "how": "コンテナが準備できたあと、データベースを試験用ネットワークから外す。外れたことを確かめてから操作する",
+        "applicable": "試験専用のコンテナを指定したときに使える"
+      },
+      {
+        "id": "volume_read_only",
+        "label": "保存先のボリュームを読み取り専用にする",
+        "needs_containers": true,
+        "how": "コンテナが準備できたあと、データベースの保存先ボリュームを読み取り専用で載せ直す。書き込めないことを確かめる",
+        "applicable": "試験専用のコンテナを指定したときに使える"
+      }
+    ],
+    "observation": [
+      {
+        "method": "exit_code",
+        "label": "終了コード",
+        "source": "対象プログラムの報告"
+      },
+      {
+        "method": "stdout",
+        "label": "標準出力",
+        "source": "対象プログラムの報告"
+      },
+      {
+        "method": "stderr",
+        "label": "標準エラー（エラー表示）",
+        "source": "対象プログラムの報告"
+      },
+      {
+        "method": "stored_file",
+        "label": "保存先の内容",
+        "source": "基盤が保存先を直接読み出した結果"
+      },
+      {
+        "method": "readback_output",
+        "label": "後からの読み出し",
+        "source": "別のプロセスで対象の読み出し機能を動かした結果"
+      },
+      {
+        "method": "server_output",
+        "label": "待つプロセスの出力",
+        "source": "待つプロセス（受信側など）の出力"
+      }
+    ],
+    "missing": [
+      {
+        "text": "試行で使う引数。試験用の値を入れる場所には {{test_value}} と書く",
+        "kind": "inference"
+      },
+      {
+        "text": "保存先のパス（試行用の作業ディレクトリからの相対パス）。保存先を指定しないと、基盤による保存先の読み出しと保存先の故障は使えない",
+        "kind": "inference"
+      },
+      {
+        "text": "後から読み出すコマンド（任意）。書き込みとは別のプロセスで読み出せるかを確かめる",
+        "kind": "inference"
+      },
+      {
+        "text": "先に起動して待つプロセス（任意）。受信サーバーのように待ち受けるプロセスは、引数のポートを {{port}} と書くと、基盤が 127.0.0.1 の空いているポートを割り当てる",
+        "kind": "inference"
+      }
+    ],
+    "isolation": "対象は試行ごとに新しい作業ディレクトリで動く。固定コミットのファイルは読み取り専用で複製し、環境変数は消し、HOMEも作業ディレクトリにする。local方式はOSによる隔離を行わないため、対象が絶対パスで書き込む処理は止められない",
+    "origin": "コード・テストからの提案。人が確認して保存するまで、期待や判定条件の決定ではない"
+  },
+  "functions": [
+    {
+      "path": "notes.py",
+      "line": 6,
+      "guide": {
+        "name": "__init__",
+        "range": {
+          "start": 6,
+          "end": 8
+        },
+        "signature": "def __init__(self, path):",
+        "steps": [],
+        "calls": [
+          {
+            "name": "super",
+            "line": 7,
+            "macro": false,
+            "candidates": [],
+            "bindings": [],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。"
+          },
+          {
+            "name": "__init__",
+            "line": 7,
+            "macro": false,
+            "candidates": [],
+            "bindings": [],
+            "unread": [],
+            "reason": "式の結果に対するメソッド呼び出しで、対応先を特定できません。"
+          }
+        ],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 4,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "BadFile.__init__",
+        "path": "notes.py",
+        "line": 6,
+        "end_line": 8,
+        "signature": "def __init__(self, path):",
+        "parameters": [
+          "path"
+        ],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [
+          {
+            "name": "super",
+            "line": 7,
+            "candidates": [],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 7,
+                "end_line": 7
+              }
+            ]
+          },
+          {
+            "name": "__init__",
+            "line": 7,
+            "candidates": [],
+            "unread": [],
+            "reason": "式の結果に対するメソッド呼び出しで、対応先を特定できません。",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 7,
+                "end_line": 7
+              }
+            ]
+          }
+        ],
+        "callers": [],
+        "name_callers": [
+          {
+            "path": "notes.py",
+            "line": 20,
+            "function": "Store.write",
+            "code": "raise BadFile(path)",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 20,
+                "end_line": 20
+              }
+            ],
+            "reason": "クラス BadFile を作る記述。__init__ が呼ばれる候補"
+          }
+        ],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "notes.py",
+            "line": 6,
+            "end_line": 8
+          }
+        ]
+      }
+    },
+    {
+      "path": "notes.py",
+      "line": 11,
+      "guide": {
+        "name": "__init__",
+        "range": {
+          "start": 11,
+          "end": 12
+        },
+        "signature": "def __init__(self, directory):",
+        "steps": [],
+        "calls": [],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 4,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "Store.__init__",
+        "path": "notes.py",
+        "line": 11,
+        "end_line": 12,
+        "signature": "def __init__(self, directory):",
+        "parameters": [
+          "directory"
+        ],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [],
+        "callers": [],
+        "name_callers": [
+          {
+            "path": "notes.py",
+            "line": 27,
+            "function": "main",
+            "code": "store = Store(options.directory)",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 27,
+                "end_line": 27
+              }
+            ],
+            "reason": "クラス Store を作る記述。__init__ が呼ばれる候補"
+          }
+        ],
+        "config": {
+          "options": [
+            {
+              "flags": [
+                "-d",
+                "--dir"
+              ],
+              "dest": "directory",
+              "default": "",
+              "help": "保存するディレクトリ",
+              "metavar": "DIR",
+              "action": null,
+              "path": "notes.py",
+              "line": 24,
+              "refs": [
+                {
+                  "path": "notes.py",
+                  "line": 24,
+                  "end_line": 24
+                }
+              ]
+            }
+          ],
+          "env": []
+        },
+        "tests": [
+          {
+            "path": "tests/basic.t",
+            "line": 1,
+            "code": "$ alias xn=\"python $TESTDIR/../notes.py --dir .\"",
+            "refs": [
+              {
+                "path": "tests/basic.t",
+                "line": 1,
+                "end_line": 1
+              }
+            ]
+          }
+        ],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "notes.py",
+            "line": 11,
+            "end_line": 12
+          }
+        ]
+      }
+    },
+    {
+      "path": "notes.py",
+      "line": 14,
+      "guide": {
+        "name": "write",
+        "range": {
+          "start": 14,
+          "end": 20
+        },
+        "signature": "def write(self, text):",
+        "steps": [
+          {
+            "kind": "error",
+            "line": 20,
+            "text": "例外やエラーを発生させる記述があります。呼び出し元の扱いを確認してください。"
+          }
+        ],
+        "calls": [
+          {
+            "name": "os.path.join",
+            "line": 15,
+            "macro": false,
+            "candidates": [],
+            "bindings": [
+              {
+                "kind": "namespace",
+                "local": "os",
+                "imported": null,
+                "target": null,
+                "specifier": "os",
+                "nested": false,
+                "line": 1,
+                "end_line": 1,
+                "declaration": "import os"
+              }
+            ],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。"
+          },
+          {
+            "name": "open",
+            "line": 17,
+            "macro": false,
+            "candidates": [],
+            "bindings": [],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。"
+          },
+          {
+            "name": "f.write",
+            "line": 18,
+            "macro": false,
+            "candidates": [],
+            "bindings": [],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。"
+          },
+          {
+            "name": "BadFile",
+            "line": 20,
+            "macro": false,
+            "candidates": [],
+            "bindings": [],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。"
+          }
+        ],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 4,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "Store.write",
+        "path": "notes.py",
+        "line": 14,
+        "end_line": 20,
+        "signature": "def write(self, text):",
+        "parameters": [
+          "text"
+        ],
+        "returns": [],
+        "branches": [],
+        "raised": [
+          {
+            "exception": "BadFile",
+            "line": 20,
+            "code": "raise BadFile(path)",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 20,
+                "end_line": 20
+              }
+            ],
+            "handlers": [
+              {
+                "path": "notes.py",
+                "line": 30,
+                "function": "main",
+                "code": "except BadFile as e:",
+                "body": [
+                  {
+                    "line": 31,
+                    "code": "sys.stderr.write('保存できませんでした: %s\\n' % e.path)"
+                  },
+                  {
+                    "line": 32,
+                    "code": "sys.exit(1)"
+                  },
+                  {
+                    "line": 34,
+                    "code": "if __name__ == '__main__':"
+                  }
+                ],
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 30,
+                    "end_line": 34
+                  }
+                ]
+              }
+            ],
+            "handled": {
+              "kind": "inference",
+              "text": "BadFile を捕捉する記述が main（notes.py 30行目） にある。この関数から実際にそこへ戻るかは、呼び出し関係の候補から推測した"
+            }
+          }
+        ],
+        "caught": [
+          {
+            "line": 19,
+            "code": "except IOError:",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 19,
+                "end_line": 19
+              }
+            ]
+          }
+        ],
+        "effects": [
+          {
+            "kind": "write",
+            "label": "ファイル等へ書き込む記述",
+            "certainty": "statement",
+            "line": 17,
+            "code": "with open(path, 'w') as f:",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 17,
+                "end_line": 17
+              }
+            ]
+          },
+          {
+            "kind": "write",
+            "label": "名前が write の呼び出し。ファイル等への書き込みの候補",
+            "certainty": "name",
+            "line": 18,
+            "code": "f.write(text)",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 18,
+                "end_line": 18
+              }
+            ]
+          },
+          {
+            "kind": "catch",
+            "label": "例外・エラーを捕捉する記述",
+            "certainty": "statement",
+            "line": 19,
+            "code": "except IOError:",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 19,
+                "end_line": 19
+              }
+            ]
+          },
+          {
+            "kind": "raise",
+            "label": "例外・エラーを発生させる記述",
+            "certainty": "statement",
+            "line": 20,
+            "code": "raise BadFile(path)",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 20,
+                "end_line": 20
+              }
+            ]
+          }
+        ],
+        "callees": [
+          {
+            "name": "os.path.join",
+            "line": 15,
+            "candidates": [],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 15,
+                "end_line": 15
+              }
+            ]
+          },
+          {
+            "name": "open",
+            "line": 17,
+            "candidates": [],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 17,
+                "end_line": 17
+              }
+            ]
+          },
+          {
+            "name": "f.write",
+            "line": 18,
+            "candidates": [],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 18,
+                "end_line": 18
+              }
+            ]
+          },
+          {
+            "name": "BadFile",
+            "line": 20,
+            "candidates": [],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 20,
+                "end_line": 20
+              }
+            ]
+          }
+        ],
+        "callers": [],
+        "name_callers": [
+          {
+            "path": "notes.py",
+            "line": 29,
+            "function": "main",
+            "code": "store.write(' '.join(args))",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 29,
+                "end_line": 29
+              }
+            ],
+            "reason": "名前 write だけが一致する呼び出し。受け手の型は確かめていない"
+          }
+        ],
+        "config": {
+          "options": [
+            {
+              "flags": [
+                "-d",
+                "--dir"
+              ],
+              "dest": "directory",
+              "default": "",
+              "help": "保存するディレクトリ",
+              "metavar": "DIR",
+              "action": null,
+              "path": "notes.py",
+              "line": 24,
+              "refs": [
+                {
+                  "path": "notes.py",
+                  "line": 24,
+                  "end_line": 24
+                }
+              ]
+            }
+          ],
+          "env": []
+        },
+        "tests": [
+          {
+            "path": "tests/basic.t",
+            "line": 1,
+            "code": "$ alias xn=\"python $TESTDIR/../notes.py --dir .\"",
+            "refs": [
+              {
+                "path": "tests/basic.t",
+                "line": 1,
+                "end_line": 1
+              }
+            ]
+          }
+        ],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "notes.py",
+            "line": 14,
+            "end_line": 20
+          }
+        ]
+      }
+    },
+    {
+      "path": "notes.py",
+      "line": 22,
+      "guide": {
+        "name": "main",
+        "range": {
+          "start": 22,
+          "end": 32
+        },
+        "signature": "def main():",
+        "steps": [],
+        "calls": [
+          {
+            "name": "OptionParser",
+            "line": 23,
+            "macro": false,
+            "candidates": [],
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "OptionParser",
+                "imported": "OptionParser",
+                "target": null,
+                "specifier": "optparse",
+                "nested": false,
+                "line": 3,
+                "end_line": 3,
+                "declaration": "from optparse import OptionParser"
+              }
+            ],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。"
+          },
+          {
+            "name": "parser.add_option",
+            "line": 24,
+            "macro": false,
+            "candidates": [],
+            "bindings": [],
+            "unread": [],
+            "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。"
+          },
+          {
+            "name": "parser.add_option",
+            "line": 25,
+            "macro": false,
+            "candidates": [],
+            "bindings": [],
+            "unread": [],
+            "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。"
+          },
+          {
+            "name": "parser.parse_args",
+            "line": 26,
+            "macro": false,
+            "candidates": [],
+            "bindings": [],
+            "unread": [],
+            "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。"
+          },
+          {
+            "name": "Store",
+            "line": 27,
+            "macro": false,
+            "candidates": [],
+            "bindings": [],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。"
+          },
+          {
+            "name": "store.write",
+            "line": 29,
+            "macro": false,
+            "candidates": [],
+            "bindings": [],
+            "unread": [],
+            "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。"
+          },
+          {
+            "name": "join",
+            "line": 29,
+            "macro": false,
+            "candidates": [],
+            "bindings": [],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。"
+          },
+          {
+            "name": "sys.stderr.write",
+            "line": 31,
+            "macro": false,
+            "candidates": [],
+            "bindings": [
+              {
+                "kind": "namespace",
+                "local": "sys",
+                "imported": null,
+                "target": null,
+                "specifier": "sys",
+                "nested": false,
+                "line": 2,
+                "end_line": 2,
+                "declaration": "import sys"
+              }
+            ],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。"
+          },
+          {
+            "name": "sys.exit",
+            "line": 32,
+            "macro": false,
+            "candidates": [],
+            "bindings": [
+              {
+                "kind": "namespace",
+                "local": "sys",
+                "imported": null,
+                "target": null,
+                "specifier": "sys",
+                "nested": false,
+                "line": 2,
+                "end_line": 2,
+                "declaration": "import sys"
+              }
+            ],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。"
+          }
+        ],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 4,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "main",
+        "path": "notes.py",
+        "line": 22,
+        "end_line": 32,
+        "signature": "def main():",
+        "parameters": [],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [
+          {
+            "line": 30,
+            "code": "except BadFile as e:",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 30,
+                "end_line": 30
+              }
+            ]
+          }
+        ],
+        "effects": [
+          {
+            "kind": "input",
+            "label": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+            "certainty": "statement",
+            "line": 26,
+            "code": "(options, args) = parser.parse_args()",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 26,
+                "end_line": 26
+              }
+            ]
+          },
+          {
+            "kind": "write",
+            "label": "名前が write の呼び出し。ファイル等への書き込みの候補",
+            "certainty": "name",
+            "line": 29,
+            "code": "store.write(' '.join(args))",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 29,
+                "end_line": 29
+              }
+            ]
+          },
+          {
+            "kind": "catch",
+            "label": "例外・エラーを捕捉する記述",
+            "certainty": "statement",
+            "line": 30,
+            "code": "except BadFile as e:",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 30,
+                "end_line": 30
+              }
+            ]
+          },
+          {
+            "kind": "error_output",
+            "label": "エラー表示（標準エラー）へ出力する記述",
+            "certainty": "statement",
+            "line": 31,
+            "code": "sys.stderr.write('保存できませんでした: %s\\n' % e.path)",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 31,
+                "end_line": 31
+              }
+            ]
+          },
+          {
+            "kind": "exit",
+            "label": "プロセスを終了させる記述",
+            "certainty": "statement",
+            "line": 32,
+            "code": "sys.exit(1)",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 32,
+                "end_line": 32
+              }
+            ]
+          }
+        ],
+        "callees": [
+          {
+            "name": "OptionParser",
+            "line": 23,
+            "candidates": [],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 23,
+                "end_line": 23
+              }
+            ]
+          },
+          {
+            "name": "parser.add_option",
+            "line": 24,
+            "candidates": [],
+            "unread": [],
+            "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 24,
+                "end_line": 24
+              }
+            ]
+          },
+          {
+            "name": "parser.parse_args",
+            "line": 26,
+            "candidates": [],
+            "unread": [],
+            "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 26,
+                "end_line": 26
+              }
+            ]
+          },
+          {
+            "name": "Store",
+            "line": 27,
+            "candidates": [],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 27,
+                "end_line": 27
+              }
+            ]
+          },
+          {
+            "name": "store.write",
+            "line": 29,
+            "candidates": [],
+            "unread": [],
+            "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 29,
+                "end_line": 29
+              }
+            ]
+          },
+          {
+            "name": "join",
+            "line": 29,
+            "candidates": [],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 29,
+                "end_line": 29
+              }
+            ]
+          },
+          {
+            "name": "sys.stderr.write",
+            "line": 31,
+            "candidates": [],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 31,
+                "end_line": 31
+              }
+            ]
+          },
+          {
+            "name": "sys.exit",
+            "line": 32,
+            "candidates": [],
+            "unread": [],
+            "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 32,
+                "end_line": 32
+              }
+            ]
+          }
+        ],
+        "callers": [],
+        "name_callers": [],
+        "config": {
+          "options": [
+            {
+              "flags": [
+                "-d",
+                "--dir"
+              ],
+              "dest": "directory",
+              "default": "",
+              "help": "保存するディレクトリ",
+              "metavar": "DIR",
+              "action": null,
+              "path": "notes.py",
+              "line": 24,
+              "refs": [
+                {
+                  "path": "notes.py",
+                  "line": 24,
+                  "end_line": 24
+                }
+              ]
+            },
+            {
+              "flags": [
+                "-n",
+                "--name"
+              ],
+              "dest": "name",
+              "default": "notes",
+              "help": "保存するファイル名",
+              "metavar": "NAME",
+              "action": null,
+              "path": "notes.py",
+              "line": 25,
+              "refs": [
+                {
+                  "path": "notes.py",
+                  "line": 25,
+                  "end_line": 25
+                }
+              ]
+            }
+          ],
+          "env": []
+        },
+        "tests": [
+          {
+            "path": "tests/basic.t",
+            "line": 1,
+            "code": "$ alias xn=\"python $TESTDIR/../notes.py --dir .\"",
+            "refs": [
+              {
+                "path": "tests/basic.t",
+                "line": 1,
+                "end_line": 1
+              }
+            ]
+          }
+        ],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "notes.py",
+            "line": 22,
+            "end_line": 32
+          }
+        ]
+      }
+    }
+  ],
+  "questions": [
+    {
+      "question": "保存できなかったらどうなる？",
+      "result": {
+        "schema_version": 1,
+        "question": "保存できなかったらどうなる？",
+        "intents": [
+          {
+            "id": "storage",
+            "label": "保存・書き込み"
+          },
+          {
+            "id": "failure",
+            "label": "失敗したときの扱い"
+          }
+        ],
+        "terms": [],
+        "findings": [
+          {
+            "intent": "storage",
+            "text": "Store.write（notes.py） に、ファイル等へ書き込む記述（17行目）、名前が write の呼び出し。ファイル等への書き込みの候補（18行目）がある",
+            "kind": "code",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 17,
+                "end_line": 17
+              },
+              {
+                "path": "notes.py",
+                "line": 18,
+                "end_line": 18
+              }
+            ],
+            "lines": [
+              {
+                "line": 17,
+                "code": "with open(path, 'w') as f:",
+                "label": "ファイル等へ書き込む記述",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 17,
+                    "end_line": 17
+                  }
+                ]
+              },
+              {
+                "line": 18,
+                "code": "f.write(text)",
+                "label": "名前が write の呼び出し。ファイル等への書き込みの候補",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 18,
+                    "end_line": 18
+                  }
+                ]
+              }
+            ],
+            "storage_origin": {
+              "text": "書き込み先の path は、15行目「path = os.path.join(self.directory, 'notes')」で作られている",
+              "kind": "code",
+              "refs": [
+                {
+                  "path": "notes.py",
+                  "line": 15,
+                  "end_line": 15
+                }
+              ]
+            }
+          },
+          {
+            "intent": "storage",
+            "text": "main（notes.py） に、名前が write の呼び出し。ファイル等への書き込みの候補（29行目）がある",
+            "kind": "inference",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 29,
+                "end_line": 29
+              }
+            ],
+            "lines": [
+              {
+                "line": 29,
+                "code": "store.write(' '.join(args))",
+                "label": "名前が write の呼び出し。ファイル等への書き込みの候補",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 29,
+                    "end_line": 29
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "intent": "failure",
+            "text": "Store.write（notes.py） に、例外・エラーを捕捉する記述（19行目）、例外・エラーを発生させる記述（20行目）がある",
+            "kind": "code",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 19,
+                "end_line": 19
+              },
+              {
+                "path": "notes.py",
+                "line": 20,
+                "end_line": 20
+              }
+            ],
+            "lines": [
+              {
+                "line": 19,
+                "code": "except IOError:",
+                "label": "例外・エラーを捕捉する記述",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 19,
+                    "end_line": 19
+                  }
+                ]
+              },
+              {
+                "line": 20,
+                "code": "raise BadFile(path)",
+                "label": "例外・エラーを発生させる記述",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 20,
+                    "end_line": 20
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "intent": "failure",
+            "text": "main（notes.py） に、例外・エラーを捕捉する記述（30行目）、エラー表示（標準エラー）へ出力する記述（31行目）、プロセスを終了させる記述（32行目）がある",
+            "kind": "code",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 30,
+                "end_line": 30
+              },
+              {
+                "path": "notes.py",
+                "line": 31,
+                "end_line": 31
+              },
+              {
+                "path": "notes.py",
+                "line": 32,
+                "end_line": 32
+              }
+            ],
+            "lines": [
+              {
+                "line": 30,
+                "code": "except BadFile as e:",
+                "label": "例外・エラーを捕捉する記述",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 30,
+                    "end_line": 30
+                  }
+                ]
+              },
+              {
+                "line": 31,
+                "code": "sys.stderr.write('保存できませんでした: %s\\n' % e.path)",
+                "label": "エラー表示（標準エラー）へ出力する記述",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 31,
+                    "end_line": 31
+                  }
+                ]
+              },
+              {
+                "line": 32,
+                "code": "sys.exit(1)",
+                "label": "プロセスを終了させる記述",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 32,
+                    "end_line": 32
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "intent": "failure",
+            "text": "Store.write は 20行目で BadFile を発生させる。BadFile を捕捉する記述が main（notes.py 30行目） にある。この関数から実際にそこへ戻るかは、呼び出し関係の候補から推測した",
+            "kind": "inference",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 20,
+                "end_line": 20
+              },
+              {
+                "path": "notes.py",
+                "line": 30,
+                "end_line": 34
+              }
+            ]
+          }
+        ],
+        "functions": [
+          {
+            "found": true,
+            "name": "Store.write",
+            "path": "notes.py",
+            "line": 14,
+            "end_line": 20,
+            "signature": "def write(self, text):",
+            "parameters": [
+              "text"
+            ],
+            "returns": [],
+            "branches": [],
+            "raised": [
+              {
+                "exception": "BadFile",
+                "line": 20,
+                "code": "raise BadFile(path)",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 20,
+                    "end_line": 20
+                  }
+                ],
+                "handlers": [
+                  {
+                    "path": "notes.py",
+                    "line": 30,
+                    "function": "main",
+                    "code": "except BadFile as e:",
+                    "body": [
+                      {
+                        "line": 31,
+                        "code": "sys.stderr.write('保存できませんでした: %s\\n' % e.path)"
+                      },
+                      {
+                        "line": 32,
+                        "code": "sys.exit(1)"
+                      },
+                      {
+                        "line": 34,
+                        "code": "if __name__ == '__main__':"
+                      }
+                    ],
+                    "refs": [
+                      {
+                        "path": "notes.py",
+                        "line": 30,
+                        "end_line": 34
+                      }
+                    ]
+                  }
+                ],
+                "handled": {
+                  "kind": "inference",
+                  "text": "BadFile を捕捉する記述が main（notes.py 30行目） にある。この関数から実際にそこへ戻るかは、呼び出し関係の候補から推測した"
+                }
+              }
+            ],
+            "caught": [
+              {
+                "line": 19,
+                "code": "except IOError:",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 19,
+                    "end_line": 19
+                  }
+                ]
+              }
+            ],
+            "effects": [
+              {
+                "kind": "write",
+                "label": "ファイル等へ書き込む記述",
+                "certainty": "statement",
+                "line": 17,
+                "code": "with open(path, 'w') as f:",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 17,
+                    "end_line": 17
+                  }
+                ]
+              },
+              {
+                "kind": "write",
+                "label": "名前が write の呼び出し。ファイル等への書き込みの候補",
+                "certainty": "name",
+                "line": 18,
+                "code": "f.write(text)",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 18,
+                    "end_line": 18
+                  }
+                ]
+              },
+              {
+                "kind": "catch",
+                "label": "例外・エラーを捕捉する記述",
+                "certainty": "statement",
+                "line": 19,
+                "code": "except IOError:",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 19,
+                    "end_line": 19
+                  }
+                ]
+              },
+              {
+                "kind": "raise",
+                "label": "例外・エラーを発生させる記述",
+                "certainty": "statement",
+                "line": 20,
+                "code": "raise BadFile(path)",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 20,
+                    "end_line": 20
+                  }
+                ]
+              }
+            ],
+            "callees": [
+              {
+                "name": "os.path.join",
+                "line": 15,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 15,
+                    "end_line": 15
+                  }
+                ]
+              },
+              {
+                "name": "open",
+                "line": 17,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 17,
+                    "end_line": 17
+                  }
+                ]
+              },
+              {
+                "name": "f.write",
+                "line": 18,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 18,
+                    "end_line": 18
+                  }
+                ]
+              },
+              {
+                "name": "BadFile",
+                "line": 20,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 20,
+                    "end_line": 20
+                  }
+                ]
+              }
+            ],
+            "callers": [],
+            "name_callers": [
+              {
+                "path": "notes.py",
+                "line": 29,
+                "function": "main",
+                "code": "store.write(' '.join(args))",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 29,
+                    "end_line": 29
+                  }
+                ],
+                "reason": "名前 write だけが一致する呼び出し。受け手の型は確かめていない"
+              }
+            ],
+            "config": {
+              "options": [
+                {
+                  "flags": [
+                    "-d",
+                    "--dir"
+                  ],
+                  "dest": "directory",
+                  "default": "",
+                  "help": "保存するディレクトリ",
+                  "metavar": "DIR",
+                  "action": null,
+                  "path": "notes.py",
+                  "line": 24,
+                  "refs": [
+                    {
+                      "path": "notes.py",
+                      "line": 24,
+                      "end_line": 24
+                    }
+                  ]
+                }
+              ],
+              "env": []
+            },
+            "tests": [
+              {
+                "path": "tests/basic.t",
+                "line": 1,
+                "code": "$ alias xn=\"python $TESTDIR/../notes.py --dir .\"",
+                "refs": [
+                  {
+                    "path": "tests/basic.t",
+                    "line": 1,
+                    "end_line": 1
+                  }
+                ]
+              }
+            ],
+            "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 14,
+                "end_line": 20
+              }
+            ]
+          },
+          {
+            "found": true,
+            "name": "main",
+            "path": "notes.py",
+            "line": 22,
+            "end_line": 32,
+            "signature": "def main():",
+            "parameters": [],
+            "returns": [],
+            "branches": [],
+            "raised": [],
+            "caught": [
+              {
+                "line": 30,
+                "code": "except BadFile as e:",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 30,
+                    "end_line": 30
+                  }
+                ]
+              }
+            ],
+            "effects": [
+              {
+                "kind": "input",
+                "label": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+                "certainty": "statement",
+                "line": 26,
+                "code": "(options, args) = parser.parse_args()",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 26,
+                    "end_line": 26
+                  }
+                ]
+              },
+              {
+                "kind": "write",
+                "label": "名前が write の呼び出し。ファイル等への書き込みの候補",
+                "certainty": "name",
+                "line": 29,
+                "code": "store.write(' '.join(args))",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 29,
+                    "end_line": 29
+                  }
+                ]
+              },
+              {
+                "kind": "catch",
+                "label": "例外・エラーを捕捉する記述",
+                "certainty": "statement",
+                "line": 30,
+                "code": "except BadFile as e:",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 30,
+                    "end_line": 30
+                  }
+                ]
+              },
+              {
+                "kind": "error_output",
+                "label": "エラー表示（標準エラー）へ出力する記述",
+                "certainty": "statement",
+                "line": 31,
+                "code": "sys.stderr.write('保存できませんでした: %s\\n' % e.path)",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 31,
+                    "end_line": 31
+                  }
+                ]
+              },
+              {
+                "kind": "exit",
+                "label": "プロセスを終了させる記述",
+                "certainty": "statement",
+                "line": 32,
+                "code": "sys.exit(1)",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 32,
+                    "end_line": 32
+                  }
+                ]
+              }
+            ],
+            "callees": [
+              {
+                "name": "OptionParser",
+                "line": 23,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 23,
+                    "end_line": 23
+                  }
+                ]
+              },
+              {
+                "name": "parser.add_option",
+                "line": 24,
+                "candidates": [],
+                "unread": [],
+                "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 24,
+                    "end_line": 24
+                  }
+                ]
+              },
+              {
+                "name": "parser.parse_args",
+                "line": 26,
+                "candidates": [],
+                "unread": [],
+                "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 26,
+                    "end_line": 26
+                  }
+                ]
+              },
+              {
+                "name": "Store",
+                "line": 27,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 27,
+                    "end_line": 27
+                  }
+                ]
+              },
+              {
+                "name": "store.write",
+                "line": 29,
+                "candidates": [],
+                "unread": [],
+                "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 29,
+                    "end_line": 29
+                  }
+                ]
+              },
+              {
+                "name": "join",
+                "line": 29,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 29,
+                    "end_line": 29
+                  }
+                ]
+              },
+              {
+                "name": "sys.stderr.write",
+                "line": 31,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 31,
+                    "end_line": 31
+                  }
+                ]
+              },
+              {
+                "name": "sys.exit",
+                "line": 32,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 32,
+                    "end_line": 32
+                  }
+                ]
+              }
+            ],
+            "callers": [],
+            "name_callers": [],
+            "config": {
+              "options": [
+                {
+                  "flags": [
+                    "-d",
+                    "--dir"
+                  ],
+                  "dest": "directory",
+                  "default": "",
+                  "help": "保存するディレクトリ",
+                  "metavar": "DIR",
+                  "action": null,
+                  "path": "notes.py",
+                  "line": 24,
+                  "refs": [
+                    {
+                      "path": "notes.py",
+                      "line": 24,
+                      "end_line": 24
+                    }
+                  ]
+                },
+                {
+                  "flags": [
+                    "-n",
+                    "--name"
+                  ],
+                  "dest": "name",
+                  "default": "notes",
+                  "help": "保存するファイル名",
+                  "metavar": "NAME",
+                  "action": null,
+                  "path": "notes.py",
+                  "line": 25,
+                  "refs": [
+                    {
+                      "path": "notes.py",
+                      "line": 25,
+                      "end_line": 25
+                    }
+                  ]
+                }
+              ],
+              "env": []
+            },
+            "tests": [
+              {
+                "path": "tests/basic.t",
+                "line": 1,
+                "code": "$ alias xn=\"python $TESTDIR/../notes.py --dir .\"",
+                "refs": [
+                  {
+                    "path": "tests/basic.t",
+                    "line": 1,
+                    "end_line": 1
+                  }
+                ]
+              }
+            ],
+            "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 22,
+                "end_line": 32
+              }
+            ]
+          }
+        ],
+        "missing": [],
+        "needed_files": [],
+        "unread_files": 1,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          },
+          {
+            "text": "読み取っていないファイルが 1 件あり、そこに該当する処理がある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "入力と設定を調べたい",
+      "result": {
+        "schema_version": 1,
+        "question": "入力と設定を調べたい",
+        "intents": [
+          {
+            "id": "input",
+            "label": "入力"
+          },
+          {
+            "id": "config",
+            "label": "設定"
+          }
+        ],
+        "terms": [],
+        "findings": [
+          {
+            "intent": "input",
+            "text": "main（notes.py） に、外部からの入力（引数・標準入力・リクエスト）を受け取る記述（26行目）がある",
+            "kind": "code",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 26,
+                "end_line": 26
+              }
+            ],
+            "lines": [
+              {
+                "line": 26,
+                "code": "(options, args) = parser.parse_args()",
+                "label": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 26,
+                    "end_line": 26
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "functions": [
+          {
+            "found": true,
+            "name": "main",
+            "path": "notes.py",
+            "line": 22,
+            "end_line": 32,
+            "signature": "def main():",
+            "parameters": [],
+            "returns": [],
+            "branches": [],
+            "raised": [],
+            "caught": [
+              {
+                "line": 30,
+                "code": "except BadFile as e:",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 30,
+                    "end_line": 30
+                  }
+                ]
+              }
+            ],
+            "effects": [
+              {
+                "kind": "input",
+                "label": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+                "certainty": "statement",
+                "line": 26,
+                "code": "(options, args) = parser.parse_args()",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 26,
+                    "end_line": 26
+                  }
+                ]
+              },
+              {
+                "kind": "write",
+                "label": "名前が write の呼び出し。ファイル等への書き込みの候補",
+                "certainty": "name",
+                "line": 29,
+                "code": "store.write(' '.join(args))",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 29,
+                    "end_line": 29
+                  }
+                ]
+              },
+              {
+                "kind": "catch",
+                "label": "例外・エラーを捕捉する記述",
+                "certainty": "statement",
+                "line": 30,
+                "code": "except BadFile as e:",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 30,
+                    "end_line": 30
+                  }
+                ]
+              },
+              {
+                "kind": "error_output",
+                "label": "エラー表示（標準エラー）へ出力する記述",
+                "certainty": "statement",
+                "line": 31,
+                "code": "sys.stderr.write('保存できませんでした: %s\\n' % e.path)",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 31,
+                    "end_line": 31
+                  }
+                ]
+              },
+              {
+                "kind": "exit",
+                "label": "プロセスを終了させる記述",
+                "certainty": "statement",
+                "line": 32,
+                "code": "sys.exit(1)",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 32,
+                    "end_line": 32
+                  }
+                ]
+              }
+            ],
+            "callees": [
+              {
+                "name": "OptionParser",
+                "line": 23,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 23,
+                    "end_line": 23
+                  }
+                ]
+              },
+              {
+                "name": "parser.add_option",
+                "line": 24,
+                "candidates": [],
+                "unread": [],
+                "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 24,
+                    "end_line": 24
+                  }
+                ]
+              },
+              {
+                "name": "parser.parse_args",
+                "line": 26,
+                "candidates": [],
+                "unread": [],
+                "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 26,
+                    "end_line": 26
+                  }
+                ]
+              },
+              {
+                "name": "Store",
+                "line": 27,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 27,
+                    "end_line": 27
+                  }
+                ]
+              },
+              {
+                "name": "store.write",
+                "line": 29,
+                "candidates": [],
+                "unread": [],
+                "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 29,
+                    "end_line": 29
+                  }
+                ]
+              },
+              {
+                "name": "join",
+                "line": 29,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 29,
+                    "end_line": 29
+                  }
+                ]
+              },
+              {
+                "name": "sys.stderr.write",
+                "line": 31,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 31,
+                    "end_line": 31
+                  }
+                ]
+              },
+              {
+                "name": "sys.exit",
+                "line": 32,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 32,
+                    "end_line": 32
+                  }
+                ]
+              }
+            ],
+            "callers": [],
+            "name_callers": [],
+            "config": {
+              "options": [
+                {
+                  "flags": [
+                    "-d",
+                    "--dir"
+                  ],
+                  "dest": "directory",
+                  "default": "",
+                  "help": "保存するディレクトリ",
+                  "metavar": "DIR",
+                  "action": null,
+                  "path": "notes.py",
+                  "line": 24,
+                  "refs": [
+                    {
+                      "path": "notes.py",
+                      "line": 24,
+                      "end_line": 24
+                    }
+                  ]
+                },
+                {
+                  "flags": [
+                    "-n",
+                    "--name"
+                  ],
+                  "dest": "name",
+                  "default": "notes",
+                  "help": "保存するファイル名",
+                  "metavar": "NAME",
+                  "action": null,
+                  "path": "notes.py",
+                  "line": 25,
+                  "refs": [
+                    {
+                      "path": "notes.py",
+                      "line": 25,
+                      "end_line": 25
+                    }
+                  ]
+                }
+              ],
+              "env": []
+            },
+            "tests": [
+              {
+                "path": "tests/basic.t",
+                "line": 1,
+                "code": "$ alias xn=\"python $TESTDIR/../notes.py --dir .\"",
+                "refs": [
+                  {
+                    "path": "tests/basic.t",
+                    "line": 1,
+                    "end_line": 1
+                  }
+                ]
+              }
+            ],
+            "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 22,
+                "end_line": 32
+              }
+            ]
+          }
+        ],
+        "options": [
+          {
+            "flags": [
+              "-d",
+              "--dir"
+            ],
+            "dest": "directory",
+            "default": "",
+            "help": "保存するディレクトリ",
+            "metavar": "DIR",
+            "action": null,
+            "path": "notes.py",
+            "line": 24,
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 24,
+                "end_line": 24
+              }
+            ]
+          },
+          {
+            "flags": [
+              "-n",
+              "--name"
+            ],
+            "dest": "name",
+            "default": "notes",
+            "help": "保存するファイル名",
+            "metavar": "NAME",
+            "action": null,
+            "path": "notes.py",
+            "line": 25,
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 25,
+                "end_line": 25
+              }
+            ]
+          }
+        ],
+        "missing": [
+          {
+            "text": "読み取った 3 件のファイルに、「設定」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "needed_files": [],
+        "unread_files": 1,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          },
+          {
+            "text": "読み取っていないファイルが 1 件あり、そこに該当する処理がある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "送信と読み出しのテスト",
+      "result": {
+        "schema_version": 1,
+        "question": "送信と読み出しのテスト",
+        "intents": [
+          {
+            "id": "send",
+            "label": "送信・通知"
+          },
+          {
+            "id": "read",
+            "label": "読み出し・表示"
+          },
+          {
+            "id": "test",
+            "label": "既存のテスト"
+          }
+        ],
+        "terms": [],
+        "findings": [],
+        "functions": [],
+        "tests": [
+          {
+            "path": "tests/basic.t",
+            "kind": "cram（シェルのコマンドと期待する出力を並べた形式）",
+            "read": true,
+            "refs": [
+              {
+                "path": "tests/basic.t",
+                "line": 1,
+                "end_line": 4
+              }
+            ]
+          }
+        ],
+        "missing": [
+          {
+            "text": "読み取った 3 件のファイルに、「送信・通知」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          },
+          {
+            "text": "読み取った 3 件のファイルに、「読み出し・表示」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "needed_files": [],
+        "unread_files": 1,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          },
+          {
+            "text": "読み取っていないファイルが 1 件あり、そこに該当する処理がある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "main はどこ？",
+      "result": {
+        "schema_version": 1,
+        "question": "main はどこ？",
+        "intents": [],
+        "terms": [
+          "main"
+        ],
+        "findings": [
+          {
+            "intent": "name",
+            "text": "質問の「main」と同じ名前の関数 main が notes.py の22行目にある",
+            "kind": "code",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 22,
+                "end_line": 32
+              }
+            ]
+          }
+        ],
+        "functions": [
+          {
+            "found": true,
+            "name": "main",
+            "path": "notes.py",
+            "line": 22,
+            "end_line": 32,
+            "signature": "def main():",
+            "parameters": [],
+            "returns": [],
+            "branches": [],
+            "raised": [],
+            "caught": [
+              {
+                "line": 30,
+                "code": "except BadFile as e:",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 30,
+                    "end_line": 30
+                  }
+                ]
+              }
+            ],
+            "effects": [
+              {
+                "kind": "input",
+                "label": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+                "certainty": "statement",
+                "line": 26,
+                "code": "(options, args) = parser.parse_args()",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 26,
+                    "end_line": 26
+                  }
+                ]
+              },
+              {
+                "kind": "write",
+                "label": "名前が write の呼び出し。ファイル等への書き込みの候補",
+                "certainty": "name",
+                "line": 29,
+                "code": "store.write(' '.join(args))",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 29,
+                    "end_line": 29
+                  }
+                ]
+              },
+              {
+                "kind": "catch",
+                "label": "例外・エラーを捕捉する記述",
+                "certainty": "statement",
+                "line": 30,
+                "code": "except BadFile as e:",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 30,
+                    "end_line": 30
+                  }
+                ]
+              },
+              {
+                "kind": "error_output",
+                "label": "エラー表示（標準エラー）へ出力する記述",
+                "certainty": "statement",
+                "line": 31,
+                "code": "sys.stderr.write('保存できませんでした: %s\\n' % e.path)",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 31,
+                    "end_line": 31
+                  }
+                ]
+              },
+              {
+                "kind": "exit",
+                "label": "プロセスを終了させる記述",
+                "certainty": "statement",
+                "line": 32,
+                "code": "sys.exit(1)",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 32,
+                    "end_line": 32
+                  }
+                ]
+              }
+            ],
+            "callees": [
+              {
+                "name": "OptionParser",
+                "line": 23,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 23,
+                    "end_line": 23
+                  }
+                ]
+              },
+              {
+                "name": "parser.add_option",
+                "line": 24,
+                "candidates": [],
+                "unread": [],
+                "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 24,
+                    "end_line": 24
+                  }
+                ]
+              },
+              {
+                "name": "parser.parse_args",
+                "line": 26,
+                "candidates": [],
+                "unread": [],
+                "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 26,
+                    "end_line": 26
+                  }
+                ]
+              },
+              {
+                "name": "Store",
+                "line": 27,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 27,
+                    "end_line": 27
+                  }
+                ]
+              },
+              {
+                "name": "store.write",
+                "line": 29,
+                "candidates": [],
+                "unread": [],
+                "reason": "引数や局所宣言に同名の記述があり、対応先を特定できません。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 29,
+                    "end_line": 29
+                  }
+                ]
+              },
+              {
+                "name": "join",
+                "line": 29,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 29,
+                    "end_line": 29
+                  }
+                ]
+              },
+              {
+                "name": "sys.stderr.write",
+                "line": 31,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 31,
+                    "end_line": 31
+                  }
+                ]
+              },
+              {
+                "name": "sys.exit",
+                "line": 32,
+                "candidates": [],
+                "unread": [],
+                "reason": "対応する宣言は抽出できませんでした。動的な呼び出しや未対応構文は未解決です。",
+                "refs": [
+                  {
+                    "path": "notes.py",
+                    "line": 32,
+                    "end_line": 32
+                  }
+                ]
+              }
+            ],
+            "callers": [],
+            "name_callers": [],
+            "config": {
+              "options": [
+                {
+                  "flags": [
+                    "-d",
+                    "--dir"
+                  ],
+                  "dest": "directory",
+                  "default": "",
+                  "help": "保存するディレクトリ",
+                  "metavar": "DIR",
+                  "action": null,
+                  "path": "notes.py",
+                  "line": 24,
+                  "refs": [
+                    {
+                      "path": "notes.py",
+                      "line": 24,
+                      "end_line": 24
+                    }
+                  ]
+                },
+                {
+                  "flags": [
+                    "-n",
+                    "--name"
+                  ],
+                  "dest": "name",
+                  "default": "notes",
+                  "help": "保存するファイル名",
+                  "metavar": "NAME",
+                  "action": null,
+                  "path": "notes.py",
+                  "line": 25,
+                  "refs": [
+                    {
+                      "path": "notes.py",
+                      "line": 25,
+                      "end_line": 25
+                    }
+                  ]
+                }
+              ],
+              "env": []
+            },
+            "tests": [
+              {
+                "path": "tests/basic.t",
+                "line": 1,
+                "code": "$ alias xn=\"python $TESTDIR/../notes.py --dir .\"",
+                "refs": [
+                  {
+                    "path": "tests/basic.t",
+                    "line": 1,
+                    "end_line": 1
+                  }
+                ]
+              }
+            ],
+            "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+            "refs": [
+              {
+                "path": "notes.py",
+                "line": 22,
+                "end_line": 32
+              }
+            ]
+          }
+        ],
+        "missing": [],
+        "needed_files": [],
+        "unread_files": 1,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          },
+          {
+            "text": "読み取っていないファイルが 1 件あり、そこに該当する処理がある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "起動方法",
+      "result": {
+        "schema_version": 1,
+        "question": "起動方法",
+        "intents": [
+          {
+            "id": "start",
+            "label": "起動方法"
+          }
+        ],
+        "terms": [],
+        "findings": [],
+        "functions": [],
+        "missing": [],
+        "needed_files": [],
+        "unread_files": 1,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          },
+          {
+            "text": "読み取っていないファイルが 1 件あり、そこに該当する処理がある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "？？？",
+      "result": {
+        "schema_version": 1,
+        "question": "？？？",
+        "intents": [],
+        "terms": [],
+        "findings": [],
+        "functions": [],
+        "missing": [
+          {
+            "text": "質問から、調べる観点（保存・失敗・送信・入力・表示・起動・テスト・設定）や関数名を読み取れなかった。関数名や「保存」「失敗」などの語を含めてください",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "needed_files": [],
+        "unread_files": 1,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          },
+          {
+            "text": "読み取っていないファイルが 1 件あり、そこに該当する処理がある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    }
+  ]
+}

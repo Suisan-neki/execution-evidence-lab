@@ -1,5 +1,6 @@
 pub mod adapters;
 pub mod ai;
+mod ai_transport;
 pub mod assessment;
 pub mod backup;
 pub mod capture;

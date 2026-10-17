@@ -4,7 +4,7 @@
 
 ## 起動と接続
 
-Rust 1.99.0でビルドする。コードの読取・静的解析にはNode.js 22以上が必要。汎用の報告観測と事例管理・比較・バックアップはRustで処理する。
+Rust 1.99.0でビルドする。公開GitHubの読取・静的解析はRustで行い、Node.jsを必要としない。汎用の報告観測と事例管理・比較・バックアップもRustで処理する。対象がNode.js製のときの実行と、任意設定のAI説明は別の経路。
 
 ```bash
 cargo build --locked
@@ -133,7 +133,7 @@ ReaderRequestは次の三形式を使う。
 
 analyze・fileのsnapshotには以前返したsnapshotの実値を渡す。空のオブジェクトは有効な記録ではない。応答にschema_version、snapshot、model、guide、callers、limitsがある。関数を指定すると、入力・分岐・待機・戻りの記述と呼び出し候補、呼び出し元を返す。コードの本文・宣言・作者の説明を同じ版に固定する。対象リポジトリのプログラムは実行しない。
 
-初回は24ファイル、各128KiBまで。読取処理は30秒、出力は8MiBまで。信頼する読取処理に、ホストが設定したプロキシと追加CAの環境設定だけを引き継ぐ。HTTPからこれらの値を上書きする操作はない。未読・取得失敗・途中で切れた一覧を、リポジトリ全体の解析として扱わない。AIによる業務上の意味の説明と完全な束縛解析は未実装。保存したsnapshotの真正性は保証しない。詳しい構文の範囲は[理解の仕様](repository-understanding.md)。
+初回は最大4並列で24ファイル、各128KiBまで。読取と解析は同じ30秒の期限を使い、解析の反復で期限を確認する。Rustの処理は子プロセスの強制終了ではないため、期限を超えた直後の停止は保証しない。宣言の解析は中括弧の入れ子128段までとし、超えた入力は結果を返さずエラーにする。出力はread・analyze・fileが8MiB、その他が16MiBまで。HTTPSの接続先はapi.github.comとraw.githubusercontent.comだけで、リダイレクトには従わない。サーバーが設定したHTTP(S)プロキシとNO_PROXYを使い、証明書はOSの信頼設定で検証する。Linuxで独自CAを使う場合はSSL_CERT_FILE・SSL_CERT_DIRも利用できる。NODE_EXTRA_CA_CERTSはRustの読取には使わない。HTTPからこれらの値を上書きする操作はない。未読・取得失敗・途中で切れた一覧を、リポジトリ全体の解析として扱わない。AIによる業務上の意味の説明と完全な束縛解析は未実装。保存したsnapshotの真正性は保証しない。詳しい構文の範囲は[理解の仕様](repository-understanding.md)。
 
 ## 比較とバックアップ・復元
 
@@ -159,3 +159,14 @@ npm run test:backend
 `tools/backend-demo.mjs`は合成のPython接続例を別プロセスで動かし、報告の取り込み、判断、再試験、比較、バックアップ、復元をAPIとCLIで確認する。`examples/general-observations/producer.py`を他言語の接続例へ置き換える場合も、同じJSON形式で報告する。
 
 読む順番は`src/reported.rs` → `src/workspace.rs`の報告取り込み → `src/comparison.rs` → `src/backup.rs` → `src/review.rs` → `tools/backend-demo.mjs`。医療固有の固定対象と判定は`src/adapters/vitalsensing.rs`へ分離した。現在の実行状態はサーバー単位の一件で、サーバー停止・再起動後のジョブ再開やキャンセルは未対応。複数人の公開サービス、任意アプリの自動ビルド・自動計測、実参加者の理解評価、実CASE-001・AWS・iOSは別の残件。
+
+
+## Rustによる読取・解析（#144）
+
+`src/reader.rs`が要求を受け、`src/reader/github.rs`で固定版を取得する。`analysis.rs`と`comprehension.rs`が宣言・参照・呼び出し候補を抽出し、`overview.rs`・`inquiry.rs`・`plan.rs`が概要・質問への箇所集め・試験計画を返す。読取・解析のためのスクリプトや一時ディレクトリを作らず、対象のコードも実行しない。
+
+入力済みのsnapshotの解析は通信せず、トークンファイルも読まない。追加の本文が必要な操作だけがHTTPクライアントを作る。EEL_GITHUB_TOKEN_FILEの値はサーバーだけが読み、api.github.comへの要求ヘッダーにだけ付ける。raw.githubusercontent.comへは付けない。通信エラーにはURL・ヘッダー・応答本文を含めない。
+
+候補の優先順位と24ファイルの上限を保つ。候補内の同順位はロケール依存の並びからパスのバイト順へ変更し、並列取得した本文も候補順で記録する。同じ優先順位に大小文字・記号が混在する場合、初回に選ぶファイルが従来と異なることがある。必要な本文は追加で読める。
+
+旧`cargo run -- explore`はブラウザ内のJS版を維持する。Rustの解析本体へ新機能を追加するときに旧画面へ同じ機能を追加する方針は取らず、APIへ移す作業を別に扱う。今回の移植で旧画面の操作コードや、対象のNode.js実行、Playwrightの画面試験は変更していない。

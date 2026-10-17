@@ -1,0 +1,2338 @@
+{
+  "snapshot": {
+    "schema": 1,
+    "fullName": "example/project",
+    "description": "Fixture",
+    "reference": "main",
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "inventory": [
+      {
+        "path": "Cargo.toml",
+        "mode": "100644",
+        "size": 31
+      },
+      {
+        "path": "src/main.rs",
+        "mode": "100644",
+        "size": 139
+      },
+      {
+        "path": "src/storage.rs",
+        "mode": "100644",
+        "size": 33
+      },
+      {
+        "path": "src/network.rs",
+        "mode": "100644",
+        "size": 16
+      },
+      {
+        "path": "ui/main.js",
+        "mode": "100644",
+        "size": 138
+      },
+      {
+        "path": "ui/storage.js",
+        "mode": "100644",
+        "size": 25
+      },
+      {
+        "path": "service/main.py",
+        "mode": "100644",
+        "size": 72
+      },
+      {
+        "path": "service/storage.py",
+        "mode": "100644",
+        "size": 20
+      },
+      {
+        "path": "package.json",
+        "mode": "100644",
+        "size": 39
+      }
+    ],
+    "files": {
+      "Cargo.toml": "[package]\nname = \"example-app\"\n",
+      "src/main.rs": "use example_app::{storage::{save, load}, network};\n// fn imaginary() {}\nfn main() { save(); }\nfn borrow(x: &'static str) { }\nfn later() { }",
+      "src/storage.rs": "pub fn save() {}\npub fn load() {}",
+      "src/network.rs": "pub fn send() {}",
+      "ui/main.js": "// import x from \"./fake.js\";\nimport { save } from \"./storage.js\";\nconst example = \"function imaginary() {}\";\nfunction begin() { save(); }",
+      "ui/storage.js": "export function save() {}",
+      "service/main.py": "from .storage import save\n# def imaginary(): pass\ndef main():\n    save()",
+      "service/storage.py": "def save():\n    pass",
+      "package.json": "{\"scripts\":{\"start\":\"node ui/main.js\"}}"
+    },
+    "omitted": [],
+    "truncated": false
+  },
+  "model": {
+    "files": [
+      {
+        "path": "Cargo.toml",
+        "text": "[package]\nname = \"example-app\"\n",
+        "symbols": [],
+        "imports": [],
+        "bindings": [],
+        "role": "起動設定・依存パッケージ"
+      },
+      {
+        "path": "src/main.rs",
+        "text": "use example_app::{storage::{save, load}, network};\n// fn imaginary() {}\nfn main() { save(); }\nfn borrow(x: &'static str) { }\nfn later() { }",
+        "symbols": [
+          {
+            "name": "main",
+            "line": 3,
+            "end": 3
+          },
+          {
+            "name": "borrow",
+            "line": 4,
+            "end": 4
+          },
+          {
+            "name": "later",
+            "line": 5,
+            "end": 5
+          }
+        ],
+        "imports": [
+          {
+            "from": "src/main.rs",
+            "to": "src/storage.rs",
+            "line": 1,
+            "kind": "参照宣言"
+          },
+          {
+            "from": "src/main.rs",
+            "to": "src/network.rs",
+            "line": 1,
+            "kind": "参照宣言"
+          }
+        ],
+        "bindings": [
+          {
+            "kind": "named",
+            "local": "save",
+            "imported": "save",
+            "target": "src/storage.rs",
+            "specifier": "example_app::storage::save",
+            "nested": false,
+            "line": 1,
+            "end_line": 1,
+            "declaration": "use example_app::{storage::{save, load}, network};"
+          },
+          {
+            "kind": "named",
+            "local": "load",
+            "imported": "load",
+            "target": "src/storage.rs",
+            "specifier": "example_app::storage::load",
+            "nested": false,
+            "line": 1,
+            "end_line": 1,
+            "declaration": "use example_app::{storage::{save, load}, network};"
+          },
+          {
+            "kind": "namespace",
+            "local": "network",
+            "imported": null,
+            "target": "src/network.rs",
+            "specifier": "example_app::network",
+            "nested": false,
+            "line": 1,
+            "end_line": 1,
+            "declaration": "use example_app::{storage::{save, load}, network};"
+          }
+        ],
+        "role": "Rustのコード"
+      },
+      {
+        "path": "src/storage.rs",
+        "text": "pub fn save() {}\npub fn load() {}",
+        "symbols": [
+          {
+            "name": "save",
+            "line": 1,
+            "end": 1
+          },
+          {
+            "name": "load",
+            "line": 2,
+            "end": 2
+          }
+        ],
+        "imports": [],
+        "bindings": [],
+        "role": "Rustのコード"
+      },
+      {
+        "path": "src/network.rs",
+        "text": "pub fn send() {}",
+        "symbols": [
+          {
+            "name": "send",
+            "line": 1,
+            "end": 1
+          }
+        ],
+        "imports": [],
+        "bindings": [],
+        "role": "Rustのコード"
+      },
+      {
+        "path": "ui/main.js",
+        "text": "// import x from \"./fake.js\";\nimport { save } from \"./storage.js\";\nconst example = \"function imaginary() {}\";\nfunction begin() { save(); }",
+        "symbols": [
+          {
+            "name": "begin",
+            "line": 4,
+            "end": 4
+          }
+        ],
+        "imports": [
+          {
+            "from": "ui/main.js",
+            "to": "ui/storage.js",
+            "line": 2,
+            "kind": "参照宣言"
+          }
+        ],
+        "bindings": [
+          {
+            "kind": "named",
+            "local": "save",
+            "imported": "save",
+            "target": "ui/storage.js",
+            "specifier": "./storage.js",
+            "nested": false,
+            "line": 2,
+            "end_line": 2,
+            "declaration": "import { save } from \"./storage.js\";"
+          }
+        ],
+        "role": "JavaScript / TypeScriptのコード"
+      },
+      {
+        "path": "ui/storage.js",
+        "text": "export function save() {}",
+        "symbols": [
+          {
+            "name": "save",
+            "line": 1,
+            "end": 1
+          }
+        ],
+        "imports": [],
+        "bindings": [],
+        "role": "JavaScript / TypeScriptのコード"
+      },
+      {
+        "path": "service/main.py",
+        "text": "from .storage import save\n# def imaginary(): pass\ndef main():\n    save()",
+        "symbols": [
+          {
+            "name": "main",
+            "line": 3,
+            "end": 4
+          }
+        ],
+        "imports": [
+          {
+            "from": "service/main.py",
+            "to": "service/storage.py",
+            "line": 1,
+            "kind": "参照宣言"
+          }
+        ],
+        "bindings": [
+          {
+            "kind": "named",
+            "local": "save",
+            "imported": "save",
+            "target": "service/storage.py",
+            "specifier": "./storage",
+            "nested": false,
+            "line": 1,
+            "end_line": 1,
+            "declaration": "from .storage import save"
+          }
+        ],
+        "role": "Pythonのコード"
+      },
+      {
+        "path": "service/storage.py",
+        "text": "def save():\n    pass",
+        "symbols": [
+          {
+            "name": "save",
+            "line": 1,
+            "end": 2
+          }
+        ],
+        "imports": [],
+        "bindings": [],
+        "role": "Pythonのコード"
+      },
+      {
+        "path": "package.json",
+        "text": "{\"scripts\":{\"start\":\"node ui/main.js\"}}",
+        "symbols": [],
+        "imports": [],
+        "bindings": [],
+        "role": "起動設定・依存パッケージ"
+      }
+    ],
+    "entries": [
+      {
+        "path": "src/main.rs",
+        "line": 3,
+        "reason": "Rustの実行入口に使われるファイル"
+      },
+      {
+        "path": "service/main.py",
+        "line": 3,
+        "reason": "名前から選んだ入口の候補"
+      }
+    ],
+    "scripts": [
+      {
+        "path": "package.json",
+        "name": "start",
+        "command": "node ui/main.js",
+        "line": 1
+      }
+    ],
+    "inventory": [
+      {
+        "path": "Cargo.toml",
+        "mode": "100644",
+        "size": 31
+      },
+      {
+        "path": "src/main.rs",
+        "mode": "100644",
+        "size": 139
+      },
+      {
+        "path": "src/storage.rs",
+        "mode": "100644",
+        "size": 33
+      },
+      {
+        "path": "src/network.rs",
+        "mode": "100644",
+        "size": 16
+      },
+      {
+        "path": "ui/main.js",
+        "mode": "100644",
+        "size": 138
+      },
+      {
+        "path": "ui/storage.js",
+        "mode": "100644",
+        "size": 25
+      },
+      {
+        "path": "service/main.py",
+        "mode": "100644",
+        "size": 72
+      },
+      {
+        "path": "service/storage.py",
+        "mode": "100644",
+        "size": 20
+      },
+      {
+        "path": "package.json",
+        "mode": "100644",
+        "size": 39
+      }
+    ],
+    "inventory_truncated": false,
+    "edges": [
+      {
+        "from": "src/main.rs",
+        "to": "src/storage.rs",
+        "line": 1,
+        "kind": "参照宣言"
+      },
+      {
+        "from": "src/main.rs",
+        "to": "src/network.rs",
+        "line": 1,
+        "kind": "参照宣言"
+      },
+      {
+        "from": "ui/main.js",
+        "to": "ui/storage.js",
+        "line": 2,
+        "kind": "参照宣言"
+      },
+      {
+        "from": "service/main.py",
+        "to": "service/storage.py",
+        "line": 1,
+        "kind": "参照宣言"
+      }
+    ]
+  },
+  "overview": {
+    "schema_version": 1,
+    "repository": "example/project",
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "reference": "main",
+    "read": {
+      "inventory": 9,
+      "files_read": 9,
+      "unread": [],
+      "truncated": false
+    },
+    "languages": [
+      {
+        "name": "Rust",
+        "files": 3,
+        "execution": "Rust の実行は未対応。理解と試験計画だけを表示する",
+        "executable": false
+      },
+      {
+        "name": "JavaScript",
+        "files": 2,
+        "execution": "Node.js で実行できる（JavaScript。TypeScriptは変換が必要なため未対応）",
+        "executable": true
+      },
+      {
+        "name": "Python",
+        "files": 2,
+        "execution": "Python 3 で実行できる（標準ライブラリで動く範囲）",
+        "executable": true
+      }
+    ],
+    "purpose": [
+      {
+        "text": "Fixture",
+        "kind": "author",
+        "origin": "GitHubのリポジトリ説明（作者の記入）",
+        "refs": []
+      }
+    ],
+    "start": [
+      {
+        "text": "package.json のコマンド「start」: node ui/main.js",
+        "kind": "code",
+        "refs": [
+          {
+            "path": "package.json",
+            "line": 1,
+            "end_line": 1
+          }
+        ]
+      },
+      {
+        "text": "src/main.rs: Rustの実行入口に使われるファイル",
+        "kind": "code",
+        "refs": [
+          {
+            "path": "src/main.rs",
+            "line": 3,
+            "end_line": 3
+          }
+        ]
+      },
+      {
+        "text": "service/main.py: 名前から選んだ入口の候補",
+        "kind": "inference",
+        "refs": [
+          {
+            "path": "service/main.py",
+            "line": 3,
+            "end_line": 3
+          }
+        ]
+      }
+    ],
+    "components": [
+      {
+        "path": "src/main.rs",
+        "role": "Rustのコード",
+        "lines": 5,
+        "description": null,
+        "functions": [
+          {
+            "name": "main",
+            "line": 3,
+            "end_line": 3,
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 3,
+                "end_line": 3
+              }
+            ]
+          },
+          {
+            "name": "borrow",
+            "line": 4,
+            "end_line": 4,
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 4,
+                "end_line": 4
+              }
+            ]
+          },
+          {
+            "name": "later",
+            "line": 5,
+            "end_line": 5,
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 5,
+                "end_line": 5
+              }
+            ]
+          }
+        ],
+        "effect_counts": {},
+        "refs": [
+          {
+            "path": "src/main.rs",
+            "line": 1,
+            "end_line": 5
+          }
+        ]
+      },
+      {
+        "path": "src/storage.rs",
+        "role": "Rustのコード",
+        "lines": 2,
+        "description": null,
+        "functions": [
+          {
+            "name": "save",
+            "line": 1,
+            "end_line": 1,
+            "refs": [
+              {
+                "path": "src/storage.rs",
+                "line": 1,
+                "end_line": 1
+              }
+            ]
+          },
+          {
+            "name": "load",
+            "line": 2,
+            "end_line": 2,
+            "refs": [
+              {
+                "path": "src/storage.rs",
+                "line": 2,
+                "end_line": 2
+              }
+            ]
+          }
+        ],
+        "effect_counts": {},
+        "refs": [
+          {
+            "path": "src/storage.rs",
+            "line": 1,
+            "end_line": 2
+          }
+        ]
+      },
+      {
+        "path": "src/network.rs",
+        "role": "Rustのコード",
+        "lines": 1,
+        "description": null,
+        "functions": [
+          {
+            "name": "send",
+            "line": 1,
+            "end_line": 1,
+            "refs": [
+              {
+                "path": "src/network.rs",
+                "line": 1,
+                "end_line": 1
+              }
+            ]
+          }
+        ],
+        "effect_counts": {},
+        "refs": [
+          {
+            "path": "src/network.rs",
+            "line": 1,
+            "end_line": 1
+          }
+        ]
+      },
+      {
+        "path": "ui/main.js",
+        "role": "JavaScript / TypeScriptのコード",
+        "lines": 4,
+        "description": {
+          "text": "import x from \"./fake.js\";",
+          "refs": [
+            {
+              "path": "ui/main.js",
+              "line": 1,
+              "end_line": 1
+            }
+          ],
+          "kind": "author",
+          "origin": "コード中のコメント・説明文"
+        },
+        "functions": [
+          {
+            "name": "begin",
+            "line": 4,
+            "end_line": 4,
+            "refs": [
+              {
+                "path": "ui/main.js",
+                "line": 4,
+                "end_line": 4
+              }
+            ]
+          }
+        ],
+        "effect_counts": {},
+        "refs": [
+          {
+            "path": "ui/main.js",
+            "line": 1,
+            "end_line": 4
+          }
+        ]
+      },
+      {
+        "path": "ui/storage.js",
+        "role": "JavaScript / TypeScriptのコード",
+        "lines": 1,
+        "description": null,
+        "functions": [
+          {
+            "name": "save",
+            "line": 1,
+            "end_line": 1,
+            "refs": [
+              {
+                "path": "ui/storage.js",
+                "line": 1,
+                "end_line": 1
+              }
+            ]
+          }
+        ],
+        "effect_counts": {},
+        "refs": [
+          {
+            "path": "ui/storage.js",
+            "line": 1,
+            "end_line": 1
+          }
+        ]
+      },
+      {
+        "path": "service/main.py",
+        "role": "Pythonのコード",
+        "lines": 4,
+        "description": null,
+        "functions": [
+          {
+            "name": "main",
+            "line": 3,
+            "end_line": 4,
+            "refs": [
+              {
+                "path": "service/main.py",
+                "line": 3,
+                "end_line": 4
+              }
+            ]
+          }
+        ],
+        "effect_counts": {},
+        "refs": [
+          {
+            "path": "service/main.py",
+            "line": 1,
+            "end_line": 4
+          }
+        ]
+      },
+      {
+        "path": "service/storage.py",
+        "role": "Pythonのコード",
+        "lines": 2,
+        "description": null,
+        "functions": [
+          {
+            "name": "save",
+            "line": 1,
+            "end_line": 2,
+            "refs": [
+              {
+                "path": "service/storage.py",
+                "line": 1,
+                "end_line": 2
+              }
+            ]
+          }
+        ],
+        "effect_counts": {},
+        "refs": [
+          {
+            "path": "service/storage.py",
+            "line": 1,
+            "end_line": 2
+          }
+        ]
+      }
+    ],
+    "behaviors": [],
+    "flows": [
+      {
+        "entry": {
+          "path": "src/main.rs",
+          "line": 3,
+          "reason": "Rustの実行入口に使われるファイル",
+          "code": "fn main() { save(); }"
+        },
+        "kind": "inference",
+        "basis": "入口から、名前と参照宣言で対応づけた呼び出し候補をたどった。分岐の条件・実際に実行される順序・到達は確かめていない",
+        "inputs": [],
+        "storage": [],
+        "sending": [],
+        "outputs": [],
+        "errors": [],
+        "steps": [
+          {
+            "function": "main",
+            "path": "src/main.rs",
+            "line": 3,
+            "end_line": 3,
+            "depth": 0,
+            "called_from": null,
+            "effects": [],
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 3,
+                "end_line": 3
+              }
+            ]
+          },
+          {
+            "function": "save",
+            "path": "src/storage.rs",
+            "line": 1,
+            "end_line": 1,
+            "depth": 1,
+            "called_from": {
+              "path": "src/main.rs",
+              "line": 3,
+              "end_line": 3
+            },
+            "effects": [],
+            "refs": [
+              {
+                "path": "src/storage.rs",
+                "line": 1,
+                "end_line": 1
+              }
+            ]
+          }
+        ],
+        "truncated": false,
+        "unresolved_calls": 0
+      },
+      {
+        "entry": {
+          "path": "service/main.py",
+          "line": 3,
+          "reason": "名前から選んだ入口の候補",
+          "code": "def main():"
+        },
+        "kind": "inference",
+        "basis": "入口から、名前と参照宣言で対応づけた呼び出し候補をたどった。分岐の条件・実際に実行される順序・到達は確かめていない",
+        "inputs": [],
+        "storage": [],
+        "sending": [],
+        "outputs": [],
+        "errors": [],
+        "steps": [
+          {
+            "function": "main",
+            "path": "service/main.py",
+            "line": 3,
+            "end_line": 4,
+            "depth": 0,
+            "called_from": null,
+            "effects": [],
+            "refs": [
+              {
+                "path": "service/main.py",
+                "line": 3,
+                "end_line": 4
+              }
+            ]
+          },
+          {
+            "function": "save",
+            "path": "service/storage.py",
+            "line": 1,
+            "end_line": 2,
+            "depth": 1,
+            "called_from": {
+              "path": "service/main.py",
+              "line": 4,
+              "end_line": 4
+            },
+            "effects": [],
+            "refs": [
+              {
+                "path": "service/storage.py",
+                "line": 1,
+                "end_line": 2
+              }
+            ]
+          }
+        ],
+        "truncated": false,
+        "unresolved_calls": 0
+      }
+    ],
+    "tests": [],
+    "unknown": [
+      {
+        "text": "README やコメントの説明が、現在のコードの動作と一致するかは確かめていない",
+        "kind": "inference",
+        "refs": []
+      },
+      {
+        "text": "処理の関係は、名前と参照宣言から作った呼び出し候補。実際にどの経路が実行されるかは、試験で確かめる必要がある",
+        "kind": "inference",
+        "refs": []
+      },
+      {
+        "text": "外部サービス、実行環境の設定、利用者の権限、保存先の実際の状態は、コードを読むだけでは確かめられない",
+        "kind": "inference",
+        "refs": []
+      }
+    ],
+    "kinds": {
+      "author": "作者の説明（README・コメント等）。コードで確かめていない",
+      "code": "コードの記述から確認した事実",
+      "inference": "解析による推測。実行して確かめていない"
+    },
+    "limits": "コードの記述から作った説明です。実行していないため、実際の動作・到達・成否は試験で確かめる必要があります。"
+  },
+  "plan": {
+    "schema_version": 1,
+    "repository": "example/project",
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "languages": [
+      {
+        "name": "Rust",
+        "files": 3,
+        "execution": "Rust の実行は未対応。理解と試験計画だけを表示する",
+        "executable": false
+      },
+      {
+        "name": "JavaScript",
+        "files": 2,
+        "execution": "Node.js で実行できる（JavaScript。TypeScriptは変換が必要なため未対応）",
+        "executable": true
+      },
+      {
+        "name": "Python",
+        "files": 2,
+        "execution": "Python 3 で実行できる（標準ライブラリで動く範囲）",
+        "executable": true
+      }
+    ],
+    "executable": true,
+    "unsupported_reason": null,
+    "entries": [
+      {
+        "entrypoint": "src/main.rs",
+        "launch": "file",
+        "runtime": null,
+        "reason": "Rustの実行入口に使われるファイル",
+        "kind": "inference",
+        "refs": [
+          {
+            "path": "src/main.rs",
+            "line": 3,
+            "end_line": 3
+          }
+        ],
+        "supported": false,
+        "unsupported_reason": "この言語の実行は未対応"
+      },
+      {
+        "entrypoint": "service/main.py",
+        "launch": "file",
+        "runtime": "python3",
+        "reason": "名前から選んだ入口の候補",
+        "kind": "inference",
+        "refs": [
+          {
+            "path": "service/main.py",
+            "line": 3,
+            "end_line": 3
+          }
+        ],
+        "supported": true,
+        "unsupported_reason": null
+      }
+    ],
+    "options": [],
+    "storage": [],
+    "tests": [],
+    "test_commands": [],
+    "examples": [],
+    "dependencies": [],
+    "faults": [
+      {
+        "id": "normal",
+        "label": "故障なし（通常時）",
+        "needs_storage": false,
+        "applicable": "使える"
+      },
+      {
+        "id": "storage_read_only",
+        "label": "保存先を書き込み不可にする",
+        "needs_storage": true,
+        "how": "試行の前に、基盤が保存先へ空のファイルを作り、書き込み権限を外す。書き込めないことを基盤が確かめてから対象を起動する",
+        "applicable": "保存先のパスを指定したときに使える"
+      },
+      {
+        "id": "storage_is_directory",
+        "label": "保存先に同名のディレクトリを置く",
+        "needs_storage": true,
+        "how": "試行の前に、基盤が保存先と同じ名前のディレクトリを作る。ファイルとして開けない状態になる",
+        "applicable": "保存先のパスを指定したときに使える"
+      },
+      {
+        "id": "skip_state_read",
+        "label": "基盤による保存先の読み出しを止める（観測の欠落）",
+        "needs_storage": false,
+        "how": "対象は通常どおり動かし、試行後に基盤が保存先を読み出す処理だけを止める。観測がないときに成功と扱わないかを確かめる",
+        "applicable": "使える"
+      },
+      {
+        "id": "network_unavailable",
+        "label": "外部への通信を遮断する",
+        "needs_storage": false,
+        "how": "Linuxのbubblewrap方式で、ネットワークを持たない環境で起動する。local方式では使えない",
+        "applicable": "送信の記述が見つからないため、効果を確かめにくい。bubblewrap方式（Linux）でだけ使える"
+      },
+      {
+        "id": "storage_directory_read_only",
+        "label": "保存先のディレクトリを書き込み不可にする",
+        "needs_storage": true,
+        "how": "試行の前に、基盤が保存先のディレクトリを空で作り、書き込み権限を外す。ディレクトリへ書き込めないことを基盤が確かめてから起動する",
+        "applicable": "ディレクトリを含む保存先のパス（例: received/file）を指定したときに使える"
+      },
+      {
+        "id": "server_not_started",
+        "label": "待つプロセス（受信側など）を起動しない",
+        "needs_server": true,
+        "how": "待つプロセスを起動せず、操作するプロセスだけを動かす。割り当てたポートが応答しないことを基盤が確かめる",
+        "applicable": "待つプロセスを指定したときに使える"
+      },
+      {
+        "id": "database_stopped",
+        "label": "データベースのコンテナを止める",
+        "needs_containers": true,
+        "how": "コンテナが準備できたあと、データベースの役割のコンテナを止める。止まったことを確かめてから操作する",
+        "applicable": "試験専用のコンテナを指定したときに使える"
+      },
+      {
+        "id": "database_unreachable",
+        "label": "対象とデータベースの間の通信を切る",
+        "needs_containers": true,
+        "how": "コンテナが準備できたあと、データベースを試験用ネットワークから外す。外れたことを確かめてから操作する",
+        "applicable": "試験専用のコンテナを指定したときに使える"
+      },
+      {
+        "id": "volume_read_only",
+        "label": "保存先のボリュームを読み取り専用にする",
+        "needs_containers": true,
+        "how": "コンテナが準備できたあと、データベースの保存先ボリュームを読み取り専用で載せ直す。書き込めないことを確かめる",
+        "applicable": "試験専用のコンテナを指定したときに使える"
+      }
+    ],
+    "observation": [
+      {
+        "method": "exit_code",
+        "label": "終了コード",
+        "source": "対象プログラムの報告"
+      },
+      {
+        "method": "stdout",
+        "label": "標準出力",
+        "source": "対象プログラムの報告"
+      },
+      {
+        "method": "stderr",
+        "label": "標準エラー（エラー表示）",
+        "source": "対象プログラムの報告"
+      },
+      {
+        "method": "stored_file",
+        "label": "保存先の内容",
+        "source": "基盤が保存先を直接読み出した結果"
+      },
+      {
+        "method": "readback_output",
+        "label": "後からの読み出し",
+        "source": "別のプロセスで対象の読み出し機能を動かした結果"
+      },
+      {
+        "method": "server_output",
+        "label": "待つプロセスの出力",
+        "source": "待つプロセス（受信側など）の出力"
+      }
+    ],
+    "missing": [
+      {
+        "text": "試行で使う引数。試験用の値を入れる場所には {{test_value}} と書く",
+        "kind": "inference"
+      },
+      {
+        "text": "保存先のパス（試行用の作業ディレクトリからの相対パス）。保存先を指定しないと、基盤による保存先の読み出しと保存先の故障は使えない",
+        "kind": "inference"
+      },
+      {
+        "text": "後から読み出すコマンド（任意）。書き込みとは別のプロセスで読み出せるかを確かめる",
+        "kind": "inference"
+      },
+      {
+        "text": "先に起動して待つプロセス（任意）。受信サーバーのように待ち受けるプロセスは、引数のポートを {{port}} と書くと、基盤が 127.0.0.1 の空いているポートを割り当てる",
+        "kind": "inference"
+      }
+    ],
+    "isolation": "対象は試行ごとに新しい作業ディレクトリで動く。固定コミットのファイルは読み取り専用で複製し、環境変数は消し、HOMEも作業ディレクトリにする。local方式はOSによる隔離を行わないため、対象が絶対パスで書き込む処理は止められない",
+    "origin": "コード・テストからの提案。人が確認して保存するまで、期待や判定条件の決定ではない"
+  },
+  "functions": [
+    {
+      "path": "src/main.rs",
+      "line": 3,
+      "guide": {
+        "name": "main",
+        "range": {
+          "start": 3,
+          "end": 3,
+          "header_end": 82
+        },
+        "signature": "fn main()",
+        "steps": [],
+        "calls": [
+          {
+            "name": "save",
+            "line": 3,
+            "macro": false,
+            "candidates": [
+              {
+                "path": "src/storage.rs",
+                "line": 1,
+                "name": "save"
+              }
+            ],
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "save",
+                "imported": "save",
+                "target": "src/storage.rs",
+                "specifier": "example_app::storage::save",
+                "nested": false,
+                "line": 1,
+                "end_line": 1,
+                "declaration": "use example_app::{storage::{save, load}, network};"
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          }
+        ],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 10,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "main",
+        "path": "src/main.rs",
+        "line": 3,
+        "end_line": 3,
+        "signature": "fn main()",
+        "parameters": [],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [
+          {
+            "name": "save",
+            "line": 3,
+            "candidates": [
+              {
+                "path": "src/storage.rs",
+                "line": 1,
+                "name": "save",
+                "refs": [
+                  {
+                    "path": "src/storage.rs",
+                    "line": 1,
+                    "end_line": 1
+                  }
+                ]
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 3,
+                "end_line": 3
+              }
+            ]
+          }
+        ],
+        "callers": [],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "src/main.rs",
+            "line": 3,
+            "end_line": 3
+          }
+        ]
+      }
+    },
+    {
+      "path": "src/main.rs",
+      "line": 4,
+      "guide": {
+        "name": "borrow",
+        "range": {
+          "start": 4,
+          "end": 4,
+          "header_end": 121
+        },
+        "signature": "fn borrow(x: &'static str)",
+        "steps": [],
+        "calls": [],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 10,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "borrow",
+        "path": "src/main.rs",
+        "line": 4,
+        "end_line": 4,
+        "signature": "fn borrow(x: &'static str)",
+        "parameters": [
+          "x: &'static str"
+        ],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [],
+        "callers": [],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "src/main.rs",
+            "line": 4,
+            "end_line": 4
+          }
+        ]
+      }
+    },
+    {
+      "path": "src/main.rs",
+      "line": 5,
+      "guide": {
+        "name": "later",
+        "range": {
+          "start": 5,
+          "end": 5,
+          "header_end": 136
+        },
+        "signature": "fn later()",
+        "steps": [],
+        "calls": [],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 10,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "later",
+        "path": "src/main.rs",
+        "line": 5,
+        "end_line": 5,
+        "signature": "fn later()",
+        "parameters": [],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [],
+        "callers": [],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "src/main.rs",
+            "line": 5,
+            "end_line": 5
+          }
+        ]
+      }
+    },
+    {
+      "path": "src/storage.rs",
+      "line": 1,
+      "guide": {
+        "name": "save",
+        "range": {
+          "start": 1,
+          "end": 1,
+          "header_end": 14
+        },
+        "signature": "pub fn save()",
+        "steps": [],
+        "calls": [],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [
+          {
+            "path": "src/main.rs",
+            "line": 3,
+            "function": "main",
+            "function_line": 3,
+            "call": "save",
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "save",
+                "imported": "save",
+                "target": "src/storage.rs",
+                "specifier": "example_app::storage::save",
+                "nested": false,
+                "line": 1,
+                "end_line": 1,
+                "declaration": "use example_app::{storage::{save, load}, network};"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          }
+        ],
+        "scanned_functions": 10,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "save",
+        "path": "src/storage.rs",
+        "line": 1,
+        "end_line": 1,
+        "signature": "pub fn save()",
+        "parameters": [],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [],
+        "callers": [
+          {
+            "path": "src/main.rs",
+            "line": 3,
+            "function": "main",
+            "function_line": 3,
+            "call": "save",
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "save",
+                "imported": "save",
+                "target": "src/storage.rs",
+                "specifier": "example_app::storage::save",
+                "nested": false,
+                "line": 1,
+                "end_line": 1,
+                "declaration": "use example_app::{storage::{save, load}, network};"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 3,
+                "end_line": 3
+              }
+            ]
+          }
+        ],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "src/storage.rs",
+            "line": 1,
+            "end_line": 1
+          }
+        ]
+      }
+    },
+    {
+      "path": "src/storage.rs",
+      "line": 2,
+      "guide": {
+        "name": "load",
+        "range": {
+          "start": 2,
+          "end": 2,
+          "header_end": 31
+        },
+        "signature": "pub fn load()",
+        "steps": [],
+        "calls": [],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 10,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "load",
+        "path": "src/storage.rs",
+        "line": 2,
+        "end_line": 2,
+        "signature": "pub fn load()",
+        "parameters": [],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [],
+        "callers": [],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "src/storage.rs",
+            "line": 2,
+            "end_line": 2
+          }
+        ]
+      }
+    },
+    {
+      "path": "src/network.rs",
+      "line": 1,
+      "guide": {
+        "name": "send",
+        "range": {
+          "start": 1,
+          "end": 1,
+          "header_end": 14
+        },
+        "signature": "pub fn send()",
+        "steps": [],
+        "calls": [],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 10,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "send",
+        "path": "src/network.rs",
+        "line": 1,
+        "end_line": 1,
+        "signature": "pub fn send()",
+        "parameters": [],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [],
+        "callers": [],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "src/network.rs",
+            "line": 1,
+            "end_line": 1
+          }
+        ]
+      }
+    },
+    {
+      "path": "ui/main.js",
+      "line": 4,
+      "guide": {
+        "name": "begin",
+        "range": {
+          "start": 4,
+          "end": 4,
+          "header_end": 127
+        },
+        "signature": "function begin()",
+        "steps": [],
+        "calls": [
+          {
+            "name": "save",
+            "line": 4,
+            "macro": false,
+            "candidates": [
+              {
+                "path": "ui/storage.js",
+                "line": 1,
+                "name": "save"
+              }
+            ],
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "save",
+                "imported": "save",
+                "target": "ui/storage.js",
+                "specifier": "./storage.js",
+                "nested": false,
+                "line": 2,
+                "end_line": 2,
+                "declaration": "import { save } from \"./storage.js\";"
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          }
+        ],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 10,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "begin",
+        "path": "ui/main.js",
+        "line": 4,
+        "end_line": 4,
+        "signature": "function begin()",
+        "parameters": [],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [
+          {
+            "name": "save",
+            "line": 4,
+            "candidates": [
+              {
+                "path": "ui/storage.js",
+                "line": 1,
+                "name": "save",
+                "refs": [
+                  {
+                    "path": "ui/storage.js",
+                    "line": 1,
+                    "end_line": 1
+                  }
+                ]
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "ui/main.js",
+                "line": 4,
+                "end_line": 4
+              }
+            ]
+          }
+        ],
+        "callers": [],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "ui/main.js",
+            "line": 4,
+            "end_line": 4
+          }
+        ]
+      }
+    },
+    {
+      "path": "ui/storage.js",
+      "line": 1,
+      "guide": {
+        "name": "save",
+        "range": {
+          "start": 1,
+          "end": 1,
+          "header_end": 23
+        },
+        "signature": "export function save()",
+        "steps": [],
+        "calls": [],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [
+          {
+            "path": "ui/main.js",
+            "line": 4,
+            "function": "begin",
+            "function_line": 4,
+            "call": "save",
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "save",
+                "imported": "save",
+                "target": "ui/storage.js",
+                "specifier": "./storage.js",
+                "nested": false,
+                "line": 2,
+                "end_line": 2,
+                "declaration": "import { save } from \"./storage.js\";"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          }
+        ],
+        "scanned_functions": 10,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "save",
+        "path": "ui/storage.js",
+        "line": 1,
+        "end_line": 1,
+        "signature": "export function save()",
+        "parameters": [],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [],
+        "callers": [
+          {
+            "path": "ui/main.js",
+            "line": 4,
+            "function": "begin",
+            "function_line": 4,
+            "call": "save",
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "save",
+                "imported": "save",
+                "target": "ui/storage.js",
+                "specifier": "./storage.js",
+                "nested": false,
+                "line": 2,
+                "end_line": 2,
+                "declaration": "import { save } from \"./storage.js\";"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "ui/main.js",
+                "line": 4,
+                "end_line": 4
+              }
+            ]
+          }
+        ],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "ui/storage.js",
+            "line": 1,
+            "end_line": 1
+          }
+        ]
+      }
+    },
+    {
+      "path": "service/main.py",
+      "line": 3,
+      "guide": {
+        "name": "main",
+        "range": {
+          "start": 3,
+          "end": 4
+        },
+        "signature": "def main():",
+        "steps": [],
+        "calls": [
+          {
+            "name": "save",
+            "line": 4,
+            "macro": false,
+            "candidates": [
+              {
+                "path": "service/storage.py",
+                "line": 1,
+                "name": "save"
+              }
+            ],
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "save",
+                "imported": "save",
+                "target": "service/storage.py",
+                "specifier": "./storage",
+                "nested": false,
+                "line": 1,
+                "end_line": 1,
+                "declaration": "from .storage import save"
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          }
+        ],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [],
+        "scanned_functions": 10,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "main",
+        "path": "service/main.py",
+        "line": 3,
+        "end_line": 4,
+        "signature": "def main():",
+        "parameters": [],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [
+          {
+            "name": "save",
+            "line": 4,
+            "candidates": [
+              {
+                "path": "service/storage.py",
+                "line": 1,
+                "name": "save",
+                "refs": [
+                  {
+                    "path": "service/storage.py",
+                    "line": 1,
+                    "end_line": 1
+                  }
+                ]
+              }
+            ],
+            "unread": [],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "service/main.py",
+                "line": 4,
+                "end_line": 4
+              }
+            ]
+          }
+        ],
+        "callers": [],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "service/main.py",
+            "line": 3,
+            "end_line": 4
+          }
+        ]
+      }
+    },
+    {
+      "path": "service/storage.py",
+      "line": 1,
+      "guide": {
+        "name": "save",
+        "range": {
+          "start": 1,
+          "end": 2
+        },
+        "signature": "def save():",
+        "steps": [],
+        "calls": [],
+        "truncated": false,
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。"
+      },
+      "callers": {
+        "callers": [
+          {
+            "path": "service/main.py",
+            "line": 4,
+            "function": "main",
+            "function_line": 3,
+            "call": "save",
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "save",
+                "imported": "save",
+                "target": "service/storage.py",
+                "specifier": "./storage",
+                "nested": false,
+                "line": 1,
+                "end_line": 1,
+                "declaration": "from .storage import save"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。"
+          }
+        ],
+        "scanned_functions": 10,
+        "limited": false,
+        "inventory_truncated": false,
+        "max_functions": 400,
+        "max_callers": 80,
+        "unread_files": 0
+      },
+      "detail": {
+        "found": true,
+        "name": "save",
+        "path": "service/storage.py",
+        "line": 1,
+        "end_line": 2,
+        "signature": "def save():",
+        "parameters": [],
+        "returns": [],
+        "branches": [],
+        "raised": [],
+        "caught": [],
+        "effects": [],
+        "callees": [],
+        "callers": [
+          {
+            "path": "service/main.py",
+            "line": 4,
+            "function": "main",
+            "function_line": 3,
+            "call": "save",
+            "bindings": [
+              {
+                "kind": "named",
+                "local": "save",
+                "imported": "save",
+                "target": "service/storage.py",
+                "specifier": "./storage",
+                "nested": false,
+                "line": 1,
+                "end_line": 1,
+                "declaration": "from .storage import save"
+              }
+            ],
+            "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+            "refs": [
+              {
+                "path": "service/main.py",
+                "line": 4,
+                "end_line": 4
+              }
+            ]
+          }
+        ],
+        "name_callers": [],
+        "config": {
+          "options": [],
+          "env": []
+        },
+        "tests": [],
+        "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+        "refs": [
+          {
+            "path": "service/storage.py",
+            "line": 1,
+            "end_line": 2
+          }
+        ]
+      }
+    }
+  ],
+  "questions": [
+    {
+      "question": "保存できなかったらどうなる？",
+      "result": {
+        "schema_version": 1,
+        "question": "保存できなかったらどうなる？",
+        "intents": [
+          {
+            "id": "storage",
+            "label": "保存・書き込み"
+          },
+          {
+            "id": "failure",
+            "label": "失敗したときの扱い"
+          }
+        ],
+        "terms": [],
+        "findings": [],
+        "functions": [],
+        "missing": [
+          {
+            "text": "読み取った 9 件のファイルに、「保存・書き込み」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          },
+          {
+            "text": "読み取った 9 件のファイルに、「失敗したときの扱い」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "needed_files": [],
+        "unread_files": 0,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "入力と設定を調べたい",
+      "result": {
+        "schema_version": 1,
+        "question": "入力と設定を調べたい",
+        "intents": [
+          {
+            "id": "input",
+            "label": "入力"
+          },
+          {
+            "id": "config",
+            "label": "設定"
+          }
+        ],
+        "terms": [],
+        "findings": [],
+        "functions": [],
+        "options": [],
+        "missing": [
+          {
+            "text": "読み取った 9 件のファイルに、「入力」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          },
+          {
+            "text": "読み取った 9 件のファイルに、「設定」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "needed_files": [],
+        "unread_files": 0,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "送信と読み出しのテスト",
+      "result": {
+        "schema_version": 1,
+        "question": "送信と読み出しのテスト",
+        "intents": [
+          {
+            "id": "send",
+            "label": "送信・通知"
+          },
+          {
+            "id": "read",
+            "label": "読み出し・表示"
+          },
+          {
+            "id": "test",
+            "label": "既存のテスト"
+          }
+        ],
+        "terms": [],
+        "findings": [],
+        "functions": [],
+        "tests": [],
+        "missing": [
+          {
+            "text": "読み取った 9 件のファイルに、「送信・通知」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          },
+          {
+            "text": "読み取った 9 件のファイルに、「読み出し・表示」に当たる記述は見つからなかった。読み取っていないファイルにある可能性がある",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "needed_files": [],
+        "unread_files": 0,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "main はどこ？",
+      "result": {
+        "schema_version": 1,
+        "question": "main はどこ？",
+        "intents": [],
+        "terms": [
+          "main"
+        ],
+        "findings": [
+          {
+            "intent": "name",
+            "text": "質問の「main」と同じ名前の関数 main が src/main.rs の3行目にある",
+            "kind": "code",
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 3,
+                "end_line": 3
+              }
+            ]
+          },
+          {
+            "intent": "name",
+            "text": "質問の「main」と同じ名前の関数 main が service/main.py の3行目にある",
+            "kind": "code",
+            "refs": [
+              {
+                "path": "service/main.py",
+                "line": 3,
+                "end_line": 4
+              }
+            ]
+          }
+        ],
+        "functions": [
+          {
+            "found": true,
+            "name": "main",
+            "path": "src/main.rs",
+            "line": 3,
+            "end_line": 3,
+            "signature": "fn main()",
+            "parameters": [],
+            "returns": [],
+            "branches": [],
+            "raised": [],
+            "caught": [],
+            "effects": [],
+            "callees": [
+              {
+                "name": "save",
+                "line": 3,
+                "candidates": [
+                  {
+                    "path": "src/storage.rs",
+                    "line": 1,
+                    "name": "save",
+                    "refs": [
+                      {
+                        "path": "src/storage.rs",
+                        "line": 1,
+                        "end_line": 1
+                      }
+                    ]
+                  }
+                ],
+                "unread": [],
+                "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+                "refs": [
+                  {
+                    "path": "src/main.rs",
+                    "line": 3,
+                    "end_line": 3
+                  }
+                ]
+              }
+            ],
+            "callers": [],
+            "name_callers": [],
+            "config": {
+              "options": [],
+              "env": []
+            },
+            "tests": [],
+            "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+            "refs": [
+              {
+                "path": "src/main.rs",
+                "line": 3,
+                "end_line": 3
+              }
+            ]
+          },
+          {
+            "found": true,
+            "name": "main",
+            "path": "service/main.py",
+            "line": 3,
+            "end_line": 4,
+            "signature": "def main():",
+            "parameters": [],
+            "returns": [],
+            "branches": [],
+            "raised": [],
+            "caught": [],
+            "effects": [],
+            "callees": [
+              {
+                "name": "save",
+                "line": 4,
+                "candidates": [
+                  {
+                    "path": "service/storage.py",
+                    "line": 1,
+                    "name": "save",
+                    "refs": [
+                      {
+                        "path": "service/storage.py",
+                        "line": 1,
+                        "end_line": 1
+                      }
+                    ]
+                  }
+                ],
+                "unread": [],
+                "reason": "読み込み宣言の名前と参照先の宣言から選んだ候補です。",
+                "refs": [
+                  {
+                    "path": "service/main.py",
+                    "line": 4,
+                    "end_line": 4
+                  }
+                ]
+              }
+            ],
+            "callers": [],
+            "name_callers": [],
+            "config": {
+              "options": [],
+              "env": []
+            },
+            "tests": [],
+            "limits": "コードの記述から作った読解案内です。呼び出し先は名前と参照宣言からの候補で、実際の到達・実行順序・通信や保存の成否は未確認です。動的呼び出しや未対応構文は取りこぼす場合があります。",
+            "refs": [
+              {
+                "path": "service/main.py",
+                "line": 3,
+                "end_line": 4
+              }
+            ]
+          }
+        ],
+        "missing": [],
+        "needed_files": [],
+        "unread_files": 0,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "起動方法",
+      "result": {
+        "schema_version": 1,
+        "question": "起動方法",
+        "intents": [
+          {
+            "id": "start",
+            "label": "起動方法"
+          }
+        ],
+        "terms": [],
+        "findings": [],
+        "functions": [],
+        "missing": [],
+        "needed_files": [],
+        "unread_files": 0,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    },
+    {
+      "question": "？？？",
+      "result": {
+        "schema_version": 1,
+        "question": "？？？",
+        "intents": [],
+        "terms": [],
+        "findings": [],
+        "functions": [],
+        "missing": [
+          {
+            "text": "質問から、調べる観点（保存・失敗・送信・入力・表示・起動・テスト・設定）や関数名を読み取れなかった。関数名や「保存」「失敗」などの語を含めてください",
+            "kind": "code",
+            "refs": []
+          }
+        ],
+        "needed_files": [],
+        "unread_files": 0,
+        "limits": [
+          {
+            "text": "コードに記述があることは、実行時にその処理が行われることを示さない。実際の動作は試験で確かめる",
+            "kind": "inference",
+            "refs": []
+          }
+        ],
+        "effect_kinds": {
+          "input": "外部からの入力（引数・標準入力・リクエスト）を受け取る記述",
+          "env": "環境変数を読む記述",
+          "read": "ファイル等から読み出す記述",
+          "write": "ファイル等へ書き込む記述",
+          "delete": "ファイル等を削除する記述",
+          "send": "外部へ送信・通信する記述",
+          "output": "画面（標準出力）へ表示する記述",
+          "error_output": "エラー表示（標準エラー）へ出力する記述",
+          "raise": "例外・エラーを発生させる記述",
+          "catch": "例外・エラーを捕捉する記述",
+          "exit": "プロセスを終了させる記述"
+        }
+      }
+    }
+  ]
+}
