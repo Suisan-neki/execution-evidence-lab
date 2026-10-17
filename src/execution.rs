@@ -961,7 +961,12 @@ pub fn execute_with_dependencies(
         None => None,
     };
     // 試行ごとに新しい架空の値を使い、既存のデータと区別する。
-    let test_value = format!("eel-test-{}", correlation.run_id.trim_start_matches("run-"));
+    let prefix = if recipe.runtime == Runtime::Browser {
+        "EEL-TEST-"
+    } else {
+        "eel-test-"
+    };
+    let test_value = format!("{prefix}{}", correlation.run_id.trim_start_matches("run-"));
     let port = match recipe.server {
         Some(_) => Some(crate::server::free_port()?),
         None => None,

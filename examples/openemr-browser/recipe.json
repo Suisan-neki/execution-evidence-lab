@@ -361,6 +361,20 @@
         }
       },
       {
+        "id": "visit-category",
+        "action": "select",
+        "target": {
+          "frames": [
+            "iframe[name=enc]"
+          ],
+          "locator": {
+            "by": "css",
+            "selector": "#pc_catid"
+          }
+        },
+        "value": "5"
+      },
+      {
         "id": "visit-reason",
         "action": "fill",
         "target": {
