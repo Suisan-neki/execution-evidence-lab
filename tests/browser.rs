@@ -155,6 +155,17 @@ fn display_does_not_establish_database_success_and_mixed_http_responses_are_unkn
         .0,
         Observed::Pass
     );
+    p.browser.as_mut().unwrap().response_limit = true;
+    assert_eq!(
+        evaluate(
+            &check(CheckMethod::BrowserResponse, Expectation::Contains, "save"),
+            Some(&p),
+            "status=200"
+        )
+        .0,
+        Observed::NotObserved
+    );
+    p.browser.as_mut().unwrap().response_limit = false;
     p.browser.as_mut().unwrap().responses[0].request_step = Some("username".into());
     assert_eq!(
         evaluate(
@@ -165,4 +176,42 @@ fn display_does_not_establish_database_success_and_mixed_http_responses_are_unkn
         .0,
         Observed::NotObserved
     );
+}
+
+#[test]
+fn validates_the_pinned_openemr_recipe_without_running_it() {
+    let recipe: execution_evidence_lab::execution::Recipe =
+        serde_json::from_str(include_str!("../examples/openemr-browser/recipe.json")).unwrap();
+    execution_evidence_lab::execution::validate_recipe(&recipe).unwrap();
+    assert_eq!(recipe.browser.as_ref().unwrap().database.len(), 2);
+}
+
+#[test]
+fn unknown_response_body_never_passes_negative_body_check_and_expressions_are_validated() {
+    let mut p = phase();
+    p.browser.as_mut().unwrap().responses.push(ResponseRecord {
+        watch: "save".into(),
+        method: "POST".into(),
+        path: "/save".into(),
+        status: 200,
+        body_match: None,
+        request_step: Some("message".into()),
+    });
+    assert_eq!(
+        evaluate(
+            &check(
+                CheckMethod::BrowserResponse,
+                Expectation::NotContains,
+                "save"
+            ),
+            Some(&p),
+            "body_match=true"
+        )
+        .0,
+        Observed::NotObserved
+    );
+    let mut recipe: execution_evidence_lab::execution::Recipe =
+        serde_json::from_str(include_str!("../examples/openemr-browser/recipe.json")).unwrap();
+    recipe.trial.as_mut().unwrap().checks[1].text = Some("false".into());
+    assert!(execution_evidence_lab::execution::validate_recipe(&recipe).is_err());
 }

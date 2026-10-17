@@ -607,3 +607,103 @@ fn browser_observes_nginx_and_preserves_screenshots() {
     assert!(trace.containers.as_ref().unwrap().leftovers.is_empty());
     validate_trace(&trace, &result.manifest).unwrap();
 }
+
+#[test]
+#[ignore = "OpenEMRの画面とMariaDBをCIで操作する。Playwrightと試験用の認証ファイルが必要"]
+fn openemr_browser_registers_patient_and_reads_back_visit() {
+    assert!(engine().is_ok(), "この明示試験にはDockerが必要");
+    assert!(
+        std::env::var_os("EEL_BROWSER_SECRETS_FILE").is_some(),
+        "試験用の認証ファイルが必要"
+    );
+    let original: Recipe = read_json(Path::new("examples/openemr-browser/recipe.json")).unwrap();
+    let root = fetch_commit(
+        Path::new("target/browser-sources"),
+        &original.source.repository,
+        &original.source.commit,
+    )
+    .unwrap();
+    for fault in [TrialFault::Normal, TrialFault::DatabaseStopped] {
+        let mut recipe = original.clone();
+        recipe.trial.as_mut().unwrap().fault = fault;
+        if fault == TrialFault::DatabaseStopped {
+            // 患者登録と受診理由の入力までは済ませ、保存ボタンを押す直前にDBを止める。
+            let browser = recipe.browser.as_mut().unwrap();
+            let save = browser
+                .actions
+                .iter()
+                .position(|s| s.id == "save-visit")
+                .unwrap();
+            browser.preparation.extend(browser.actions.drain(..save));
+            recipe
+                .trial
+                .as_mut()
+                .unwrap()
+                .checks
+                .retain(|c| c.id.starts_with("visit-"));
+        }
+        let label = if fault == TrialFault::Normal {
+            "normal"
+        } else {
+            "database-stopped"
+        };
+        let result = execute(
+            &root,
+            &Path::new("evaluations/ci-openemr").join(label),
+            recipe,
+            Condition {
+                id: "openemr".into(),
+                version: 1,
+                text: "架空の患者と受診理由を保存し再表示できる".into(),
+                origin: "実OSSの試験用構成".into(),
+                kind: ConditionKind::Custom,
+            },
+            None,
+        )
+        .unwrap();
+        let trace: ExecutionTrace = read_json(&result.directory.join("execution.json")).unwrap();
+        let phase = trace.containers.as_ref().unwrap();
+        let browser = phase.browser.as_ref().expect("ブラウザ記録");
+        println!("{}",serde_json::to_string(&serde_json::json!({"condition":label,"directory":result.directory,"browser":browser,"database_reads":phase.database_reads,"results":trace.trial.as_ref().unwrap().results,"containers":phase.services.iter().map(|s|(&s.name,s.ready,&s.detail)).collect::<Vec<_>>()})).unwrap());
+        assert!(browser.prepared, "{browser:?}");
+        assert!(phase.leftovers.is_empty(), "試験用の資源が残った");
+        if fault == TrialFault::Normal {
+            assert!(browser.completed, "{browser:?}");
+            assert!(
+                browser.responses.iter().any(|r| r.watch == "visit-reload"
+                    && r.request_step.as_deref() == Some("refresh-visit")
+                    && r.status == 200),
+                "タブ更新によるサーバーからの再読込を確認できない: {:?}",
+                browser.responses
+            );
+            assert!(
+                trace
+                    .trial
+                    .as_ref()
+                    .unwrap()
+                    .results
+                    .iter()
+                    .all(|r| r.observed == Observed::Pass),
+                "{:?}",
+                trace.trial.as_ref().unwrap().results
+            );
+            assert_eq!(result.assessment.verdict, Verdict::Satisfied);
+        } else {
+            assert!(trace.trial.as_ref().unwrap().fault_effective);
+            assert!(!browser.completed);
+            assert!(phase.database_reads.iter().all(|r| !r.performed));
+            assert!(
+                trace
+                    .trial
+                    .as_ref()
+                    .unwrap()
+                    .results
+                    .iter()
+                    .filter(|r| r.id.ends_with("-row"))
+                    .all(|r| r.observed == Observed::NotObserved)
+            );
+            // HTTPの失敗を観測した場合は条件を満たさない。DBの読取不能は別に未観測として残す。
+            assert_ne!(result.assessment.verdict, Verdict::Satisfied);
+        }
+    }
+}

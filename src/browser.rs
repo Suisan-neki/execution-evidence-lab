@@ -34,11 +34,29 @@ pub enum Input {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Action {
-    Goto { path: String },
-    Fill { target: Target, value: Input },
-    Click { target: Target },
-    Select { target: Target, value: String },
-    ReadText { target: Target },
+    Goto {
+        path: String,
+    },
+    Fill {
+        target: Target,
+        value: Input,
+    },
+    Click {
+        target: Target,
+    },
+    Expand {
+        target: Target,
+        content: Target,
+    },
+    Select {
+        target: Target,
+        value: String,
+    },
+    ReadText {
+        target: Target,
+        #[serde(default)]
+        contains: Option<String>,
+    },
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Step {
@@ -108,6 +126,8 @@ pub struct BrowserReport {
     pub steps: Vec<StepRecord>,
     pub responses: Vec<ResponseRecord>,
     pub blocked_requests: u32,
+    #[serde(default)]
+    pub response_limit: bool,
     pub detail: String,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -187,7 +207,12 @@ pub fn validate(spec: &BrowserSpec, containers: &ContainerSpec) -> io::Result<()
                         Input::Secret { key } => id(key),
                     }
             }
-            Action::Click { target: t } | Action::ReadText { target: t } => target(t),
+            Action::Click { target: t } => target(t),
+            Action::Expand { target: t, content } => target(t) && target(content),
+            Action::ReadText {
+                target: t,
+                contains,
+            } => target(t) && contains.as_ref().is_none_or(|s| bounded(s)),
             Action::Select { target: t, value } => target(t) && bounded(value),
         };
         if !valid {
@@ -256,6 +281,7 @@ fn unavailable(run_id: &str, detail: &str) -> BrowserReport {
         steps: vec![],
         responses: vec![],
         blocked_requests: 0,
+        response_limit: false,
         detail: detail.into(),
     }
 }
@@ -471,6 +497,12 @@ pub fn evaluate(
             let Some(browser) = &phase.browser else {
                 return missing();
             };
+            if browser.response_limit {
+                return (
+                    Observed::NotObserved,
+                    "HTTP応答の記録上限に達し、全ての応答を照合できない".into(),
+                );
+            }
             let responses = browser
                 .responses
                 .iter()

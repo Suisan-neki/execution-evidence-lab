@@ -26,7 +26,12 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
-      - run: cargo test --locked --test containers browser -- --ignored --nocapture
+      - run: cargo test --locked --test containers browser_observes_nginx -- --ignored --nocapture
+      - name: Register a synthetic OpenEMR patient and visit, then repeat with the database stopped
+        run: |
+          umask 077
+          printf '%s' '{"username":"eel-operator","password":"eel-pass-trial"}' > "$RUNNER_TEMP/openemr-secrets.json"
+          EEL_BROWSER_SECRETS_FILE="$RUNNER_TEMP/openemr-secrets.json" cargo test --locked --test containers openemr_browser -- --ignored --nocapture
       - run: npm run test:ui
       - name: Operate the app against the public repository sjl/t
         env:
@@ -50,6 +55,8 @@ jobs:
           name: synthetic-review-screenshots
           path: |
             test-results/*.png
+            evaluations/ci-openemr/**/*.json
+            evaluations/ci-openemr/**/*.png
             evaluations/ci-methods/results.json
             evaluations/ci-methods/results.md
             evaluations/ci-external/result.json
