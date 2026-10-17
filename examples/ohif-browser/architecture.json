@@ -1,0 +1,245 @@
+{
+  "schema_version": 1,
+  "id": "ohif-trial",
+  "version": 1,
+  "title": "OHIFの一覧・画像取得と描画を試す構成",
+  "source": {
+    "repository": "OHIF/Viewers",
+    "commit": "5a78dac37797efa74c10e63ec2028bca0b33e13b",
+    "path": "package.json",
+    "line": 1,
+    "end_line": 10
+  },
+  "environment": "trial",
+  "images": {
+    "orthanc": "orthancteam/orthanc:26.9.1@sha256:d2705f2c56547e55ce9bc2250fd22d05d326493b3f3d9fa191ecb7db8ca6b5a2",
+    "viewer": "nginx:1.27.4-alpine@sha256:4ff102c5d78d254a6f0da062b3cf39eaf07f01eec0927fd21e219d0af8bc0591"
+  },
+  "browser_version": "151.0.7922.34",
+  "elements": [
+    {
+      "id": "operator",
+      "parent": null,
+      "kind": "person",
+      "title": "試験操作の作成者",
+      "description": "合成DICOMを使った一覧・画像の操作を宣言する。医療機関の本人の確認ではない。",
+      "basis": {
+        "kind": "human",
+        "note": "宣言された試験操作の作成者を補足した。実参加者の役割ではない。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
+          "path": "tools/ohif-smoke.mjs",
+          "line": 1,
+          "end_line": 73
+        }
+      }
+    },
+    {
+      "id": "browser",
+      "parent": null,
+      "kind": "app",
+      "title": "Chromium上のOHIF",
+      "description": "固定版OHIFのJavaScriptをブラウザーで動かし、一覧・画像のHTTP応答とcanvasを観測する。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
+          "path": "tools/ohif-smoke.mjs",
+          "line": 1,
+          "end_line": 73
+        }
+      }
+    },
+    {
+      "id": "system",
+      "parent": null,
+      "kind": "boundary",
+      "title": "試行専用コンテナ",
+      "description": "nginxとOrthancを同じ試行用ネットワークで起動する。公開ポートはlocalhostに限定する。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
+          "path": "tools/ohif-smoke.mjs",
+          "line": 1,
+          "end_line": 73
+        }
+      }
+    },
+    {
+      "id": "viewer",
+      "parent": "system",
+      "kind": "app",
+      "title": "nginx",
+      "description": "検査したOHIFの静的ファイルを配信し、DICOMwebの要求をOrthancへ中継する。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
+          "path": "tools/ohif-smoke.mjs",
+          "line": 1,
+          "end_line": 73
+        }
+      }
+    },
+    {
+      "id": "orthanc",
+      "parent": "system",
+      "kind": "app",
+      "title": "Orthanc",
+      "description": "試験用のDICOMを受け付け、検査一覧・画像フレームを返す。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
+          "path": "tools/ohif-smoke.mjs",
+          "line": 1,
+          "end_line": 73
+        }
+      }
+    },
+    {
+      "id": "store",
+      "parent": "system",
+      "kind": "storage",
+      "title": "試行中の画像領域",
+      "description": "Orthancの試行用コンテナ内にある画像の領域。永続化用の外部ボリュームは設定していない。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
+          "path": "tools/ohif-smoke.mjs",
+          "line": 1,
+          "end_line": 73
+        }
+      }
+    }
+  ],
+  "relations": [
+    {
+      "id": "operate",
+      "from": "operator",
+      "to": "browser",
+      "title": "宣言した操作",
+      "description": "一覧と指定した検査UIDのビューアーを開く。",
+      "basis": {
+        "kind": "human",
+        "note": "宣言された試験操作の作成者を補足した。実参加者の役割ではない。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
+          "path": "tools/ohif-smoke.mjs",
+          "line": 1,
+          "end_line": 73
+        }
+      }
+    },
+    {
+      "id": "assets",
+      "from": "browser",
+      "to": "viewer",
+      "title": "静的ファイルを取得",
+      "description": "ビルド成果物の検査済みコピーと、レシピの試験設定を配信する。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
+          "path": "tools/ohif-smoke.mjs",
+          "line": 1,
+          "end_line": 73
+        }
+      }
+    },
+    {
+      "id": "query",
+      "from": "browser",
+      "to": "viewer",
+      "title": "検査一覧を取得",
+      "description": "QIDOの応答と検査UIDの照合を関連づける。画像の取得とは別に扱う。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
+          "path": "tools/ohif-smoke.mjs",
+          "line": 1,
+          "end_line": 73
+        }
+      }
+    },
+    {
+      "id": "frames",
+      "from": "browser",
+      "to": "viewer",
+      "title": "画像フレームを取得",
+      "description": "ブラウザーが受け取った状態コードと画素のハッシュを関連づける。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
+          "path": "tools/ohif-smoke.mjs",
+          "line": 1,
+          "end_line": 73
+        }
+      }
+    },
+    {
+      "id": "proxy",
+      "from": "viewer",
+      "to": "orthanc",
+      "title": "DICOMwebへ中継",
+      "description": "設定上の中継経路。ブラウザーの応答だけでは内部通信の全経路を証明しない。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
+          "path": "tools/ohif-smoke.mjs",
+          "line": 1,
+          "end_line": 73
+        }
+      }
+    },
+    {
+      "id": "storage",
+      "from": "orthanc",
+      "to": "store",
+      "title": "試行用の保存領域",
+      "description": "サーバーへの直接読取は画像の取得の観測であり、クラッシュ時の永続性の証明ではない。",
+      "basis": {
+        "kind": "configuration",
+        "note": "試験用の固定設定・処理の宣言から確認した。",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
+          "path": "tools/ohif-smoke.mjs",
+          "line": 1,
+          "end_line": 73
+        }
+      }
+    }
+  ],
+  "limits": [
+    "合成DICOM 1枚の試験用構成であり、実運用や臨床上の正しさを表さない。",
+    "ビルド環境と生成物のハッシュ、試験時の設定は各試行の記録を参照する。図だけで全設定の一致は証明しない。",
+    "canvasの観測は他のHTMLの重なりを除いた明暗の観測。全画素の再構成や画像の向きは未検証。",
+    "HTTP・画素・直接読取は別の観測であり、保存の耐久性や中継経路全体へ成功・失敗を広げない。"
+  ]
+}

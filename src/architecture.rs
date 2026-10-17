@@ -37,6 +37,7 @@ pub enum ElementKind {
     Person,
     System,
     App,
+    Component,
     Database,
     Storage,
     Boundary,
@@ -92,6 +93,11 @@ pub enum Target {
         evidence_id: String,
         observation_id: String,
     },
+    ReportedEvidence {
+        evidence_id: String,
+        assertion: String,
+        subject: String,
+    },
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -107,9 +113,20 @@ pub struct LinkView {
     pub link: Link,
     pub current_model: bool,
     pub applicable: bool,
-    pub method: Option<CheckMethod>,
+    pub method: Option<LinkMethod>,
     pub observed: Option<Observed>,
     pub detail: String,
+}
+#[derive(Debug, PartialEq, Eq, Serialize)]
+#[serde(untagged)]
+pub enum LinkMethod {
+    Execution(CheckMethod),
+    Reported(ReportedMethod),
+}
+#[derive(Debug, PartialEq, Eq, Serialize)]
+pub enum ReportedMethod {
+    #[serde(rename = "reported_assertion")]
+    Assertion,
 }
 fn invalid(s: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, s)
@@ -303,6 +320,49 @@ fn validate_link(w: &Workspace, l: &Link) -> io::Result<()> {
                 ));
             }
         }
+        Target::ReportedEvidence {
+            evidence_id,
+            assertion,
+            subject,
+        } => {
+            text(assertion)?;
+            text(subject)?;
+            let evidence = w
+                .evidence
+                .iter()
+                .find(|e| e.id == *evidence_id)
+                .ok_or_else(|| invalid("参照する段階の報告がありません"))?;
+            let trace = evidence
+                .reported
+                .as_ref()
+                .ok_or_else(|| invalid("報告観測の記録が必要です"))?;
+            if !evidence
+                .observation
+                .as_ref()
+                .is_some_and(|c| c.assertion == *assertion && c.subject == *subject)
+            {
+                return Err(invalid(
+                    "この条件に対応づけた報告の観測名・対象と一致しません",
+                ));
+            }
+            let images = trace
+                .context
+                .get("images")
+                .and_then(|v| serde_json::from_value::<BTreeMap<String, String>>(v.clone()).ok());
+            let browser = trace
+                .context
+                .get("browser_version")
+                .and_then(|v| v.as_str())
+                .map(str::to_owned);
+            if trace.source.as_ref() != Some(&m.source)
+                || images.as_ref() != Some(&m.images)
+                || browser != m.browser_version
+            {
+                return Err(invalid(
+                    "報告に宣言された固定コード・イメージ・ブラウザーの版が構成と一致しません",
+                ));
+            }
+        }
     }
     Ok(())
 }
@@ -375,10 +435,22 @@ pub fn links(w: &Workspace) -> Vec<LinkView> {
                     });
                     (
                         applicable,
-                        check.map(|c| c.method),
+                        check.map(|c| LinkMethod::Execution(c.method)),
                         result.map(|r| r.observed),
                         result.map_or("観測結果の記録なし".into(), |r| r.detail.clone()),
                     )
+                }
+                Target::ReportedEvidence {evidence_id,assertion,subject} => {
+                    let e=w.evidence.iter().find(|e|e.id==*evidence_id);
+                    let applicable=e.is_some_and(|e|w.checks.iter().any(|c|c.id==e.check_id && crate::workspace::evidence_invalidated_by(w,c,e).is_empty()));
+                    let selected=e.and_then(|e|e.reported.as_ref().map(|trace|(e,trace)));
+                    let (observed,detail)=selected.map_or((Observed::NotObserved,"段階の報告の記録なし".into()),|(e,trace)|{
+                        let criterion=crate::execution::Criterion {assertion:assertion.clone(),subject:subject.clone()};
+                        let assessment=crate::reported::assess(trace,&e.manifest.condition,&criterion);
+                        let observed=match assessment.verdict {crate::model::Verdict::Satisfied=>Observed::Pass,crate::model::Verdict::NotSatisfied=>Observed::Fail,crate::model::Verdict::Unknown=>Observed::NotObserved};
+                        (observed,format!("{}。対象内の段階報告であり、実行経路の独立した証明ではありません。段階の詳しい記録は証拠から確認できます。",assessment.reason))
+                    });
+                    (applicable,Some(LinkMethod::Reported(ReportedMethod::Assertion)),Some(observed),detail)
                 }
             };
             LinkView {
@@ -398,4 +470,13 @@ pub fn openemr() -> Model {
         "../examples/openemr-browser/architecture.json"
     ))
     .expect("組み込み構成の形式はテストで確認する")
+}
+pub fn builtins() -> Vec<Model> {
+    vec![
+        openemr(),
+        serde_json::from_str(include_str!("../examples/ohif-browser/architecture.json"))
+            .expect("組み込みOHIF構成はテストで確認する"),
+        serde_json::from_str(include_str!("../examples/monai-workflow/architecture.json"))
+            .expect("組み込みMONAI構成はテストで確認する"),
+    ]
 }

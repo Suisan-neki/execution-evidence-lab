@@ -1,22 +1,23 @@
 specification {
-  element person { style { shape person } }
-  element system
-  element app
-  element database { style { shape storage } }
-  element storage { style { shape storage } }
-  element boundary
+ element person { style { shape person } }
+ element system
+ element app
+ element component
+ element database { style { shape storage } }
+ element storage { style { shape storage } }
+ element boundary
 }
 model {
   operator = person "試験操作の作成者" {
     description "架空の患者と受診理由を使う操作を宣言する。実際の医療機関の担当者ではない。"
     style { size xs
       textSize lg }
-   }
+  }
   browser = app "試験用ブラウザ" {
     description "Chromiumで入力・保存・再表示を操作し、表示とHTTP応答を記録する。"
     style { size xs
       textSize lg }
-   }
+  }
   system = system "OpenEMRの試験環境" {
     description "試行ごとに作るネットワークとコンテナ。実運用環境とは別。"
     style { size xs
@@ -25,44 +26,211 @@ model {
       description "HTTPSで画面を返す。患者登録と受診理由の保存・再表示を操作する。"
       style { size xs
         textSize lg }
-     }
+    }
     db = database "MariaDB" {
       description "患者と受診理由の行を保存する試験用DB。"
       style { size xs
         textSize lg }
-     }
+    }
     storage = storage "DBの保存領域" {
       description "mysqlコンテナの/var/lib/mysqlに接続する、試行専用のdbボリューム。"
       style { size xs
         textSize lg }
-     }
-   }
+    }
+  }
   operator -> browser "操作を宣言" {
     description "レシピの準備と試験操作を基盤がブラウザへ送る。"
-    metadata { eelId "operate" }
+    metadata { eelId "operate"
+      eelModel "openemr-trial" }
   }
   browser -> system.app "画面とHTTP応答" {
     description "アプリの443番ポートを試験用に公開し、TLSでアクセスする。"
-    metadata { eelId "https" }
+    metadata { eelId "https"
+      eelModel "openemr-trial" }
   }
   system.app -> system.db "DBへの接続設定" {
     description "MYSQL_HOST=mysqlで接続先を指定する。通信そのものの観測はしていない。"
-    metadata { eelId "sql" }
+    metadata { eelId "sql"
+      eelModel "openemr-trial" }
   }
   system.db -> system.storage "DBのファイルを保存" {
     description "dbボリュームを/var/lib/mysqlに接続する。ファイル書込やディスク同期の観測はしていない。"
-    metadata { eelId "persist" }
+    metadata { eelId "persist"
+      eelModel "openemr-trial" }
+  }
+  ohif_trial__operator = person "試験操作の作成者" {
+    description "合成DICOMを使った一覧・画像の操作を宣言する。医療機関の本人の確認ではない。"
+    style { size xs
+      textSize lg }
+  }
+  ohif_trial__browser = app "Chromium上のOHIF" {
+    description "固定版OHIFのJavaScriptをブラウザーで動かし、一覧・画像のHTTP応答とcanvasを観測する。"
+    style { size xs
+      textSize lg }
+  }
+  ohif_trial__system = boundary "試行専用コンテナ" {
+    description "nginxとOrthancを同じ試行用ネットワークで起動する。公開ポートはlocalhostに限定する。"
+    style { size xs
+      textSize lg }
+    viewer = app "nginx" {
+      description "検査したOHIFの静的ファイルを配信し、DICOMwebの要求をOrthancへ中継する。"
+      style { size xs
+        textSize lg }
+    }
+    orthanc = app "Orthanc" {
+      description "試験用のDICOMを受け付け、検査一覧・画像フレームを返す。"
+      style { size xs
+        textSize lg }
+    }
+    store = storage "試行中の画像領域" {
+      description "Orthancの試行用コンテナ内にある画像の領域。永続化用の外部ボリュームは設定していない。"
+      style { size xs
+        textSize lg }
+    }
+  }
+  ohif_trial__operator -> ohif_trial__browser "宣言した操作" {
+    description "一覧と指定した検査UIDのビューアーを開く。"
+    metadata { eelId "operate"
+      eelModel "ohif-trial" }
+  }
+  ohif_trial__browser -> ohif_trial__system.viewer "静的ファイルを取得" {
+    description "ビルド成果物の検査済みコピーと、レシピの試験設定を配信する。"
+    metadata { eelId "assets"
+      eelModel "ohif-trial" }
+  }
+  ohif_trial__browser -> ohif_trial__system.viewer "検査一覧を取得" {
+    description "QIDOの応答と検査UIDの照合を関連づける。画像の取得とは別に扱う。"
+    metadata { eelId "query"
+      eelModel "ohif-trial" }
+  }
+  ohif_trial__browser -> ohif_trial__system.viewer "画像フレームを取得" {
+    description "ブラウザーが受け取った状態コードと画素のハッシュを関連づける。"
+    metadata { eelId "frames"
+      eelModel "ohif-trial" }
+  }
+  ohif_trial__system.viewer -> ohif_trial__system.orthanc "DICOMwebへ中継" {
+    description "設定上の中継経路。ブラウザーの応答だけでは内部通信の全経路を証明しない。"
+    metadata { eelId "proxy"
+      eelModel "ohif-trial" }
+  }
+  ohif_trial__system.orthanc -> ohif_trial__system.store "試行用の保存領域" {
+    description "サーバーへの直接読取は画像の取得の観測であり、クラッシュ時の永続性の証明ではない。"
+    metadata { eelId "storage"
+      eelModel "ohif-trial" }
+  }
+  monai_trial__operator = person "試験設定の作成者" {
+    description "合成データ、モデル、数値の照合範囲と故障を宣言する。"
+    style { size xs
+      textSize lg }
+  }
+  monai_trial__system = boundary "試行専用CPUコンテナ" {
+    description "固定した依存を導入する。前処理から推論までは同じPythonプロセス内の段階で、別サービスではない。"
+    style { size xs
+      textSize lg }
+    input = storage "合成入力" {
+      description "64×64の合成画像とラベルを作り、入力ファイルを読み出す。"
+      style { size xs
+        textSize lg }
+    }
+    preprocess = component "前処理" {
+      description "MONAIで強度を正規化し、float32のtensorへ変換する。"
+      style { size xs
+        textSize lg }
+    }
+    train = component "学習と保存前の推論" {
+      description "小さいUNetを3回更新し、保存前のモデルの参照出力を得る。モデルの性能は評価しない。"
+      style { size xs
+        textSize lg }
+    }
+    checkpoint = storage "チェックポイント" {
+      description "重みと処理設定を保存・再読込する。optimizerの状態を使う学習再開は扱わない。"
+      style { size xs
+        textSize lg }
+    }
+    inference = component "再読込後の推論" {
+      description "再読込したモデルで一つの窓の推論を行い、保存前の出力と全画素で照合する。"
+      style { size xs
+        textSize lg }
+    }
+    result = storage "推論結果" {
+      description "推論結果をnpyファイルへ保存する。"
+      style { size xs
+        textSize lg }
+    }
+    reader = app "別のPythonプロセス" {
+      description "保存したnpyを読み出し、参照出力と照合する。同じコンテナの別プロセスであり、第三者の検証ではない。"
+      style { size xs
+        textSize lg }
+    }
+  }
+  monai_trial__operator -> monai_trial__system "処理と故障を宣言" {
+    description "実行前に固定した設定とスクリプトを確認できる。"
+    metadata { eelId "configure"
+      eelModel "monai-trial" }
+  }
+  monai_trial__system.input -> monai_trial__system.preprocess "入力を読む" {
+    description "読み出せなかった場合は後続の段階を未観測として残す。"
+    metadata { eelId "read-input"
+      eelModel "monai-trial" }
+  }
+  monai_trial__system.preprocess -> monai_trial__system.train "tensorを渡す" {
+    description "同じPythonプロセスの段階間の受け渡し。通信の観測ではない。"
+    metadata { eelId "training-input"
+      eelModel "monai-trial" }
+  }
+  monai_trial__system.train -> monai_trial__system.checkpoint "重みを保存" {
+    description "チェックポイントの保存段階の報告を対応づける。"
+    metadata { eelId "save-model"
+      eelModel "monai-trial" }
+  }
+  monai_trial__system.checkpoint -> monai_trial__system.inference "モデルを再読込" {
+    description "破損したファイルで読取が失敗した場合は、推論完了を補わない。"
+    metadata { eelId "load-model"
+      eelModel "monai-trial" }
+  }
+  monai_trial__system.inference -> monai_trial__system.result "出力を保存" {
+    description "保存段階の報告と生成物のハッシュを各試行に残す。"
+    metadata { eelId "save-result"
+      eelModel "monai-trial" }
+  }
+  monai_trial__system.result -> monai_trial__system.reader "別プロセスで読む" {
+    description "保存した結果の読取・数値の照合を報告する。"
+    metadata { eelId "read-result"
+      eelModel "monai-trial" }
   }
 }
 views {
- view context {
-  title "全体の構成"
-  include operator, browser, system
-  autoLayout TopBottom
- }
- view containers {
-  title "内部の構成"
-  include operator, browser, system.*
-  autoLayout LeftRight
- }
+view context {
+ title "OpenEMRの患者登録・受診理由保存を試す構成・全体"
+ include operator, browser, system
+ autoLayout TopBottom
+}
+view containers {
+ title "OpenEMRの患者登録・受診理由保存を試す構成・内部"
+ include operator, browser, system.*
+ autoLayout LeftRight
+}
+
+view ohif_trial__context {
+ title "OHIFの一覧・画像取得と描画を試す構成・全体"
+ include ohif_trial__operator, ohif_trial__browser, ohif_trial__system
+ autoLayout TopBottom
+}
+view ohif_trial__containers {
+ title "OHIFの一覧・画像取得と描画を試す構成・内部"
+ include ohif_trial__operator, ohif_trial__browser, ohif_trial__system.*
+ autoLayout TopBottom
+}
+
+view monai_trial__context {
+ title "MONAIの学習・保存・再読込を試す構成・全体"
+ include monai_trial__operator, monai_trial__system
+ autoLayout TopBottom
+}
+view monai_trial__containers {
+ title "MONAIの学習・保存・再読込を試す構成・内部"
+ include monai_trial__operator, monai_trial__system.*
+ autoLayout TopBottom
+}
+
 }

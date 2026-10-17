@@ -197,6 +197,8 @@ summary {
   font-weight: 700;
 }
 .record-action {
+  min-width: 0;
+  overflow-wrap: anywhere;
   border-top: 1px solid #ccd4df;
   margin-top: 1.25rem;
   padding-top: 0.5rem;
