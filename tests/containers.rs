@@ -670,6 +670,13 @@ fn openemr_browser_registers_patient_and_reads_back_visit() {
         if fault == TrialFault::Normal {
             assert!(browser.completed, "{browser:?}");
             assert!(
+                browser.responses.iter().any(|r| r.watch == "visit-reload"
+                    && r.request_step.as_deref() == Some("refresh-visit")
+                    && r.status == 200),
+                "タブ更新によるサーバーからの再読込を確認できない: {:?}",
+                browser.responses
+            );
+            assert!(
                 trace
                     .trial
                     .as_ref()

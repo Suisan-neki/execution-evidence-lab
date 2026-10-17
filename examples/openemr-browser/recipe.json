@@ -444,35 +444,12 @@
         "contains": "{{test_value}}"
       },
       {
-        "id": "patient-reopen",
+        "id": "refresh-visit",
         "action": "click",
         "target": {
-          "frames": [],
           "locator": {
             "by": "css",
-            "selector": "#mainMenu .menuLabel:text-is(\"Patient\"):visible"
-          }
-        }
-      },
-      {
-        "id": "visits-reopen",
-        "action": "click",
-        "target": {
-          "frames": [],
-          "locator": {
-            "by": "css",
-            "selector": "#mainMenu .menuLabel:text-is(\"Visits\"):visible"
-          }
-        }
-      },
-      {
-        "id": "current-visit",
-        "action": "click",
-        "target": {
-          "frames": [],
-          "locator": {
-            "by": "css",
-            "selector": "#mainMenu .menuLabel:text-is(\"Current\"):visible"
+            "selector": "#tabs_div .tabSpan:not(.tabsNoHover) .fa-sync"
           }
         }
       },
@@ -526,6 +503,11 @@
         "id": "visit-save",
         "method": "POST",
         "path": "/interface/forms/newpatient/save.php"
+      },
+      {
+        "id": "visit-reload",
+        "method": "GET",
+        "path": "/interface/patient_file/encounter/encounter_top.php"
       }
     ],
     "database": [
