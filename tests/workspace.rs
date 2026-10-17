@@ -674,6 +674,52 @@ fn reader_and_test_pages_are_distinct_and_modules_are_served_as_javascript() {
     let module = http(&case, "GET", "/ui/scanner.js", "", None, None, None);
     assert!(module.contains("Content-Type: text/javascript"));
     assert!(module.contains("export async function scanPublicRepository"));
+    let browser_module = http(
+        &case,
+        "GET",
+        "/ui/browser-evidence.js",
+        "",
+        None,
+        None,
+        None,
+    );
+    assert!(browser_module.contains("export function renderBrowserEvidence"));
+    assert!(
+        http(
+            &case,
+            "GET",
+            "/api/v1/browser-screenshot/evidence-1/step",
+            "",
+            None,
+            None,
+            None
+        )
+        .starts_with("HTTP/1.1 403")
+    );
+    assert!(
+        http(
+            &case,
+            "GET",
+            "/api/v1/browser-screenshot/evidence-1/step",
+            "",
+            None,
+            Some("test-token"),
+            None
+        )
+        .starts_with("HTTP/1.1 404")
+    );
+    assert!(
+        http(
+            &case,
+            "GET",
+            "/api/browser-screenshot/evidence-1/step",
+            "",
+            None,
+            None,
+            None
+        )
+        .starts_with("HTTP/1.1 403")
+    );
     assert!(
         http(&case, "GET", "/ui/../../Cargo.toml", "", None, None, None)
             .starts_with("HTTP/1.1 404")

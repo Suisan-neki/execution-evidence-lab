@@ -177,7 +177,7 @@ fn respond(stream: &mut TcpStream, status: u16, content_type: &str, body: &[u8])
     };
     write!(
         stream,
-        "HTTP/1.1 {status} {phrase}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nContent-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; form-action 'none'; frame-ancestors 'none'; base-uri 'none'\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {status} {phrase}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nContent-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; img-src 'self' blob:; form-action 'none'; frame-ancestors 'none'; base-uri 'none'\r\nConnection: close\r\n\r\n",
         body.len()
     )?;
     stream.write_all(body)
@@ -298,7 +298,7 @@ fn handle_connection_mode(
         return json(
             stream,
             200,
-            &serde_json::json!({"schema_version":1,"api_version":"v1","scope":"localhost","routes":if app.is_some() {serde_json::json!(["case","change","compare","backup","execution","execute","repository","understand","prepare","ai"])} else {serde_json::json!(["case","change","compare","backup","execution","execute","repository"])},"reported_observations":true,"limits":{"request_bytes":MAX_BODY,"backup_bytes":crate::backup::MAX_BACKUP,"reader_request_bytes":8*1024*1024,"reader_seconds":30,"reader_output_bytes":8*1024*1024},"understanding":"作者の説明と静的解析。実行経路・業務上の意味は未確認"}),
+            &serde_json::json!({"schema_version":1,"api_version":"v1","scope":"localhost","routes":if app.is_some() {serde_json::json!(["case","change","compare","backup","execution","execute","browser-screenshot","repository","understand","prepare","ai"])} else {serde_json::json!(["case","change","compare","backup","execution","execute","browser-screenshot","repository"])},"reported_observations":true,"limits":{"request_bytes":MAX_BODY,"backup_bytes":crate::backup::MAX_BACKUP,"reader_request_bytes":8*1024*1024,"reader_seconds":30,"reader_output_bytes":8*1024*1024},"understanding":"作者の説明と静的解析。実行経路・業務上の意味は未確認"}),
         );
     }
     if let Some(app) = app {
@@ -371,6 +371,10 @@ fn handle_connection_mode(
                 "text/html; charset=utf-8",
                 explorer_html().replace("__REVIEW_TOKEN__", token),
             )),
+            "/ui/browser-evidence.js" => Some((
+                "text/javascript; charset=utf-8",
+                include_str!("../ui/browser-evidence.js").to_owned(),
+            )),
             "/ui/explorer.js" => Some((
                 "text/javascript; charset=utf-8",
                 include_str!("../ui/explorer.js").to_owned(),
@@ -405,6 +409,43 @@ fn handle_connection_mode(
     } else {
         request.path.clone()
     };
+    if request.method == "GET" && api_path.starts_with("/api/browser-screenshot/") {
+        if !versioned {
+            return json(
+                stream,
+                403,
+                &serde_json::json!({"error":"画面写真は認証付きのv1 APIで読み出してください"}),
+            );
+        }
+        let parts = api_path
+            .trim_start_matches("/api/browser-screenshot/")
+            .split('/')
+            .collect::<Vec<_>>();
+        let result = (|| {
+            if parts.len() != 2 {
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "画面写真の識別子が不正です",
+                ));
+            }
+            let case = workspace::load(directory)?;
+            let evidence = case
+                .evidence
+                .iter()
+                .find(|e| e.id == parts[0])
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::NotFound, "対応する試行がありません")
+                })?;
+            let trace = evidence.execution.as_ref().ok_or_else(|| {
+                io::Error::new(io::ErrorKind::NotFound, "ブラウザの試行がありません")
+            })?;
+            crate::browser_evidence::screenshot(directory, trace, parts[1])
+        })();
+        return match result {
+            Ok(bytes) => respond(stream, 200, "image/png", &bytes),
+            Err(error) => json(stream, 404, &serde_json::json!({"error":error.to_string()})),
+        };
+    }
     match (request.method.as_str(), api_path.as_str()) {
         ("GET", "/api/backup") => result_response(stream, crate::backup::snapshot(directory)),
         ("POST", "/api/compare") => {

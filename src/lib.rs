@@ -4,6 +4,7 @@ mod ai_transport;
 pub mod assessment;
 pub mod backup;
 pub mod browser;
+pub mod browser_evidence;
 pub mod capture;
 pub mod comparison;
 pub mod container;
