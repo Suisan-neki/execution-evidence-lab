@@ -98,6 +98,7 @@ mod tests {
             }],
             responses: vec![],
             blocked_requests: 0,
+            response_limit: false,
             detail: String::new(),
         };
         let path = dir.join("runs").join(&report.run_id).join("browser");

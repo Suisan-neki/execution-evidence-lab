@@ -155,6 +155,17 @@ fn display_does_not_establish_database_success_and_mixed_http_responses_are_unkn
         .0,
         Observed::Pass
     );
+    p.browser.as_mut().unwrap().response_limit = true;
+    assert_eq!(
+        evaluate(
+            &check(CheckMethod::BrowserResponse, Expectation::Contains, "save"),
+            Some(&p),
+            "status=200"
+        )
+        .0,
+        Observed::NotObserved
+    );
+    p.browser.as_mut().unwrap().response_limit = false;
     p.browser.as_mut().unwrap().responses[0].request_step = Some("username".into());
     assert_eq!(
         evaluate(

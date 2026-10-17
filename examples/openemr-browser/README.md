@@ -1,6 +1,6 @@
 # OpenEMRの患者と受診理由を試験する
 
-`recipe.json`は、架空の患者を登録し、受診理由を保存して再表示するブラウザ試験。OpenEMRの固定コミット `d7ecc612e166c6f9f3adc9f50bc9f8cc68cac701` のproduction composeを参照し、記載されたOpenEMRとMariaDBのイメージをダイジェストで固定する。通常時と、入力フォームの準備後にDBを止める条件を試す。
+`recipe.json`は、架空の患者を登録し、受診理由を保存して再表示するブラウザ試験。OpenEMRの固定コミット `d7ecc612e166c6f9f3adc9f50bc9f8cc68cac701` のproduction composeを参照し、記載されたOpenEMRとMariaDBのイメージをダイジェストで固定する。通常時と、患者登録と受診理由の入力後、保存する直前にDBを止める条件を試す。
 
 ```sh
 npm ci --ignore-scripts
