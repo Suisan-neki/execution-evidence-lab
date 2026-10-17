@@ -24,6 +24,8 @@ jobs:
           umask 077
           printf '%s' '{"username":"eel-operator","password":"eel-pass-trial"}' > "$RUNNER_TEMP/openemr-secrets.json"
           EEL_BROWSER_SECRETS_FILE="$RUNNER_TEMP/openemr-secrets.json" node tools/openemr-soap-smoke.mjs
+      - name: Review actual SOAP observations through the shared OpenEMR service diagram
+        run: node tools/target-architecture-smoke.mjs openemr-soap
       - name: Keep synthetic SOAP workflow evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -33,5 +35,6 @@ jobs:
             evaluations/ci-openemr-soap/**/*.json
             evaluations/ci-openemr-soap/**/*.png
             evaluations/ci-openemr-soap/**/*.log
+            test-results/architecture-openemr-soap-*.png
           if-no-files-found: ignore
           retention-days: 7

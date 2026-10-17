@@ -39,3 +39,5 @@ EEL_BROWSER_SECRETS_FILE=/tmp/eel-openemr-secrets.json node tools/openemr-soap-s
 通常時、SOAP入力後・保存直前のDB停止、新しいDBとコンテナでの再試験を同じ事例に残す。DB停止時も保存操作を実行する。保存先の読取不能と、再表示へ進めなかった未観測を区別する。既存DBの修復や同じDBでの復旧を試した意味ではない。結果は`evaluations/ci-openemr-soap/`に残す。
 
 選択の根拠は固定版OpenEMRの`templates/encounter/forms/navbar.html.twig`、`interface/forms/soap/templates/soap_form.twig`、`interface/forms/soap/report.php`、`interface/forms/soap/table.sql`。画面操作はSOAPのフォームを使い、DBへの書込みで代用しない。ローカルにDockerがない場合、実際の保存・再表示と故障試験は専用のGitHub Actionsで検証する。
+
+実行後に`node tools/target-architecture-smoke.mjs openemr-soap`で、同じ事例のSOAP観測をOpenEMRの構成図へ対応づける。構成図の元の根拠は先行した患者・受診理由の試験で、DB・アプリ・ブラウザーの固定した構成を共用する。SOAPの操作の根拠は各試行のレシピで確認する。図・合成の疑問・SOAPの観測を往復し、DB停止時の未観測を正常時の成功で補わない。
