@@ -51,8 +51,10 @@ function recipe(rejected){
 }
 // One case keeps normal, actual rejection and a new normal run without overwriting evidence.
 const caseDir=path.join(output,'case');
-const spec={schema_version:1,revision:1,id:'ohif-image',title:'OHIFで合成画像を取得して表示する',statements:[],context:{},checks:[{id:'image',version:1,text:'試験用の検査を一覧に出し、指定した画像データと明暗を表示できる',origin:'Codexが選んだ試験用の条件',source,observation:{assertion:'eel.trial',subject:'image'},rule:'manual_only',dependencies:[],questions:[]}],evidence:[],decisions:[],history:[]};
-fs.writeFileSync(path.join(output,'case-spec.json'),JSON.stringify(spec,null,2));command(['case','init',caseDir,'--file',path.join(output,'case-spec.json')]);
+const spec={schema_version:1,revision:1,id:'ohif-image',title:'OHIFで合成画像を取得して表示する',statements:[],context:{},checks:[{id:'image',version:1,text:'試験用の検査を一覧に出し、指定した画像データと明暗を表示できる',origin:'Codexが選んだ試験用の条件',source,observation:null,rule:'manual_only',dependencies:[],questions:[]}],evidence:[],decisions:[],history:[]};
+fs.writeFileSync(path.join(output,'case-spec.json'),JSON.stringify(spec,null,2));const initial=command(['case','init',caseDir,'--file',path.join(output,'case-spec.json')]);
+const change={expected_revision:initial.workspace.revision,actor:'合成の試験担当',reason:'観測名と対象を条件へ明示して試験する',action:{op:'configure_observation',check_id:'image',criterion:{assertion:'eel.trial',subject:'image'}}};
+fs.writeFileSync(path.join(output,'configure-observation.json'),JSON.stringify(change));command(['case','apply',caseDir,path.join(output,'configure-observation.json')]);
 const results=[];
 for(const [label,rejected] of [['normal',false],['image-rejected',true],['retry',false]]){
  const recipePath=path.join(output,label+'-recipe.json');fs.writeFileSync(recipePath,JSON.stringify(recipe(rejected),null,2));
