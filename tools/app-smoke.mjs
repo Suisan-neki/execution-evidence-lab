@@ -291,6 +291,33 @@ try {
   assert.match(diff, /終了コード/);
   assert.match(diff, /原因|因果/);
   log('二つの試行を比べ、コード参照と終了コードの違いを示した');
+  const beforeTrial = page.getByLabel('前の試行', { exact: true });
+  const afterTrial = page.getByLabel('後の試行', { exact: true });
+  const beforeId = await beforeTrial.inputValue(), afterId = await afterTrial.inputValue();
+  const comparison = page.locator('[data-trial-comparison]');
+  await afterTrial.selectOption(beforeId);
+  assert.equal(await comparison.innerText(), '', '選択を変えたら前の比較を消す');
+  await afterTrial.selectOption(afterId);
+  let releaseResponse, responseHeld;
+  const held = new Promise(resolve => { responseHeld = resolve; });
+  const release = new Promise(resolve => { releaseResponse = resolve; });
+  await context.route('**/api/v1/compare', async route => {
+    const response = await route.fetch(); responseHeld(); await release; await route.fulfill({ response });
+  });
+  await page.getByRole('button', { name: '比べる', exact: true }).click();
+  await held;
+  await afterTrial.selectOption(beforeId);
+  const responseReturned = page.waitForResponse(r => r.url().endsWith('/api/v1/compare'));
+  releaseResponse(); await responseReturned;
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  assert.equal(await comparison.innerText(), '', '選択前の遅い応答を表示しない');
+  await context.unroute('**/api/v1/compare');
+  await afterTrial.selectOption(afterId);
+  await page.getByRole('button', { name: '比べる', exact: true }).click();
+  await page.getByText('異なる項目・確認できない項目').waitFor();
+  assert.deepEqual((await caseView()).workspace, view.workspace, '比較と選択で記録を変更しない');
+  log('比較の選択変更で前の表示を消し、選択前の遅い応答を採用しない');
+
 
   // 判断。合意済みにはならない。
   await as('架空の開発者', 'developer');
