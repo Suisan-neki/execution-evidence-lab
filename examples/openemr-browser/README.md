@@ -26,4 +26,16 @@ Dockerのエンジンが必要。試行ごとに新しいDBとコンテナを作
 
 DBを止めた場合は、DBから行を読めないことを「行がない」に置き換えない。HTTP 200のエラーページが返る可能性もあるため、HTTPだけで保存を成功と判定しない。観測記録と写真は`evaluations/ci-openemr/`に残す。
 
-この試験で扱う診療記録は受診理由だけ。SOAPの各項目、署名、各職種の閲覧権限、長期保存、実環境の構成との一致、OHIFの画像表示は別の確認が必要。#140全体の完了とは扱わない。
+元の`recipe.json`で扱う診療記録は受診理由だけ。SOAPは下の別レシピで確認する。署名、各職種の閲覧権限、長期保存、実環境の構成との一致は別の確認が必要。
+
+## SOAPの4項目を試す
+
+`soap-recipe.json`は上の患者・受診を作った後、Subjective、Objective、Assessment、Planへ別々の試験値を入力する。SOAPの保存POST、受診タブを更新した後の4項目、`form_soap`の4列を別条件で観測する。DBの`pid`を患者の`pid`とも照合する。受診との外部キーの照合や署名は含めない。
+
+```sh
+EEL_BROWSER_SECRETS_FILE=/tmp/eel-openemr-secrets.json node tools/openemr-soap-smoke.mjs
+```
+
+通常時、SOAP入力後・保存直前のDB停止、新しいDBとコンテナでの再試験を同じ事例に残す。DB停止時も保存操作を実行する。保存先の読取不能と、再表示へ進めなかった未観測を区別する。既存DBの修復や同じDBでの復旧を試した意味ではない。結果は`evaluations/ci-openemr-soap/`に残す。
+
+選択の根拠は固定版OpenEMRの`templates/encounter/forms/navbar.html.twig`、`interface/forms/soap/templates/soap_form.twig`、`interface/forms/soap/report.php`、`interface/forms/soap/table.sql`。画面操作はSOAPのフォームを使い、DBへの書込みで代用しない。ローカルにDockerがない場合、実際の保存・再表示と故障試験は専用のGitHub Actionsで検証する。
