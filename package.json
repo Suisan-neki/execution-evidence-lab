@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:ui": "node tools/review-smoke.mjs && node tools/explorer-smoke.mjs && node tools/external-smoke.mjs && node tools/execution-ui-smoke.mjs && node tools/browser-evidence-smoke.mjs",
+    "test:ui": "node tools/review-smoke.mjs && node tools/explorer-smoke.mjs && node tools/external-smoke.mjs && node tools/execution-ui-smoke.mjs && node tools/browser-evidence-smoke.mjs && npm run test:architecture",
     "test:reader": "node tools/scanner-tests.mjs && node tools/comprehension-tests.mjs && node tools/call-navigation-tests.mjs && node tools/understanding-tests.mjs",
     "test:methods": "node tools/reproduce-methods.mjs",
     "test:external": "node tools/pinned-demo.mjs",
@@ -11,9 +11,12 @@
     "test:app": "node tools/app-smoke.mjs",
     "test:dicom": "node tools/dicom-smoke.mjs",
     "test:browser": "node tools/browser-smoke.mjs",
-    "test:reader-native": "node tools/reader-native-smoke.mjs"
+    "test:reader-native": "node tools/reader-native-smoke.mjs",
+    "build:architecture": "node tools/build-architecture.mjs",
+    "test:architecture": "node tools/architecture-smoke.mjs"
   },
   "devDependencies": {
+    "likec4": "1.60.0",
     "playwright": "1.62.1"
   }
 }

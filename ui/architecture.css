@@ -1,0 +1,299 @@
+:root {
+  font-family: var(--font-family-sans, sans-serif);
+  color: #1a1a1a;
+  background: #f5f7f9;
+  font-size: 16px;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  line-height: 1.75;
+}
+h1,
+h2,
+h3 {
+  line-height: 1.5;
+}
+h1 {
+  margin: 0.5rem 0;
+}
+h2 {
+  font-size: 1.4rem;
+  margin: 0 0 1rem;
+}
+h3 {
+  font-size: 1.15rem;
+}
+.container {
+  max-width: 1240px;
+  margin: auto;
+  padding: 1.25rem;
+}
+header {
+  background: white;
+  border-bottom: 1px solid #b4bfcc;
+}
+nav {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+a {
+  color: #003f98;
+  text-underline-offset: 0.2em;
+}
+button,
+a,
+select,
+input,
+textarea {
+  scroll-margin: 2rem;
+}
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #b16d00;
+  outline-offset: 3px;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+}
+label {
+  display: block;
+  font-weight: 700;
+  margin: 0.75rem 0 0.25rem;
+}
+input,
+select,
+textarea {
+  font: inherit;
+  max-width: 100%;
+  border: 1px solid #63748a;
+  border-radius: 4px;
+  padding: 0.5rem;
+  background: white;
+  color: inherit;
+}
+input,
+textarea {
+  width: 100%;
+}
+select {
+  width: 100%;
+}
+.panel {
+  background: white;
+  border: 1px solid #b4bfcc;
+  border-radius: 8px;
+  margin-bottom: 1.25rem;
+  padding: 1.25rem;
+  min-width: 0;
+}
+.controls {
+  display: flex;
+  gap: 1rem;
+  align-items: end;
+  flex-wrap: wrap;
+}
+.controls > div {
+  flex: 1;
+  min-width: 200px;
+}
+.columns {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 1.25rem;
+}
+.note {
+  color: #445164;
+}
+.legend {
+  font-size: 0.95rem;
+}
+.diagram {
+  height: 620px;
+  width: 100%;
+  position: relative;
+  background: #fff;
+  overflow: auto;
+  border: 1px solid #c4cbd5;
+  border-radius: 6px;
+}
+.diagram-canvas {
+  width: 100%;
+  min-width: 920px;
+  height: 100%;
+  position: relative;
+}
+.object-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 1rem 0;
+}
+.object-list button {
+  font: inherit;
+  border: 1px solid #75869b;
+  border-radius: 6px;
+  background: #fff;
+  padding: 0.6rem;
+  text-align: left;
+}
+.object-list button[aria-pressed="true"] {
+  outline: 3px solid #0055b8;
+}
+.object-list small {
+  display: block;
+}
+.observed-pass {
+  border-left: 5px solid #157347;
+  padding-left: 0.75rem;
+}
+.observed-fail {
+  border-left: 5px solid #b3261e;
+  padding-left: 0.75rem;
+}
+.observed-unknown {
+  border-left: 5px dashed #63748a;
+  padding-left: 0.75rem;
+}
+.source {
+  overflow-wrap: anywhere;
+}
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #f2f4f7;
+  padding: 1rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+code {
+  overflow-wrap: anywhere;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+}
+th,
+td {
+  border: 1px solid #bbc5d1;
+  padding: 0.5rem;
+  overflow-wrap: anywhere;
+}
+details {
+  margin: 1rem 0;
+}
+summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.record-action {
+  border-top: 1px solid #ccd4df;
+  margin-top: 1.25rem;
+  padding-top: 0.5rem;
+}
+.record-action button {
+  margin-top: 0.75rem;
+}
+#status:not(:empty) {
+  background: #fff4dc;
+  border: 1px solid #a57000;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  white-space: pre-line;
+}
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -6rem;
+  z-index: 10;
+  background: white;
+  padding: 1rem;
+}
+.skip-link:focus {
+  top: 0;
+}
+dialog {
+  max-width: min(1000px, 95vw);
+  max-height: 90vh;
+  overflow: auto;
+  border: 2px solid #63748a;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+dialog::backdrop {
+  background: #0008;
+}
+dialog img {
+  max-width: 100%;
+  height: auto;
+}
+dialog .dads-button {
+  margin: 0.5rem 0;
+}
+.evidence-return {
+  position: sticky;
+  top: 0;
+  background: white;
+  padding: 0.4rem 0;
+  z-index: 1;
+}
+.badge {
+  display: inline-block;
+  border: 1px solid #63748a;
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  margin-right: 0.5rem;
+}
+[hidden] {
+  display: none !important;
+}
+@media (max-width: 760px) {
+  .container {
+    padding: 1rem;
+  }
+  .panel {
+    padding: 1rem;
+  }
+  .columns {
+    grid-template-columns: 1fr;
+  }
+  .diagram {
+    height: 480px;
+  }
+  .controls {
+    display: block;
+  }
+  .controls > div {
+    min-width: 0;
+  }
+  .controls button {
+    margin-top: 0.75rem;
+  }
+  .object-list {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .object-list button {
+    width: 100%;
+  }
+  nav {
+    gap: 1rem;
+  }
+  h1 {
+    font-size: 1.5rem;
+  }
+  dialog {
+    padding: 1rem;
+  }
+}

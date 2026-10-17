@@ -1,0 +1,68 @@
+specification {
+  element person { style { shape person } }
+  element system
+  element app
+  element database { style { shape storage } }
+  element storage { style { shape storage } }
+  element boundary
+}
+model {
+  operator = person "試験操作の作成者" {
+    description "架空の患者と受診理由を使う操作を宣言する。実際の医療機関の担当者ではない。"
+    style { size xs
+      textSize lg }
+   }
+  browser = app "試験用ブラウザ" {
+    description "Chromiumで入力・保存・再表示を操作し、表示とHTTP応答を記録する。"
+    style { size xs
+      textSize lg }
+   }
+  system = system "OpenEMRの試験環境" {
+    description "試行ごとに作るネットワークとコンテナ。実運用環境とは別。"
+    style { size xs
+      textSize lg }
+    app = app "OpenEMRアプリ" {
+      description "HTTPSで画面を返す。患者登録と受診理由の保存・再表示を操作する。"
+      style { size xs
+        textSize lg }
+     }
+    db = database "MariaDB" {
+      description "患者と受診理由の行を保存する試験用DB。"
+      style { size xs
+        textSize lg }
+     }
+    storage = storage "DBの保存領域" {
+      description "mysqlコンテナの/var/lib/mysqlに接続する、試行専用のdbボリューム。"
+      style { size xs
+        textSize lg }
+     }
+   }
+  operator -> browser "操作を宣言" {
+    description "レシピの準備と試験操作を基盤がブラウザへ送る。"
+    metadata { eelId "operate" }
+  }
+  browser -> system.app "画面とHTTP応答" {
+    description "アプリの443番ポートを試験用に公開し、TLSでアクセスする。"
+    metadata { eelId "https" }
+  }
+  system.app -> system.db "DBへの接続設定" {
+    description "MYSQL_HOST=mysqlで接続先を指定する。通信そのものの観測はしていない。"
+    metadata { eelId "sql" }
+  }
+  system.db -> system.storage "DBのファイルを保存" {
+    description "dbボリュームを/var/lib/mysqlに接続する。ファイル書込やディスク同期の観測はしていない。"
+    metadata { eelId "persist" }
+  }
+}
+views {
+ view context {
+  title "全体の構成"
+  include operator, browser, system
+  autoLayout TopBottom
+ }
+ view containers {
+  title "内部の構成"
+  include operator, browser, system.*
+  autoLayout LeftRight
+ }
+}

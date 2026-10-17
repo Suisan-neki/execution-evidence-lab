@@ -49,6 +49,20 @@ pub fn app_html(token: &str) -> String {
         .replace("__REVIEW_TOKEN__", token)
 }
 
+pub fn architecture_html(token: &str) -> String {
+    include_str!("../ui/architecture.html")
+        .replace(
+            "__ARCHITECTURE_STYLE__",
+            &[
+                include_str!("../ui/dads/tokens.css"),
+                include_str!("../ui/dads/components.css"),
+                include_str!("../ui/architecture.css"),
+            ]
+            .concat(),
+        )
+        .replace("__REVIEW_TOKEN__", token)
+}
+
 /// 画面版で使う、読取記録の保存先とAIの設定。
 #[derive(Clone)]
 pub struct App {
@@ -165,6 +179,15 @@ fn read_request(stream: &mut TcpStream) -> io::Result<Request> {
 }
 
 fn respond(stream: &mut TcpStream, status: u16, content_type: &str, body: &[u8]) -> io::Result<()> {
+    respond_encoded(stream, status, content_type, body, "")
+}
+fn respond_encoded(
+    stream: &mut TcpStream,
+    status: u16,
+    content_type: &str,
+    body: &[u8],
+    encoding: &str,
+) -> io::Result<()> {
     let phrase = match status {
         200 => "OK",
         202 => "Accepted",
@@ -177,7 +200,7 @@ fn respond(stream: &mut TcpStream, status: u16, content_type: &str, body: &[u8])
     };
     write!(
         stream,
-        "HTTP/1.1 {status} {phrase}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nContent-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; img-src 'self' blob:; form-action 'none'; frame-ancestors 'none'; base-uri 'none'\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {status} {phrase}\r\nContent-Type: {content_type}\r\n{encoding}Content-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nContent-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; img-src 'self' blob:; form-action 'none'; frame-ancestors 'none'; base-uri 'none'\r\nConnection: close\r\n\r\n",
         body.len()
     )?;
     stream.write_all(body)
@@ -365,8 +388,26 @@ fn handle_connection_mode(
             .and_then(crate::reader::read);
         return result_response(stream, result);
     }
+    if request.method == "GET" && request.path == "/ui/architecture-likec4.js" {
+        return respond_encoded(
+            stream,
+            200,
+            "text/javascript; charset=utf-8",
+            include_bytes!("../ui/architecture-generated/likec4.js.gz"),
+            "Content-Encoding: gzip\r\n",
+        );
+    }
     if request.method == "GET" {
         let resource = match request.path.as_str() {
+            "/architecture" => Some(("text/html; charset=utf-8", architecture_html(token))),
+            "/ui/architecture.js" => Some((
+                "text/javascript; charset=utf-8",
+                include_str!("../ui/architecture.js").to_owned(),
+            )),
+            "/ui/architecture-ids.json" => Some((
+                "application/json; charset=utf-8",
+                include_str!("../ui/architecture-generated/ids.json").to_owned(),
+            )),
             "/" | "/explore" => Some((
                 "text/html; charset=utf-8",
                 explorer_html().replace("__REVIEW_TOKEN__", token),
@@ -405,7 +446,7 @@ fn handle_connection_mode(
         );
     };
     if request.method == "GET" && request.path == "/api/v1/architecture" {
-        let result = workspace::load(directory).map(|w| serde_json::json!({"models":w.architecture_models,"links":crate::architecture::links(&w),"builtin":crate::architecture::openemr()}));
+        let result = workspace::load(directory).map(|w| serde_json::json!({"revision":w.revision,"models":w.architecture_models,"links":crate::architecture::links(&w),"builtin":crate::architecture::openemr()}));
         return result_response(stream, result);
     }
     let api_path = if versioned {
