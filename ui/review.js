@@ -2,6 +2,9 @@
 const token = "__REVIEW_TOKEN__";
 let state, pendingSource, codeHelpers;
 const codeTools = import('/ui/comprehension.js');
+const comparisonTools = import('/ui/trial-comparison.js');
+let trialHelpers;
+const trialSelections = new Map();
 let browserEvidence = () => '';
 import('/ui/browser-evidence.js').then(module => { browserEvidence = module.renderBrowserEvidence; module.installBrowserScreenshots(token); if (state) render(); }).catch(error => message(error.message, true));
 let renderedChecks = [];
@@ -71,6 +74,7 @@ async function load() {
   const body = await response.json();
   if (!response.ok) throw Error(body.error);
   codeHelpers = await codeTools;
+  trialHelpers = await comparisonTools;
   state = body;
   render();
   scheduleExecutionPoll();
@@ -243,6 +247,56 @@ function downloadJSON(name, value) {
   const link = document.createElement('a'); link.href = url; link.download = name; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+function comparisonSetup(check, view) {
+  if (view.evidence.length < 2) return '';
+  const id = esc(check.id);
+  const options = view.evidence.map(e => `<option value="${esc(e.id)}">${esc(e.id)}／${esc(e.run_id)}／${esc(labels[e.observed.verdict])}</option>`).join('');
+  return `<details class="trial-comparison"><summary>二つの試行を比較する</summary>
+    <p>同じ確認事項へ取り込んだ試行を選び、観測時の結果と、コード・入力・条件の違いを確認します。</p>
+    <div class="grid"><div><label for="compare-before-${id}">比較元の試行</label><select id="compare-before-${id}">${options}</select></div>
+    <div><label for="compare-after-${id}">比較先の試行</label><select id="compare-after-${id}">${options}</select></div></div>
+    <button class="compare-trials secondary" data-check="${id}">選んだ二つを比較</button>
+    <button class="download-comparison secondary" data-check="${id}" hidden>この比較をJSONで保存</button>
+    <div id="trial-comparison-${id}" class="comparison-result" aria-live="polite"></div></details>`;
+}
+function selectedComparison(checkId) {
+  return trialHelpers.compareTrials(state, checkId, $('compare-before-' + checkId).value, $('compare-after-' + checkId).value);
+}
+function showTrialComparison(checkId) {
+  $('trial-comparison-' + checkId).replaceChildren();
+  document.querySelector(`.download-comparison[data-check="${CSS.escape(checkId)}"]`).hidden = true;
+  const result = selectedComparison(checkId);
+  trialSelections.set(checkId, { before: result.before.evidence_id, after: result.after.evidence_id, shown: true });
+  const card = (side, title) => `<section class="comparison-trial"><h3>${title}</h3>
+    <p>${esc(side.evidence_id)}／${esc(side.run_id)}<br>取り込み時の条件版 ${side.check_version}</p>
+    <p>観測時の判定：<span class="badge ${esc(side.observed.verdict)}">${esc(labels[side.observed.verdict])}</span></p>
+    <p>${esc(side.observed.reason)}</p><p class="muted">${side.applicable ? '現在の条件に対応する記録です。現在の判定は最新の試行と未回答事項を含めて上で確認してください。' : '現在の条件への適用には再確認が必要です。' + esc(side.invalidated_by.join('、'))}</p>
+    <p><a href="#evidence-${esc(side.evidence_id)}">この試行の根拠と実行記録を見る</a><br>${evidenceLinks({ id: side.evidence_id, observed: side.observed })}</p>
+    ${codeMarkup(side.source, checkId, '取り込み当時の参照コードを読む')}${side.execution_source ? codeMarkup(side.execution_source, checkId, '実行記録の固定版を読む', '実行記録に保存されたコード参照です。該当行の到達を証明する情報ではありません。') : ''}
+    ${side.observed.unconfirmed.length ? `<details><summary>この観測では確認していないこと</summary><ul>${side.observed.unconfirmed.map(t => `<li>${esc(t)}</li>`).join('')}</ul></details>` : ''}
+    ${side.execution_outcome ? `<details><summary>終了・コード照合・観測読取の記録</summary><pre>${esc(JSON.stringify(side.execution_outcome, null, 2))}</pre></details>` : ''}</section>`;
+  const statuses = { same: '記録の値が同じ', changed: '記録の値が異なる', unknown: '比較を確定できない' };
+  const value = (v, recorded) => !recorded ? '記録なし・形式を確認できない' : typeof v === 'string' ? v : JSON.stringify(v, null, 2);
+  const table = rows => `<div class="comparison-table"><table><thead><tr><th>比較する項目</th><th>比較元</th><th>比較先</th></tr></thead><tbody>${rows.map(r => `<tr data-comparison-key="${esc(r.key)}" data-comparison-status="${r.status}"><th scope="row">${esc(r.label)}<br><span class="muted">${statuses[r.status]}${r.reason ? '<br>' + esc(r.reason) : ''}</span></th><td><pre>${esc(value(r.before, r.before_recorded))}</pre></td><td><pre>${esc(value(r.after, r.after_recorded))}</pre></td></tr>`).join('')}</tbody></table></div>`;
+  $('trial-comparison-' + checkId).innerHTML = `<p class="comparison-summary">記録の値が異なる項目：${result.changed_count}件／比較を確定できない項目：${result.unknown_count}件</p>
+    <p class="muted">事例 ${esc(result.case_id)}・版 ${result.case_revision}の記録です。比較元・比較先の指定から時間順序は推定しません。</p>
+    <div class="grid">${card(result.before, '比較元の観測')}${card(result.after, '比較先の観測')}</div>
+    <h3>違いと不足する記録</h3>${result.rows.some(r => r.status !== 'same') ? table(result.rows.filter(r => r.status !== 'same')) : '<p>比較した項目の記録に違いはありませんでした。</p>'}
+    <details><summary>記録の値が同じ項目を見る</summary>${table(result.rows.filter(r => r.status === 'same'))}</details>
+    <p class="callout">${esc(result.limits)}</p>`;
+  document.querySelector(`.download-comparison[data-check="${CSS.escape(checkId)}"]`).hidden = false;
+  bindEvidenceNavigation();
+  message('比較を表示しました。試行と現在の判定は変わっていません。');
+}
+function bindEvidenceNavigation() {
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.onclick = () => {
+      const target = document.getElementById(a.getAttribute('href').slice(1));
+      for (let parent = target?.parentElement; parent; parent = parent.parentElement)
+        if (parent.tagName === 'DETAILS') parent.open = true;
+    };
+  });
+}
 function render() {
   const w = state.workspace;
   // 再描画で、未保存の回答や選択した条件を消さない。
@@ -308,7 +362,7 @@ function render() {
               )
               .join("")}</details>`
           : ""
-      }${executionSetup(c)}<details><summary>以前の結果と、現在の条件に使える範囲</summary>${v.evidence.map((e) => `<p>${esc(e.id)}：観測時は${esc(labels[e.observed.verdict])}／${e.applicable ? "現在の条件に対応" : "再確認が必要"}<br>${esc(e.invalidated_by.join("、"))}</p>`).join("") || "<p>根拠はまだありません。</p>"}</details><details><summary>確認事項を追加する</summary><label for="question-text-${esc(c.id)}">確認したいこと</label><input id="question-text-${esc(c.id)}"><button class="secondary add-question" data-check="${esc(c.id)}">未回答の確認事項を保存</button></details><details><summary>条件文・判定方法の更新</summary><p class="muted">既存の判定規則は定義済みの条件文だけに使えます。別の条件は「判定方法未定義」にしてください。版を更新すると、以前の根拠は履歴として残ります。条件文・判定規則を変えた場合は回答を再確認します。</p><label for="text-${esc(c.id)}">条件文</label><textarea id="text-${esc(c.id)}">${esc(c.text)}</textarea><label for="rule-${esc(c.id)}">判定規則</label><select id="rule-${esc(c.id)}">${[
+      }${executionSetup(c)}${comparisonSetup(c, v)}<details><summary>以前の結果と、現在の条件に使える範囲</summary>${v.evidence.map((e) => `<p>${esc(e.id)}：観測時は${esc(labels[e.observed.verdict])}／${e.applicable ? "現在の条件に対応" : "再確認が必要"}<br>${esc(e.invalidated_by.join("、"))}</p>`).join("") || "<p>根拠はまだありません。</p>"}</details><details><summary>確認事項を追加する</summary><label for="question-text-${esc(c.id)}">確認したいこと</label><input id="question-text-${esc(c.id)}"><button class="secondary add-question" data-check="${esc(c.id)}">未回答の確認事項を保存</button></details><details><summary>条件文・判定方法の更新</summary><p class="muted">既存の判定規則は定義済みの条件文だけに使えます。別の条件は「判定方法未定義」にしてください。版を更新すると、以前の根拠は履歴として残ります。条件文・判定規則を変えた場合は回答を再確認します。</p><label for="text-${esc(c.id)}">条件文</label><textarea id="text-${esc(c.id)}">${esc(c.text)}</textarea><label for="rule-${esc(c.id)}">判定規則</label><select id="rule-${esc(c.id)}">${[
         ["manual_only", "判定方法未定義"],
         ["observed_assertion", "固定版の観測名・対象"],
         ["reported_assertion", "外部から報告された観測名・対象"],
@@ -400,17 +454,31 @@ function render() {
     else recipeBases.delete(checkId);
   }
   renderedChecks = w.checks;
-  document.querySelectorAll('a[href^="#"]').forEach((a) => {
-    a.onclick = () => {
-      const target = document.getElementById(a.getAttribute("href").slice(1));
-      for (
-        let parent = target?.parentElement;
-        parent;
-        parent = parent.parentElement
-      ) {
-        if (parent.tagName === "DETAILS") parent.open = true;
-      }
+  for (const v of state.checks) {
+    if (v.evidence.length < 2) continue;
+    const selection = trialSelections.get(v.check_id);
+    const before = $('compare-before-' + v.check_id), after = $('compare-after-' + v.check_id);
+    before.value = v.evidence.some(e => e.id === selection?.before) ? selection.before : v.evidence.at(-2).id;
+    after.value = v.evidence.some(e => e.id === selection?.after) ? selection.after : v.evidence.at(-1).id;
+    for (const el of [before, after]) el.onchange = () => {
+      trialSelections.set(v.check_id, { before: before.value, after: after.value, shown: false });
+      $('trial-comparison-' + v.check_id).replaceChildren();
+      document.querySelector(`.download-comparison[data-check="${CSS.escape(v.check_id)}"]`).hidden = true;
     };
+    if (selection?.shown) {
+      try { showTrialComparison(v.check_id); }
+      catch { trialSelections.delete(v.check_id); }
+    }
+  }
+  bindEvidenceNavigation();
+  document.querySelectorAll('.compare-trials').forEach(b => {
+    b.onclick = () => guard(b, () => showTrialComparison(b.dataset.check));
+  });
+  document.querySelectorAll('.download-comparison').forEach(b => {
+    b.onclick = () => guard(b, () => {
+      downloadJSON(`comparison-${state.workspace.id}-${b.dataset.check}.json`, selectedComparison(b.dataset.check));
+      message('比較資料を保存しました。試行と現在の判定は変わっていません。');
+    });
   });
   document.querySelectorAll('.configure-observation').forEach(b => {
     b.onclick = () => guard(b, () => act({ op: 'configure_observation', check_id: b.dataset.check, criterion: { assertion: $('assertion-' + b.dataset.check).value.trim(), subject: $('subject-' + b.dataset.check).value.trim() } }));

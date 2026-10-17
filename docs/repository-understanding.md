@@ -4,10 +4,10 @@
 
 ## 現在の起動方法
 
-PR #110・#126はmainへマージ済み。呼び出し候補の追加機能は`feat/function-call-navigation`ブランチで確認する。
+PR #110・#126・#130はmainへマージ済み。
 
 ```bash
-git switch feat/function-call-navigation
+git switch main
 git pull --ff-only
 cargo run -- explore
 ```
