@@ -695,7 +695,8 @@ fn openemr_browser_registers_patient_and_reads_back_visit() {
                     .filter(|r| r.id.ends_with("-row"))
                     .all(|r| r.observed == Observed::NotObserved)
             );
-            assert_eq!(result.assessment.verdict, Verdict::Unknown);
+            // HTTPの失敗を観測した場合は条件を満たさない。DBの読取不能は別に未観測として残す。
+            assert_ne!(result.assessment.verdict, Verdict::Satisfied);
         }
     }
 }
