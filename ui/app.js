@@ -200,9 +200,10 @@ async function openRepository(url, reference) {
     $('steps').hidden = false; fitSteps();
     if ($('person').hidden) { $('person').replaceChildren(personFields()); $('person').hidden = false; }
     renderCurrent(); renderUnderstand();
-    setStatus(`コミット ${shortCommit(res.source.commit)} に固定して読み込みました。`);
-    loadPlan(); await loadCase();
+    // Show the new source before waiting for case data; later replies must keep the user's selected step.
     goto('understand');
+    loadPlan(); await loadCase();
+    setStatus(`コミット ${shortCommit(res.source.commit)} に固定して読み込みました。`);
     return res;
   });
 }

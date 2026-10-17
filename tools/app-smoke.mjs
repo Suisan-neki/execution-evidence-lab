@@ -327,6 +327,17 @@ try {
   await page.setViewportSize({ width: 1440, height: 1000 });
   log('幅390px・320px、文字200%（幅1280px）の4つの手順で、横のはみ出しと見出しの崩れがない');
 
+  // A slow case response must not send the user back after they choose the trial step.
+  let releaseCase, caseArrived;
+  const heldCase = new Promise(resolve => { releaseCase = resolve; });
+  const caseReceived = new Promise(resolve => { caseArrived = resolve; });
+  const holdCase = async route => {
+    const response = await route.fetch();
+    caseArrived();
+    await heldCase;
+    await route.fulfill({ response });
+  };
+  await page.route('**/api/v1/case', holdCase);
   // 実行が未対応の言語。
   await page.locator('#repo-url').fill('https://github.com/spf13/cobra');
   await page.locator('#repo-ref').fill('');
@@ -334,8 +345,14 @@ try {
   await page.locator('#current-repository', { hasText: 'spf13/cobra' }).waitFor({ timeout: 60000 });
   assert.equal(await page.locator('#code').isHidden(), true, '前のリポジトリのコードを表示したままにしない');
   assert.match(await page.locator('#understand-body').innerText(), /Go（\d+ ファイル）: Go の実行は未対応/);
+  await caseReceived;
+  assert.match(await page.locator('#status').innerText(), /GitHubから読み込んでいます/);
   await page.locator('#steps').getByRole('link', { name: /実際に試す/ }).click();
+  releaseCase();
+  await page.locator('#status', { hasText: /コミット .*固定して読み込みました/ }).waitFor();
   await page.getByText('この対象の実行は未対応です').waitFor();
+  assert.equal(await page.locator('#steps li[data-step=trial]').getAttribute('aria-current'), 'step');
+  await page.unroute('**/api/v1/case', holdCase);
   const unread = page.locator('#understand-body details', { hasText: '読み取っていないファイル' });
   log('Goのリポジトリで「実行は未対応」を表示した');
   await page.locator('#steps').getByRole('link', { name: /ソフトウェアを理解する/ }).click();
