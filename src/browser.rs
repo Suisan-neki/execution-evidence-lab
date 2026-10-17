@@ -126,6 +126,8 @@ pub struct BrowserReport {
     pub steps: Vec<StepRecord>,
     pub responses: Vec<ResponseRecord>,
     pub blocked_requests: u32,
+    #[serde(default)]
+    pub response_limit: bool,
     pub detail: String,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -279,6 +281,7 @@ fn unavailable(run_id: &str, detail: &str) -> BrowserReport {
         steps: vec![],
         responses: vec![],
         blocked_requests: 0,
+        response_limit: false,
         detail: detail.into(),
     }
 }
@@ -494,6 +497,12 @@ pub fn evaluate(
             let Some(browser) = &phase.browser else {
                 return missing();
             };
+            if browser.response_limit {
+                return (
+                    Observed::NotObserved,
+                    "HTTP応答の記録上限に達し、全ての応答を照合できない".into(),
+                );
+            }
             let responses = browser
                 .responses
                 .iter()

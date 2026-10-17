@@ -626,6 +626,22 @@ fn openemr_browser_registers_patient_and_reads_back_visit() {
     for fault in [TrialFault::Normal, TrialFault::DatabaseStopped] {
         let mut recipe = original.clone();
         recipe.trial.as_mut().unwrap().fault = fault;
+        if fault == TrialFault::DatabaseStopped {
+            // 患者登録と受診理由の入力までは済ませ、保存ボタンを押す直前にDBを止める。
+            let browser = recipe.browser.as_mut().unwrap();
+            let save = browser
+                .actions
+                .iter()
+                .position(|s| s.id == "save-visit")
+                .unwrap();
+            browser.preparation.extend(browser.actions.drain(..save));
+            recipe
+                .trial
+                .as_mut()
+                .unwrap()
+                .checks
+                .retain(|c| c.id.starts_with("visit-"));
+        }
         let label = if fault == TrialFault::Normal {
             "normal"
         } else {

@@ -4,7 +4,7 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 const request=JSON.parse(await fs.readFile(process.argv[2],'utf8'));
 const dir=path.dirname(process.argv[2]), spec=request.spec;
-const report={schema_version:1,run_id:request.run_id,version:'',prepared:false,completed:false,steps:[],responses:[],blocked_requests:0,detail:''};
+const report={schema_version:1,run_id:request.run_id,version:'',prepared:false,completed:false,steps:[],responses:[],blocked_requests:0,response_limit:false,detail:''};
 let browser, page, secrets={}, masks=[], requests=new Map(), active=null, pending=new Set(), deadline=Date.now()+request.timeout_ms;
 const redact=text=>{let s=String(text);for(const value of Object.values(secrets).filter(v=>typeof v==='string'&&v.length)){s=s.split(value).join('[秘匿]');}return s.slice(0,8192);};
 const replace=s=>s.replaceAll('{{test_value}}',request.test_value);
@@ -22,7 +22,7 @@ async function steps(list,phase){
    else if(step.action==='read_text'){const base=target(step.target);const locator=step.contains?base.filter({hasText:replace(step.contains)}):base;await locator.waitFor({...options,state:'visible'});const text=await locator.innerText(options);if(text.length>8192)throw Error('表示の文字列が上限を超えた');r.text=redact(text);}
    else throw Error('未対応の操作');
    r.completed=true;r.detail='操作を完了した。保存の成功を示す記録とは別';
-   if(!(step.action==='fill'&&step.value.source==='secret')){const name=`${phase}-${step.id}.png`;await page.screenshot({path:path.join(dir,name),timeout:remaining(),mask:[...masks,...page.frames().map(f=>f.locator('input[type=password]'))],animations:'disabled'});r.screenshot='browser/'+name;}
+   if(!(step.action==='fill'&&step.value.source==='secret')){try{const name=`${phase}-${step.id}.png`;await page.screenshot({path:path.join(dir,name),timeout:remaining(),mask:[...masks,...page.frames().map(f=>f.locator('input[type=password]'))],animations:'disabled'});r.screenshot='browser/'+name;}catch(error){r.detail+='。画面写真は未取得: '+redact(error.message);}}
   }catch(error){r.detail=redact(error.message);report.detail=`${phase}の手順 ${step.id} を完了できなかった`;return false;}
  }
  active=null;return true;
@@ -39,8 +39,7 @@ try{
  page.on('request',r=>requests.set(r,active));
  page.on('requestfinished',r=>requests.delete(r));page.on('requestfailed',r=>requests.delete(r));
  page.on('response',r=>{
-  const p=(async()=>{const request_step=requests.get(r.request());if(!spec.actions.some(s=>s.id===request_step))return;const u=new URL(r.url());if(!request.origins.includes(u.origin))return;for(const w of spec.responses){if(w.path!==u.pathname||w.method!==r.request().method()||report.responses.length>=200)continue;let body_match=null;if(w.contains!=null){try{const body=await r.body();if(body.length<=1024*1024)body_match=body.toString('utf8').includes(replace(w.contains));}catch{}}
-   report.responses.push({watch:w.id,method:r.request().method(),path:u.pathname,status:r.status(),body_match,request_step});}
+  const p=(async()=>{const request_step=requests.get(r.request());if(!spec.actions.some(s=>s.id===request_step))return;const u=new URL(r.url());if(!request.origins.includes(u.origin))return;for(const w of spec.responses){if(w.path!==u.pathname||w.method!==r.request().method())continue;if(report.responses.length>=200){report.response_limit=true;continue;}const record={watch:w.id,method:r.request().method(),path:u.pathname,status:r.status(),body_match:null,request_step};report.responses.push(record);if(w.contains!=null){try{const body=await r.body();if(body.length<=1024*1024)record.body_match=body.toString('utf8').includes(replace(w.contains));}catch{}}}
   })().catch(()=>{});pending.add(p);p.finally(()=>pending.delete(p));
  });
  await page.goto(new URL(spec.start_path,request.origin).href,{timeout:remaining(),waitUntil:'domcontentloaded'});
