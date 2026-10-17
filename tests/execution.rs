@@ -104,6 +104,7 @@ impl Fixture {
             server: None,
             containers: None,
             http: None,
+            browser: None,
         }
     }
     fn run(&self, runtime: Runtime, scenario: &str) -> RunResult {

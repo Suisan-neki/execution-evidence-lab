@@ -181,6 +181,7 @@ impl Fixture {
             }),
             containers: None,
             http: None,
+            browser: None,
         }
     }
     fn run(&self, recipe: Recipe) -> io::Result<RunResult> {

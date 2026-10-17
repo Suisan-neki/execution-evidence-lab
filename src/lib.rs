@@ -3,6 +3,7 @@ pub mod ai;
 mod ai_transport;
 pub mod assessment;
 pub mod backup;
+pub mod browser;
 pub mod capture;
 pub mod comparison;
 pub mod container;

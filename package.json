@@ -10,6 +10,7 @@
     "test:backend": "node tools/backend-demo.mjs",
     "test:app": "node tools/app-smoke.mjs",
     "test:dicom": "node tools/dicom-smoke.mjs",
+    "test:browser": "node tools/browser-smoke.mjs",
     "test:reader-native": "node tools/reader-native-smoke.mjs"
   },
   "devDependencies": {
