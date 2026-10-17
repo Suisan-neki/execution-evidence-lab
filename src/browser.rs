@@ -44,6 +44,10 @@ pub enum Action {
     Click {
         target: Target,
     },
+    Expand {
+        target: Target,
+        content: Target,
+    },
     Select {
         target: Target,
         value: String,
@@ -202,6 +206,7 @@ pub fn validate(spec: &BrowserSpec, containers: &ContainerSpec) -> io::Result<()
                     }
             }
             Action::Click { target: t } => target(t),
+            Action::Expand { target: t, content } => target(t) && target(content),
             Action::ReadText {
                 target: t,
                 contains,

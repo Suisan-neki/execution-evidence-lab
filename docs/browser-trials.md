@@ -24,7 +24,7 @@
 | 判定方法 | `target` | 観測の範囲 |
 | --- | --- | --- |
 | `browser_text` | `read_text`の手順ID | 完了した試験操作で読んだ表示。保存の証明とは別 |
-| `browser_response` | `responses`のID | 試験操作中の要求に対するHTTP応答。`status=200`、`body_match=true`などを照合 |
+| `browser_response` | `responses`のID | 試験操作中の要求に対するHTTP応答。`status=200`、`body_match=true`または`body_match=false`を照合 |
 | `database_rows` | `database`のID | MariaDBから試験値に一致する行を直接読んだ結果 |
 
 `responses`にはID、同じ試験用オリジン内の`path`、`method`、任意の`contains`を指定する。本文は保存せず、指定文字列が含まれるかだけを記録する。Cookie、ヘッダー、クエリーは記録しない。準備時の応答は判定に使わない。同じ観測先で条件を満たす応答と満たさない応答が混じった場合は未観測扱いとする。本文が取れなかったことを「含まれない」の成功にはしない。
