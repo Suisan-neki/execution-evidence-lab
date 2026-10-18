@@ -190,6 +190,9 @@ pub struct AdapterTrace {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Evidence {
+    /// 取り込み時の確認モード。実行経路や安全性の証明ではない。
+    #[serde(default)]
+    pub review_profile: Option<crate::profile::Selection>,
     pub id: String,
     pub check_id: String,
     pub check_version: u32,
@@ -245,6 +248,8 @@ pub struct Audit {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Workspace {
+    #[serde(default)]
+    pub profile_history: Vec<crate::profile::Selection>,
     pub schema_version: u32,
     pub revision: u64,
     pub id: String,
@@ -347,6 +352,13 @@ pub struct ChangeRequest {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Change {
+    SelectProfile {
+        domain: crate::profile::Domain,
+    },
+    AddProfileCheck {
+        template_id: String,
+        selection_version: u32,
+    },
     AddArchitectureModel {
         model: crate::architecture::Model,
     },
@@ -541,7 +553,7 @@ fn validate_check(check: &Check) -> io::Result<()> {
 }
 
 pub fn validate(workspace: &Workspace) -> io::Result<()> {
-    if workspace.schema_version != 1 || workspace.revision == 0 {
+    if !matches!(workspace.schema_version, 1 | 2) || workspace.revision == 0 {
         return Err(invalid("未対応の事例形式です"));
     }
     identifier(&workspace.id)?;
@@ -551,6 +563,7 @@ pub fn validate(workspace: &Workspace) -> io::Result<()> {
     unique(workspace.evidence.iter().map(|e| e.id.as_str()))?;
     unique(workspace.decisions.iter().map(|d| d.id.as_str()))?;
     crate::architecture::validate(workspace)?;
+    crate::profile::validate(workspace)?;
     for s in &workspace.statements {
         nonempty(&s.text, "記録")?;
         nonempty(&s.origin, "出所")?;
@@ -629,6 +642,7 @@ pub fn validate(workspace: &Workspace) -> io::Result<()> {
 /// 条件・発言・回答を補わずに、汎用の事例を始める。
 pub fn empty_workspace(id: String, title: String) -> Workspace {
     Workspace {
+        profile_history: vec![],
         schema_version: 1,
         revision: 1,
         id,
@@ -647,6 +661,7 @@ pub fn empty_workspace(id: String, title: String) -> Workspace {
 /// 合成データだけを使う練習用。実際の担当者の発言や採用要件は含めない。
 pub fn demo_workspace() -> Workspace {
     Workspace {
+        profile_history: vec![],
         schema_version: 1,
         revision: 1,
         id: "synthetic-save-review".into(),
@@ -781,6 +796,7 @@ pub fn initialize(
     if !workspace.evidence.is_empty()
         || !workspace.decisions.is_empty()
         || !workspace.history.is_empty()
+        || !workspace.profile_history.is_empty()
     {
         return Err(invalid("新しい事例へ既存の根拠・判断履歴は混入できません"));
     }
@@ -1262,6 +1278,19 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
             .ok_or_else(|| invalid("確認事項がありません"))
     };
     let operation = match request.action {
+        Change::SelectProfile { domain } => {
+            crate::profile::select(&mut workspace, domain)?;
+            "select_profile"
+        }
+        Change::AddProfileCheck {
+            template_id,
+            selection_version,
+        } => {
+            let check =
+                crate::profile::proposed_check(&workspace, &template_id, selection_version)?;
+            workspace.checks.push(check);
+            "add_profile_check"
+        }
         Change::AddArchitectureModel { model } => {
             workspace.architecture_models.push(model);
             "add_architecture_model"
@@ -1349,6 +1378,7 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
                 .rfind(|e| e.check_id == check.id)
                 .map(|e| e.manifest.correlation.run_id.clone());
             workspace.evidence.push(Evidence {
+                review_profile: workspace.profile_history.last().cloned(),
                 id: format!("evidence-{}", workspace.evidence.len() + 1),
                 check_id: check.id.clone(),
                 check_version: check.version,
@@ -1631,6 +1661,7 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
                 workspace.context.extend(values);
             }
             workspace.evidence.push(Evidence {
+                review_profile: workspace.profile_history.last().cloned(),
                 id: format!("evidence-{}", workspace.evidence.len() + 1),
                 check_id,
                 check_version: check.version,

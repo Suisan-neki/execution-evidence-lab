@@ -1,3 +1,4 @@
+import { mountReviewTools } from '/ui/review-tools.js';
 // 理解と試験の画面。解析・照合・判定はサーバーのAPIが行い、この画面は結果を表示して操作を送る。
 // 画面の文字はtextContentで入れ、取得したコードや記録をHTMLとして解釈しない。
 const token = document.querySelector('meta[name="review-token"]').content;
@@ -1016,3 +1017,5 @@ function decisionsList(check) {
 loadAi();
 const params = new URLSearchParams(location.search);
 if (params.get('url')) { $('repo-url').value = params.get('url'); $('repo-ref').value = params.get('ref') || ''; }
+
+mountReviewTools($('review-tools'), { token, onChange: loadCase });

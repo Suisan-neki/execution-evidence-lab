@@ -1,3 +1,4 @@
+import { mountReviewTools } from '/ui/review-tools.js';
 // 構成・観測の判定はRust APIを使う。LikeC4の固定版に対するDOMの対応は生成したID表で照合する。
 import {
   renderBrowserEvidence,
@@ -692,3 +693,5 @@ $("save-model").addEventListener("click", () =>
   }),
 );
 await guard(load);
+
+mountReviewTools($("review-tools"), { token, onChange: load });

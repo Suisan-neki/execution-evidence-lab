@@ -230,6 +230,7 @@ fn synthetic_evidence() -> Evidence {
     .unwrap();
     let execution=serde_json::from_value(json!({"schema_version":1,"correlation":correlation,"recipe":recipe,"tree":"a".repeat(40),"files":[],"runtime_path":"synthetic","runtime_version":"synthetic","exit_code":0,"timed_out":false,"output_limit":false,"snapshot_unchanged":true,"observations":[],"diagnostics":[],"mode":"local","stdout_excerpt":"","stderr_excerpt":"","trial":{"test_value":"synthetic","fault":"database_stopped","fault_applied":"合成","fault_effective":true,"readback":null,"state":null,"results":[{"id":"visit-http","observed":"fail","detail":"HTTP失敗の合成記録"},{"id":"visit-row","observed":"not_observed","detail":"DBの行は未観測"}]}})).unwrap();
     Evidence {
+        review_profile: None,
         id: "evidence-1".into(),
         check_id: "openemr".into(),
         check_version: 1,
