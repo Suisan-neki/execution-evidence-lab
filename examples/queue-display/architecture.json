@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "id": "queue-reference",
+  "version": 1,
+  "title": "呼び出し番号表示の試験用構成",
+  "source": {
+    "repository": "Suisan-neki/execution-evidence-lab",
+    "commit": "5b98ad92eb5810d6d0cd5e8b81fe3944b17a6f87",
+    "path": "examples/queue-display/app.py",
+    "line": 1,
+    "end_line": 8
+  },
+  "environment": "trial",
+  "images": {},
+  "browser_version": null,
+  "elements": [
+    {
+      "id": "client",
+      "parent": null,
+      "kind": "app",
+      "title": "HTTPの試験クライアント",
+      "description": "架空の番号を送信し、返されたHTMLの番号を照合する。ブラウザの描画とは別の観測",
+      "basis": {
+        "kind": "configuration",
+        "note": "固定した参照アプリの試験用構成。実運用の構成ではない",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "5b98ad92eb5810d6d0cd5e8b81fe3944b17a6f87",
+          "path": "examples/queue-display/trial.py",
+          "line": 12,
+          "end_line": 33
+        }
+      }
+    },
+    {
+      "id": "system",
+      "parent": null,
+      "kind": "boundary",
+      "title": "試行用の作業領域",
+      "description": "信頼できる参照コードをlocal方式で実行する。OSによる隔離はない",
+      "basis": {
+        "kind": "human",
+        "note": "参照アプリの試験をlocal方式で実行する設定を補足した。コードから隔離の成立を推定しない",
+        "source": null
+      }
+    },
+    {
+      "id": "app",
+      "parent": "system",
+      "kind": "app",
+      "title": "呼び出し番号アプリ",
+      "description": "保存成功後に番号を更新し、HTTPでHTMLを返す",
+      "basis": {
+        "kind": "configuration",
+        "note": "固定した参照アプリの試験用構成。実運用の構成ではない",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "5b98ad92eb5810d6d0cd5e8b81fe3944b17a6f87",
+          "path": "examples/queue-display/app.py",
+          "line": 12,
+          "end_line": 38
+        }
+      }
+    },
+    {
+      "id": "storage",
+      "parent": "system",
+      "kind": "storage",
+      "title": "番号の保存ファイル",
+      "description": "番号と試験識別子を保存する。患者情報は使わない",
+      "basis": {
+        "kind": "configuration",
+        "note": "固定した参照アプリの試験用構成。実運用の構成ではない",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "5b98ad92eb5810d6d0cd5e8b81fe3944b17a6f87",
+          "path": "examples/queue-display/app.py",
+          "line": 21,
+          "end_line": 38
+        }
+      }
+    }
+  ],
+  "relations": [
+    {
+      "id": "request",
+      "from": "client",
+      "to": "app",
+      "title": "番号を送る・表示を読む",
+      "description": "localhostのHTTPで操作する",
+      "basis": {
+        "kind": "configuration",
+        "note": "固定した参照アプリの試験用構成。実運用の構成ではない",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "5b98ad92eb5810d6d0cd5e8b81fe3944b17a6f87",
+          "path": "examples/queue-display/trial.py",
+          "line": 27,
+          "end_line": 65
+        }
+      }
+    },
+    {
+      "id": "persist",
+      "from": "app",
+      "to": "storage",
+      "title": "保存・再起動時の読取",
+      "description": "同じ保存先でアプリを再起動する",
+      "basis": {
+        "kind": "configuration",
+        "note": "固定した参照アプリの試験用構成。実運用の構成ではない",
+        "source": {
+          "repository": "Suisan-neki/execution-evidence-lab",
+          "commit": "5b98ad92eb5810d6d0cd5e8b81fe3944b17a6f87",
+          "path": "examples/queue-display/app.py",
+          "line": 12,
+          "end_line": 38
+        }
+      }
+    }
+  ],
+  "limits": [
+    "架空の番号だけを使う試験用構成。実運用の構成と医療業務の要件は未確認",
+    "HTTP内容の照合・保存物の直接読取・ブラウザ描画を別の観測として扱う",
+    "構成の線は通信・処理が実行された証明ではない"
+  ]
+}

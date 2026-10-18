@@ -191,3 +191,8 @@ npm run test:backend
 すべて既存のv1 APIのトークンを使う。確認資料を認証なしの旧/api/report経路からは返さない。変更操作には従来どおりexpected_revision・actor・reasonが必要。医療モードを選んでも権限や実行方式は変わらない。
 
 詳細と出力に含めない情報は[確認モードと参照アプリ](modes-and-queue.md)を参照する。説明の詳しさの変更はブラウザだけで行い、APIの判定結果は変更しない。
+
+
+## 図の配置との照合（#161）
+
+GET /api/v1/architectureのlayoutsに、保存した構成モデルのmodel_id・model_versionと表示に使えるlayout_model_idを返す。図に描く構成と環境が一致しないモデルには対応を返さない。コードのコミットとモデルの版、根拠の参照はmodelsとlinksで保持する。配置の一致だけでは観測済みとしない。

@@ -49,7 +49,7 @@ fn rejects_cycles_missing_endpoints_and_reused_model_versions() {
 #[test]
 fn builtins_keep_separate_pinned_targets_and_valid_component_models() {
     let models = builtins();
-    assert_eq!(models.len(), 3);
+    assert_eq!(models.len(), 4);
     for model in &models {
         model.validate().unwrap();
     }
@@ -62,6 +62,40 @@ fn builtins_keep_separate_pinned_targets_and_valid_component_models() {
             .iter()
             .any(|e| e.kind == ElementKind::Component)
     );
+}
+
+#[test]
+fn layout_reuse_checks_all_drawn_structure_and_keeps_code_and_evidence_versions_separate() {
+    let template = builtins()
+        .into_iter()
+        .find(|m| m.id == "queue-reference")
+        .unwrap();
+    let mut selected = template.clone();
+    selected.version = 2;
+    selected.source.commit = "b".repeat(40);
+    selected.elements[0].basis.note = "別の版での補足".into();
+    assert!(same_layout(&selected, &template));
+    let bindings = layout_bindings(
+        std::slice::from_ref(&selected),
+        std::slice::from_ref(&template),
+    );
+    assert_eq!(bindings[0].model_version, 2);
+    assert_eq!(selected.source.commit, "b".repeat(40));
+    let mut changed = selected.clone();
+    changed.elements[0].title = "異なる表示名".into();
+    assert!(!same_layout(&changed, &template));
+    changed = selected.clone();
+    changed.relations[0].to = "storage".into();
+    assert!(!same_layout(&changed, &template));
+    changed = selected.clone();
+    changed.elements[2].parent = None;
+    assert!(!same_layout(&changed, &template));
+    changed = selected.clone();
+    changed.environment = Environment::Deployed;
+    assert!(!same_layout(&changed, &template));
+    changed = selected;
+    changed.relations[0].description = "別の通信の説明".into();
+    assert!(!same_layout(&changed, &template));
 }
 
 fn reported_workspace() -> Workspace {

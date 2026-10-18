@@ -48,6 +48,9 @@ const methods = {
   database_rows: "DBの直接読取",
   database_query: "DBの直接読取",
   stored_file: "保存先の直接読取",
+  stdout: "対象プログラムの報告",
+  stderr: "対象プログラムのエラー報告",
+  readback_output: "別プロセスによる読み出し",
 };
 const outcome = {
   pass: "○ 期待どおり",
@@ -109,7 +112,10 @@ function presets() { return data.builtins || [data.builtin]; }
 function availableModels() {
   return [...data.models, ...presets().filter(p => !data.models.some(m => modelKey(m) === modelKey(p)))];
 }
-function diagramIds() { return ids.models?.[model.id] || ids; }
+function layoutBinding() {
+  return data.layouts?.find(binding => binding.model_id === model.id && binding.model_version === model.version);
+}
+function diagramIds() { return ids.models?.[layoutBinding()?.layout_model_id || model.id] || ids; }
 function evidenceTarget(t) { return ["evidence", "reported_evidence"].includes(t.kind); }
 function observationLabel(t) { return t.kind === "reported_evidence" ? t.assertion + "／" + t.subject : t.observation_id; }
 function selectedRun() { return state.workspace.evidence.find(e => e.id === $("trial").value)?.manifest.correlation.run_id; }
@@ -208,7 +214,7 @@ function render() {
       `${environmentLabels[model.environment]}／構成の版${model.version}／事例の版${state.workspace.revision}`,
     ),
     sourceLink(model.source),
-    p("このGit参照とイメージ内のコードが同一だとは証明していません。"),
+    p(Object.keys(model.images).length ? "このGit参照とイメージ内のコードが同一だとは証明していません。" : "固定したコードの参照です。構成上の接続と、実際に観測した処理は分けて確認します。"),
   );
   const current = Math.max(
     ...data.models.filter((m) => m.id === model.id).map((m) => m.version),
@@ -271,8 +277,9 @@ function renderDiagram() {
   observedRoots = new Set();
   const box = $("diagram");
   box.replaceChildren();
-  // 生成済み図と保存モデルが完全一致する場合だけ埋め込む。未知の版へ旧図を流用しない。
-  if (!presets().some(p => JSON.stringify(model) === JSON.stringify(p))) {
+  // Rustが図の要素・接続・表示文・環境を照合した場合だけ同じ配置を使う。
+  // コードの版・観測・根拠は選択したモデルの記録を参照する。
+  if (!layoutBinding() && !presets().some(p => JSON.stringify(model) === JSON.stringify(p))) {
     box.hidden = true;
     $("diagram-status").textContent =
       "この構成の版の図は未生成です。下の構成一覧から説明と記録を確認できます。";

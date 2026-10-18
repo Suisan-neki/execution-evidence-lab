@@ -1,11 +1,11 @@
-// 固定した3対象の構成モデルから、同じWeb Componentに全体・内部の図を生成する。
+// 既存3対象と参照アプリの構成モデルから、同じWeb Componentに全体・内部の図を生成する。
 import {readFile,writeFile,mkdtemp,mkdir,rm} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {execFileSync} from 'node:child_process';
 import {gzipSync} from 'node:zlib';
 const root=resolve(import.meta.dirname,'..'),out=join(root,'ui/architecture-generated');
-const paths=['examples/openemr-browser/architecture.json','examples/ohif-browser/architecture.json','examples/monai-workflow/architecture.json'];
+const paths=['examples/openemr-browser/architecture.json','examples/ohif-browser/architecture.json','examples/monai-workflow/architecture.json','examples/queue-display/architecture.json'];
 const models=await Promise.all(paths.map(p=>readFile(join(root,p),'utf8').then(JSON.parse)));
 const temp=await mkdtemp(join(tmpdir(),'eel-likec4-')),q=JSON.stringify;
 function info(m){
