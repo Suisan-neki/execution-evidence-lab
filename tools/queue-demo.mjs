@@ -32,18 +32,14 @@ await change({ op: 'add_profile_check', template_id: 'medical-access', selection
 await change({ op: 'add_check', check: { id: 'queue', version: 1, text: '入力した架空の番号42がHTTPの表示と再起動後の表示に一致し、保存物を別プロセスで読み出せる', origin: '参照アプリの合成条件。実際の担当者の要件ではない', source, observation: null, rule: 'manual_only', dependencies: [], questions: [] } });
 const criterion = { assertion: 'queue_matches_input', subject: 'display-1' };
 await change({ op: 'configure_observation', check_id: 'queue', criterion });
+const queueModel = JSON.parse(await readFile(join(root, 'examples/queue-display/architecture.json'), 'utf8'));
 function model(version, source) {
-  const basis = { kind: 'configuration', note: '固定した参照アプリの試験用構成。実運用の構成ではない', source };
-  return { schema_version: 1, id: 'queue-reference', version, title: '呼び出し番号表示の試験用構成', source, environment: 'trial', images: {}, browser_version: null,
-    elements: [
-      { id: 'client', parent: null, kind: 'app', title: 'HTTPの試験クライアント', description: '架空の番号を送信し、返されたHTMLの番号を照合する。ブラウザの描画とは別の観測', basis },
-      { id: 'system', parent: null, kind: 'boundary', title: '試行用の作業領域', description: '信頼できる参照コードをlocal方式で実行する。OSによる隔離はない', basis },
-      { id: 'app', parent: 'system', kind: 'app', title: '呼び出し番号アプリ', description: '保存成功後に番号を更新し、HTTPでHTMLを返す', basis },
-      { id: 'storage', parent: 'system', kind: 'storage', title: '番号の保存ファイル', description: '番号と試験識別子を保存する。患者情報は使わない', basis },
-    ], relations: [
-      { id: 'request', from: 'client', to: 'app', title: '番号を送る・表示を読む', description: 'localhostのHTTPで操作する', basis },
-      { id: 'persist', from: 'app', to: 'storage', title: '保存・再起動時の読取', description: '同じ保存先でアプリを再起動する', basis },
-    ], limits: ['HTTP表示の照合は試験クライアントによる報告。ブラウザ描画・外部通信の網羅的観測・本番環境・医療要件は未確認', '図の描画は未生成。構成一覧と根拠の対応づけを確認する'] };
+  const result = structuredClone(queueModel);
+  result.version = version; result.source = source;
+  for (const item of [...result.elements, ...result.relations]) {
+    if (item.basis.source) item.basis.source = { ...item.basis.source, repository: source.repository, commit: source.commit };
+  }
+  return result;
 }
 await change({ op: 'add_architecture_model', model: model(1, source) });
 

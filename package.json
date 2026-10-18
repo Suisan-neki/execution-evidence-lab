@@ -16,7 +16,8 @@
     "test:architecture": "node tools/architecture-smoke.mjs",
     "test:architecture-targets": "node tools/target-architecture-smoke.mjs",
     "demo:queue": "node tools/queue-demo.mjs",
-    "test:modes": "node tools/modes-smoke.mjs"
+    "test:modes": "node tools/modes-smoke.mjs",
+    "test:queue-architecture": "node tools/queue-architecture-smoke.mjs"
   },
   "devDependencies": {
     "likec4": "1.60.0",

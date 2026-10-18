@@ -198,6 +198,36 @@ model {
     metadata { eelId "read-result"
       eelModel "monai-trial" }
   }
+  queue_reference__client = app "HTTPの試験クライアント" {
+    description "架空の番号を送信し、返されたHTMLの番号を照合する。ブラウザの描画とは別の観測"
+    style { size xs
+      textSize lg }
+  }
+  queue_reference__system = boundary "試行用の作業領域" {
+    description "信頼できる参照コードをlocal方式で実行する。OSによる隔離はない"
+    style { size xs
+      textSize lg }
+    app = app "呼び出し番号アプリ" {
+      description "保存成功後に番号を更新し、HTTPでHTMLを返す"
+      style { size xs
+        textSize lg }
+    }
+    storage = storage "番号の保存ファイル" {
+      description "番号と試験識別子を保存する。患者情報は使わない"
+      style { size xs
+        textSize lg }
+    }
+  }
+  queue_reference__client -> queue_reference__system.app "番号を送る・表示を読む" {
+    description "localhostのHTTPで操作する"
+    metadata { eelId "request"
+      eelModel "queue-reference" }
+  }
+  queue_reference__system.app -> queue_reference__system.storage "保存・再起動時の読取" {
+    description "同じ保存先でアプリを再起動する"
+    metadata { eelId "persist"
+      eelModel "queue-reference" }
+  }
 }
 views {
 view context {
@@ -230,6 +260,17 @@ view monai_trial__context {
 view monai_trial__containers {
  title "MONAIの学習・保存・再読込を試す構成・内部"
  include monai_trial__operator, monai_trial__system.*
+ autoLayout TopBottom
+}
+
+view queue_reference__context {
+ title "呼び出し番号表示の試験用構成・全体"
+ include queue_reference__client, queue_reference__system
+ autoLayout TopBottom
+}
+view queue_reference__containers {
+ title "呼び出し番号表示の試験用構成・内部"
+ include queue_reference__client, queue_reference__system.*
  autoLayout TopBottom
 }
 
