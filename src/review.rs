@@ -43,6 +43,7 @@ pub fn app_html(token: &str) -> String {
                 include_str!("../ui/dads/tokens.css"),
                 include_str!("../ui/dads/components.css"),
                 include_str!("../ui/app.css"),
+                include_str!("../ui/review-tools.css"),
             ]
             .concat(),
         )
@@ -57,6 +58,7 @@ pub fn architecture_html(token: &str) -> String {
                 include_str!("../ui/dads/tokens.css"),
                 include_str!("../ui/dads/components.css"),
                 include_str!("../ui/architecture.css"),
+                include_str!("../ui/review-tools.css"),
             ]
             .concat(),
         )
@@ -321,7 +323,7 @@ fn handle_connection_mode(
         return json(
             stream,
             200,
-            &serde_json::json!({"schema_version":1,"api_version":"v1","scope":"localhost","routes":if app.is_some() {serde_json::json!(["case","change","compare","backup","execution","execute","browser-screenshot","architecture","repository","understand","prepare","ai"])} else {serde_json::json!(["case","change","compare","backup","execution","execute","browser-screenshot","architecture","repository"])},"reported_observations":true,"limits":{"request_bytes":MAX_BODY,"backup_bytes":crate::backup::MAX_BACKUP,"reader_request_bytes":8*1024*1024,"reader_seconds":30,"reader_output_bytes":8*1024*1024},"understanding":"作者の説明と静的解析。実行経路・業務上の意味は未確認"}),
+            &serde_json::json!({"schema_version":1,"api_version":"v1","scope":"localhost","routes":if app.is_some() {serde_json::json!(["case","change","compare","backup","profiles","report","report-html","execution","execute","browser-screenshot","architecture","repository","understand","prepare","ai"])} else {serde_json::json!(["case","change","compare","backup","profiles","report","report-html","execution","execute","browser-screenshot","architecture","repository"])},"reported_observations":true,"limits":{"request_bytes":MAX_BODY,"backup_bytes":crate::backup::MAX_BACKUP,"reader_request_bytes":8*1024*1024,"reader_seconds":30,"reader_output_bytes":8*1024*1024},"understanding":"作者の説明と静的解析。実行経路・業務上の意味は未確認"}),
         );
     }
     if let Some(app) = app {
@@ -412,6 +414,10 @@ fn handle_connection_mode(
                 "text/html; charset=utf-8",
                 explorer_html().replace("__REVIEW_TOKEN__", token),
             )),
+            "/ui/review-tools.js" => Some((
+                "text/javascript; charset=utf-8",
+                include_str!("../ui/review-tools.js").to_owned(),
+            )),
             "/ui/browser-evidence.js" => Some((
                 "text/javascript; charset=utf-8",
                 include_str!("../ui/browser-evidence.js").to_owned(),
@@ -458,6 +464,13 @@ fn handle_connection_mode(
     } else {
         request.path.clone()
     };
+    if !versioned && matches!(api_path.as_str(), "/api/report" | "/api/report-html") {
+        return json(
+            stream,
+            403,
+            &serde_json::json!({"error":"確認資料は認証付きのv1 APIで読み出してください"}),
+        );
+    }
     if request.method == "GET" && api_path.starts_with("/api/browser-screenshot/") {
         if !versioned {
             return json(
@@ -496,6 +509,44 @@ fn handle_connection_mode(
         };
     }
     match (request.method.as_str(), api_path.as_str()) {
+        ("GET", "/api/profiles") => json(
+            stream,
+            200,
+            &serde_json::json!({
+                "catalog_version": crate::profile::CATALOG_VERSION,
+                "templates": crate::profile::templates(),
+                "notice": "基盤による確認候補です。担当者の回答・業務要件ではありません。モードの選択だけで安全性を判定しません。"
+            }),
+        ),
+        ("GET", "/api/report") => result_response(
+            stream,
+            workspace::load(directory).and_then(crate::review_report::build),
+        ),
+        ("GET" | "POST", "/api/report-html") => {
+            let result = (|| {
+                let workspace = workspace::load(directory)?;
+                if request.method == "POST" {
+                    #[derive(Deserialize)]
+                    #[serde(deny_unknown_fields)]
+                    struct ReportRequest {
+                        expected_revision: u64,
+                    }
+                    let expected: ReportRequest =
+                        serde_json::from_slice(&request.body).map_err(io::Error::other)?;
+                    if expected.expected_revision != workspace.revision {
+                        return Err(io::Error::new(
+                            io::ErrorKind::AlreadyExists,
+                            "事例が更新されています。確認資料を読み直してください",
+                        ));
+                    }
+                }
+                crate::review_report::html(&crate::review_report::build(workspace)?)
+            })();
+            match result {
+                Ok(html) => respond(stream, 200, "text/html; charset=utf-8", html.as_bytes()),
+                Err(error) => result_response(stream, Err::<(), _>(error)),
+            }
+        }
         ("GET", "/api/backup") => result_response(stream, crate::backup::snapshot(directory)),
         ("POST", "/api/compare") => {
             let result = serde_json::from_slice::<crate::comparison::CompareRequest>(&request.body)

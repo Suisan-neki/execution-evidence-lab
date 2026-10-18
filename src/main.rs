@@ -31,6 +31,7 @@ const HELP: &str = "execution-evidence-lab
   case execute CASE_DIR RECIPE_JSON --repository-root DIR --mode local|bubblewrap --actor TEXT --reason TEXT
   case run CASE_DIR --actor TEXT --reason TEXT [--condition save] [--fault CONDITION]
   case export CASE_DIR --output NEW_DIR
+  case report CASE_DIR --output NEW_JSON [--format json|html]
   case backup CASE_DIR --output NEW_JSON
   case restore NEW_CASE_DIR BACKUP_JSON
   case compare CASE_DIR --before EVIDENCE_ID --after EVIDENCE_ID --condition CHECK_ID
@@ -378,6 +379,23 @@ fn case_command(args: &[String]) -> io::Result<()> {
             )?)
         }
         "show" if args.len() == 2 => print_view(workspace::view(workspace::load(&directory)?)),
+        "report" => {
+            let opts = options(&args[2..], &["--output", "--format"])?;
+            let report =
+                execution_evidence_lab::review_report::build(workspace::load(&directory)?)?;
+            let content = match opts.get("--format").map(String::as_str).unwrap_or("json") {
+                "json" => serde_json::to_vec_pretty(&report).map_err(io::Error::other)?,
+                "html" => execution_evidence_lab::review_report::html(&report)?.into_bytes(),
+                _ => return Err(invalid("確認資料の形式はjsonかhtmlです")),
+            };
+            use std::io::Write;
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(required(&opts, "--output")?)?;
+            file.write_all(&content)?;
+            file.sync_all()
+        }
         "backup" => {
             let opts = options(&args[2..], &["--output"])?;
             execution_evidence_lab::recording::write_json_new(

@@ -18,6 +18,7 @@ jobs:
       - run: cargo test --locked
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo build --locked
+      - run: node tools/queue-demo.mjs evaluations/ci-queue
       - run: node tools/pinned-demo.mjs evaluations/ci-external
       - run: node tools/reproduce-methods.mjs evaluations/ci-methods
       - run: node tools/backend-demo.mjs evaluations/ci-backend --live
@@ -32,6 +33,7 @@ jobs:
           npm run build:architecture
           cargo build --locked
       - run: npx playwright install --with-deps chromium
+      - run: npm run test:modes
       - run: npm run test:browser
       - run: cargo test --locked --test containers browser_observes_nginx -- --ignored --nocapture
       - run: npm run test:ui
@@ -73,5 +75,9 @@ jobs:
             evaluations/ci-external/result.json
             evaluations/ci-backend/result.json
             evaluations/ci-backend/analysis.json
+            evaluations/ci-queue/result.json
+            evaluations/ci-queue/review.json
+            evaluations/ci-queue/review.html
+            evaluations/ci-queue/understanding.json
           if-no-files-found: ignore
           retention-days: 7

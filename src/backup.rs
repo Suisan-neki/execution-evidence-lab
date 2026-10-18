@@ -52,7 +52,12 @@ pub fn validate(backup: &Backup) -> io::Result<()> {
         }
         if i > 0 {
             let previous = &backup.revisions[i - 1];
-            if w.architecture_models.len() < previous.architecture_models.len()
+            if w.profile_history.len() < previous.profile_history.len()
+                || !same(
+                    &w.profile_history[..previous.profile_history.len()],
+                    &previous.profile_history,
+                )?
+                || w.architecture_models.len() < previous.architecture_models.len()
                 || w.architecture_links.len() < previous.architecture_links.len()
                 || !same(
                     &w.architecture_models[..previous.architecture_models.len()],

@@ -173,3 +173,21 @@ npm run test:backend
 
 
 ブラウザ試行の画面写真は、認証付きの `GET /api/v1/browser-screenshot/{evidence_id}/{step_id}` で取得する。成功時は`image/png`、対応するファイルがない場合は404。任意のファイルパスは指定できない。事例内の実行フォルダーにある宣言済みの写真だけを扱い、バックアップのJSONには写真を含めない。
+
+
+## 確認モードと確認資料（2026-10-18、#159）
+
+事例の読取は形式1・2に対応する。初めてモードを記録すると形式2へ移行する。モード未選択の旧形式では汎用の候補を表示し、選択済みの履歴は補わない。全版バックアップは移行前後を保存する。形式2の事例には対応したバイナリを使う。
+
+| 操作 | 内容 |
+| --- | --- |
+| GET /api/v1/profiles | 確認候補とカタログ版を返す。業務要件や判定結果ではない |
+| POST /api/v1/change、select_profile | actionにdomainをgeneralまたはmedicalで指定する。選択履歴を追記する |
+| POST /api/v1/change、add_profile_check | template_idとselection_versionを指定する。現在の候補を未確認の条件として追加する |
+| GET /api/v1/report | 一つの事例版の確認資料をJSONで返す |
+| GET /api/v1/report-html | 読み出した事例版の単独HTMLを返す |
+| POST /api/v1/report-html | expected_revisionをプレビューの事例版と照合してHTMLを返す。更新されていれば409 |
+
+すべて既存のv1 APIのトークンを使う。確認資料を認証なしの旧/api/report経路からは返さない。変更操作には従来どおりexpected_revision・actor・reasonが必要。医療モードを選んでも権限や実行方式は変わらない。
+
+詳細と出力に含めない情報は[確認モードと参照アプリ](modes-and-queue.md)を参照する。説明の詳しさの変更はブラウザだけで行い、APIの判定結果は変更しない。

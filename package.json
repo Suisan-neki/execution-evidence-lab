@@ -14,7 +14,9 @@
     "test:reader-native": "node tools/reader-native-smoke.mjs",
     "build:architecture": "node tools/build-architecture.mjs",
     "test:architecture": "node tools/architecture-smoke.mjs",
-    "test:architecture-targets": "node tools/target-architecture-smoke.mjs"
+    "test:architecture-targets": "node tools/target-architecture-smoke.mjs",
+    "demo:queue": "node tools/queue-demo.mjs",
+    "test:modes": "node tools/modes-smoke.mjs"
   },
   "devDependencies": {
     "likec4": "1.60.0",

@@ -727,6 +727,72 @@ fn reader_and_test_pages_are_distinct_and_modules_are_served_as_javascript() {
 }
 
 #[test]
+fn review_reports_require_v1_auth_and_reject_a_stale_preview() {
+    let s = Sandbox::new();
+    let case = s.case();
+    for route in ["/api/v1/report", "/api/v1/report-html"] {
+        assert!(http(&case, "GET", route, "", None, None, None).starts_with("HTTP/1.1 403"));
+        assert!(
+            http(&case, "GET", route, "", None, Some("test-token"), None)
+                .starts_with("HTTP/1.1 200")
+        );
+    }
+    for route in ["/api/report", "/api/report-html"] {
+        assert!(http(&case, "GET", route, "", None, None, None).starts_with("HTTP/1.1 403"));
+    }
+    assert!(
+        http(
+            &case,
+            "POST",
+            "/api/v1/report-html",
+            "{\"expected_revision\":0}",
+            None,
+            Some("test-token"),
+            None
+        )
+        .starts_with("HTTP/1.1 409")
+    );
+    assert!(
+        http(
+            &case,
+            "POST",
+            "/api/v1/report-html",
+            "{\"expected_revision\":1}",
+            None,
+            Some("test-token"),
+            None
+        )
+        .starts_with("HTTP/1.1 200")
+    );
+    assert!(
+        http(
+            &case,
+            "POST",
+            "/api/v1/report-html",
+            "{\"expected_revision\":1}",
+            Some("https://example.invalid"),
+            Some("test-token"),
+            None
+        )
+        .starts_with("HTTP/1.1 403")
+    );
+    let profiles = http(
+        &case,
+        "GET",
+        "/api/v1/profiles",
+        "",
+        None,
+        Some("test-token"),
+        None,
+    );
+    assert!(profiles.contains("medical-access"));
+    assert!(profiles.contains("catalog_version"));
+    let module = http(&case, "GET", "/ui/review-tools.js", "", None, None, None);
+    assert!(module.contains("text/javascript"));
+    assert!(module.contains("mountReviewTools"));
+}
+
+#[test]
 fn review_http_rejects_cross_origin_missing_token_import_and_stale_update() {
     let s = Sandbox::new();
     let case = s.case();
