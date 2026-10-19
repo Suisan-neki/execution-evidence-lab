@@ -38,7 +38,7 @@ function download(content, type, filename) {
 }
 export async function mountReviewTools(root, { token, prefix = '', onChange = async () => {} }) {
   if (!root) return;
-  let view, catalog, generation = 0, pending = false;
+  let view, catalog, generation = 0, pending = false, draftMode = null;
   let detail = 'plain';
   try { detail = localStorage.getItem('eel-explanation-detail') === 'technical' ? 'technical' : 'plain'; } catch { /* 保存できなくても閲覧できる。 */ }
   const title = el('h2', '確認モードと確認資料');
@@ -68,24 +68,27 @@ export async function mountReviewTools(root, { token, prefix = '', onChange = as
     view = next; catalog = nextCatalog; render();
   }
   function render() {
+    const previousInputs = [...body.querySelectorAll('input')].map(input => input.value);
     const history = view.workspace.profile_history || [], active = history.at(-1);
     const domain = active?.domain || 'general', version = active?.version || 0;
     const controls = el('div', '', { class: 'review-tools-fields' });
     const mode = el('select', '', { class: 'dads-select__select', 'aria-label': '確認モード' });
     Object.entries(domainLabels).forEach(([value, label]) => mode.add(new Option(label, value)));
-    mode.value = domain;
+    mode.value = draftMode || domain;
+    mode.addEventListener('change', () => { draftMode = mode.value; });
     const details = el('select', '', { class: 'dads-select__select', 'aria-label': '説明の詳しさ' });
     details.add(new Option('分かりやすい説明', 'plain')); details.add(new Option('技術的な説明', 'technical')); details.value = detail;
     const actor = el('input', '', { class: 'dads-input-text__input', 'aria-label': 'モード設定の記入者', autocomplete: 'name' });
     const reason = el('input', '', { class: 'dads-input-text__input', 'aria-label': 'モード設定の理由' });
+    actor.value = previousInputs[0] || ''; reason.value = previousInputs[1] || '';
     const explanation = el('p');
     const proposals = el('div'), reportPreview = el('div', '', { 'data-review-report': '' });
     async function change(action) {
       if (!actor.value.trim() || !reason.value.trim()) throw Error('モード設定の記入者と理由を入力してください。');
       const name = actor.value, why = reason.value;
       view = await request('change', { expected_revision: view.workspace.revision, actor: name.trim(), reason: why.trim(), action });
+      if (action.op === 'select_profile') draftMode = null;
       render();
-      const inputs = body.querySelectorAll('input'); inputs[0].value = name; inputs[1].value = why;
       await onChange();
       window.dispatchEvent(new CustomEvent('eel-case-updated', { detail: { prefix, source: root } }));
     }

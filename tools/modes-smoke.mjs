@@ -36,11 +36,21 @@ try {
   const token = await page.locator('meta[name=review-token]').getAttribute('content');
   const headers = { 'X-Review-Token': token, 'Content-Type': 'application/json' };
   async function state() { const r = await fetch(app.url + '/api/v1/case', { headers }); assert.equal(r.status, 200); return r.json(); }
+  let releaseCatalog, catalogRequested;
+  const heldCatalog = new Promise(resolve => { releaseCatalog = resolve; });
+  const arrived = new Promise(resolve => { catalogRequested = resolve; });
+  const holdCatalog = async route => { const response = await route.fetch(); catalogRequested(); await heldCatalog; await route.fulfill({ response }); };
+  await context.route('**/api/v1/profiles', holdCatalog);
+  await panel.getByRole('button', { name: '設定を読み直す', exact: true }).click();
+  await arrived;
   await panel.getByLabel('モード設定の記入者', { exact: true }).fill('合成の作成者');
   await panel.getByLabel('モード設定の理由', { exact: true }).fill('試験用の医療の観点を選ぶ');
   await panel.getByLabel('確認モード', { exact: true }).selectOption('medical');
+  releaseCatalog();
+  await panel.getByRole('button', { name: '設定を読み直す', exact: true }).waitFor();
   await panel.getByRole('button', { name: '確認モードを記録する', exact: true }).click();
   await panel.getByText('現在は医療モードです。', { exact: false }).waitFor();
+  await context.unroute('**/api/v1/profiles', holdCatalog);
   let before = await state(); assert.equal(before.workspace.profile_history[0].domain, 'medical');
   await panel.getByText('確認項目の候補を見る', { exact: true }).click();
   await panel.getByLabel('説明の詳しさ', { exact: true }).selectOption('technical');
