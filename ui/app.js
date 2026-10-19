@@ -168,16 +168,20 @@ const STEP_GUIDES = {
   result: ['実際に取得した記録から結果を見ます。', '確認できたことと未確認事項を分けて表示します。必要なら別の状況や修正後の版で試します。'],
 };
 function goto(step, focus = true, record = true) {
-  if (step !== 'open' && (!STEP_GUIDES[step] || !state.source)) step = 'open';
+  if (!['open', 'repository'].includes(step) && (!STEP_GUIDES[step] || !state.source)) step = 'open';
   state.step = step;
-  const panelStep = step === 'expect-edit' ? 'expect' : step.startsWith('trial') ? 'trial' : step;
-  $('open').hidden = step !== 'open';
-  if (step === 'open') $('code').hidden = true;
-  $('steps').hidden = step === 'open';
-  $('current').hidden = step === 'open';
+  const atStart = ['open', 'repository'].includes(step);
+  const panelStep = step === 'repository' ? 'open' : step === 'expect-edit' ? 'expect' : step.startsWith('trial') ? 'trial' : step;
+  $('open').hidden = !atStart;
+  $('target-choice').hidden = step !== 'open';
+  $('repository-input').hidden = step !== 'repository';
+  $('open').setAttribute('aria-labelledby', step === 'repository' ? 'repository-heading' : 'open-heading');
+  if (atStart) $('code').hidden = true;
+  $('steps').hidden = atStart;
+  $('current').hidden = atStart;
   $('person').hidden = !['expect', 'expect-edit', 'trial', 'trial-fault', 'trial-checks', 'result'].includes(step);
-  $('change-target').hidden = step === 'open';
-  $('step-guide').hidden = step === 'open';
+  $('change-target').hidden = atStart;
+  $('step-guide').hidden = atStart;
   for (const id of ['understand', 'expect', 'trial', 'result']) $(id).hidden = id !== panelStep;
   for (const li of document.querySelectorAll('.steps li')) {
     if (li.dataset.step === panelStep) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
@@ -186,23 +190,25 @@ function goto(step, focus = true, record = true) {
   if (step.startsWith('trial')) renderTrial();
   if (step === 'result') renderResult();
   if (STEP_GUIDES[step]) $('step-guide').replaceChildren(h('strong', {}, STEP_GUIDES[step][0]), h('p', {}, STEP_GUIDES[step][1]));
-  if (step !== 'open') fitSteps();
+  if (!atStart) fitSteps();
   if (focus) { $(panelStep).focus(); $('main').scrollIntoView({ block: 'start' }); }
   if (record) {
     const url = new URL(location.href);
-    if (state.source && step !== 'open') { url.searchParams.set('url', 'https://github.com/' + state.source.repository); url.searchParams.set('ref', state.source.commit); }
+    if (state.source && !atStart) { url.searchParams.set('url', 'https://github.com/' + state.source.repository); url.searchParams.set('ref', state.source.commit); }
     else url.search = '';
-    if (state.checkId && step !== 'open') url.searchParams.set('check', state.checkId);
+    if (state.checkId && !atStart) url.searchParams.set('check', state.checkId);
     url.hash = step;
     if (url.href !== location.href) history.pushState(null, '', url);
   }
 }
 for (const a of document.querySelectorAll('.step-link')) a.addEventListener('click', e => { e.preventDefault(); goto(a.getAttribute('href').slice(1)); });
 $('secondary-tools').addEventListener('toggle', () => { if ($('secondary-tools').open) window.dispatchEvent(new CustomEvent('eel-case-updated', { detail: { prefix: '' } })); });
+$('open-repository').addEventListener('click', e => { e.preventDefault(); goto('repository'); });
+$('back-to-choice').addEventListener('click', e => { e.preventDefault(); goto('open'); });
 $('change-target').addEventListener('click', e => { e.preventDefault(); goto('open'); });
 async function restoreLocation() {
   const params = new URLSearchParams(location.search), step = location.hash.slice(1);
-  if (!params.get('url') || step === 'open') { goto('open', false, false); return; }
+  if (!params.get('url') || step === 'open') { goto(step === 'repository' ? 'repository' : 'open', false, false); return; }
   $('repo-url').value = params.get('url'); $('repo-ref').value = params.get('ref') || '';
   if (!state.source || state.source.commit !== params.get('ref') || 'https://github.com/' + state.source.repository !== params.get('url')) {
     if (!await openRepository(params.get('url'), params.get('ref') || '', false)) return;
@@ -235,6 +241,7 @@ async function openRepository(url, reference, record = true) {
   return guarded(async () => {
     setStatus('GitHubから読み込んでいます。対象のコードは実行しません。');
     const res = await api('POST', '/api/v1/understand', { operation: 'open', url, reference });
+    if (state.source?.repository !== res.source.repository) { state.checkId = null; state.lastRun = null; state.trialForm = null; state.retest = null; }
     state.source = res.source; state.overview = res.result; state.overviewRefs = res.references;
     state.files.clear(); state.fn = null; state.plan = null;
     state.code = null; state.selectedLine = null;
@@ -435,7 +442,7 @@ async function loadCase() {
     state.execution = await api('GET', '/api/v1/execution');
   } catch (e) { showError(e); }
   renderCurrent();
-  if (state.step === 'open') $('current').hidden = true;
+  if (['open', 'repository'].includes(state.step)) $('current').hidden = true;
   if (state.step === 'expect' || state.step === 'expect-edit') renderExpect();
   if (state.step.startsWith('trial')) renderTrial();
   if (state.step === 'result') renderResult();

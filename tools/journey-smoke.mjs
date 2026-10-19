@@ -34,6 +34,7 @@ try {
   const shot = name => page.screenshot({ path: join(output, 'journey-' + name + '.png'), fullPage: true });
   assert.equal(await page.locator('#review-tools').isVisible(), false);
   assert.equal(await page.locator('#person').isVisible(), false);
+  assert.equal(await page.locator('#repo-url').isVisible(), false, '対象の選択とURL入力を別の画面にする');
   await context.route('**/api/v1/change', route => route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: '合成の更新競合' }) }));
   await selectMode().selectOption('medical');
   await page.getByRole('status').filter({ hasText: '切り替えできませんでした' }).waitFor();
@@ -47,6 +48,7 @@ try {
   await shot('start');
 
   // 読み込みではコードを実行せず、ページを順に進める。戻る・再読込で同じ固定版へ戻る。
+  await page.getByRole('link', { name: 'GitHubのURLを入力する', exact: true }).click();
   await page.locator('#repo-url').fill('https://github.com/' + snapshot.fullName);
   await page.locator('#repo-ref').fill(snapshot.commit);
   await page.getByRole('button', { name: '読み込む', exact: true }).click();

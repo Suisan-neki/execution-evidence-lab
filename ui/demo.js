@@ -62,7 +62,7 @@ function render(focus = false) {
         view = await api('demo', { expected_revision: view.workspace.revision, actor: name.value.trim(), reason: `ブラウザの練習用デモ：${faults[fault][0]}`, check_id: 'save', fault });
         status.textContent = '試験が終わりました。保存の観測記録から結果を表示します。';
         window.dispatchEvent(new CustomEvent('eel-case-updated', { detail: { prefix: '/demo' } }));
-        busy = false; go(4);
+        busy = false; if (route() === 4) render(true); else go(4);
       } catch (e) { alert.textContent = `試験を完了できませんでした。${e.message}`; status.textContent = ''; }
       finally { busy = false; document.querySelectorAll('[aria-disabled]').forEach(n => n.removeAttribute('aria-disabled')); document.querySelectorAll('button, select, input').forEach(n => { n.disabled = false; }); }
     }, true)); screen.append(actions);
@@ -91,6 +91,7 @@ function render(focus = false) {
   }
   if (focus) { screen.focus(); screen.scrollIntoView({ block: 'start' }); }
 }
+document.addEventListener('click', e => { if (busy && e.target.closest('a')) e.preventDefault(); }, true);
 window.addEventListener('hashchange', () => { if (!busy) render(true); });
 try {
   await reload(); render();
