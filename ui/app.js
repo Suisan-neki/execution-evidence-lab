@@ -6,7 +6,7 @@ const token = document.querySelector('meta[name="review-token"]').content;
 const $ = id => document.getElementById(id);
 const state = {
   source: null, overview: null, overviewRefs: null, plan: null, view: null, execution: null, ai: null,
-  files: new Map(), code: null, selectedLine: null, fn: null, checkId: null, pendingRef: null, lastRun: null, step: 'understand',
+  files: new Map(), code: null, selectedLine: null, fn: null, checkId: null, pendingRef: null, pendingAI: null, aiSequence: 0, lastRun: null, step: 'understand',
 };
 
 const ROLE = { operator: '運用担当', developer: '開発者', other: 'その他' };
@@ -243,6 +243,7 @@ async function openRepository(url, reference, record = true) {
   return guarded(async () => {
     setStatus('GitHubから読み込んでいます。対象のコードは実行しません。');
     const res = await api('POST', '/api/v1/understand', { operation: 'open', url, reference });
+    if (state.source?.repository !== res.source.repository || state.source?.commit !== res.source.commit) { if (state.source?.repository !== res.source.repository) state.pendingAI = null; state.aiSequence++; }
     if (state.source?.repository !== res.source.repository) { state.checkId = null; state.lastRun = null; state.trialForm = null; state.retest = null; state.expectDraft = ''; }
     state.source = res.source; state.overview = res.result; state.overviewRefs = res.references;
     state.files.clear(); state.fn = null; state.plan = null;
@@ -382,18 +383,40 @@ $('ask-ai').addEventListener('click', async () => {
   const question = $('question').value.trim();
   if (!question) { setStatus('質問を入力してください。'); $('question').focus(); return; }
   await guarded(async () => {
+    const source = { repository: state.source.repository, commit: state.source.commit }, sequence = ++state.aiSequence;
     setStatus('AIに問い合わせています。根拠の行は基盤が照合します。');
-    const res = await api('POST', '/api/v1/ai', { repository: state.source.repository, commit: state.source.commit, question, path: null, line: null });
+    const res = await api('POST', '/api/v1/ai', { ...source, question, path: null, line: null });
+    if (sequence !== state.aiSequence || source.repository !== state.source?.repository || source.commit !== state.source?.commit) return;
     const node = res.status === 'ok'
       ? h('div', { class: 'box' }, h('h4', {}, basis('ai'), 'AIによる説明', res.model ? `（${res.model}）` : ''), h('p', {}, res.answer || ''),
+          h('p', { class: 'note' }, `質問: ${question}`),
           h('ul', { class: 'items' }, (res.claims || []).map(c => h('li', {}, c.text, ' ', refLinks(c.refs || []), c.has_verified_reference ? null : h('span', { class: 'ref-unverified' }, '（固定コミットで確認できる根拠の行がない）')))),
           res.unknowns?.length ? [h('h5', {}, 'AIが分からないとしたこと'), h('ul', { class: 'items' }, res.unknowns.map(u => h('li', {}, u)))] : null,
-          h('p', { class: 'note' }, res.meaning), res.unverified_references ? h('p', { class: 'ref-unverified' }, `固定コミットに存在しない参照が ${res.unverified_references} 件ありました。`) : null)
+          h('p', { class: 'note' }, res.meaning), res.unverified_references ? h('p', { class: 'ref-unverified' }, `固定コミットに存在しない参照が ${res.unverified_references} 件ありました。`) : null,
+          res.references_outside_context ? h('p', { class: 'ref-unverified' }, `今回AIへ渡した抜粋と照合できない参照が ${res.references_outside_context} 件ありました。`) : null,
+          aiCandidates(res, source))
       : banner('warning', 'AIによる説明を表示できません', h('p', {}, res.message), h('p', {}, '静的解析による結果は「調べる」で表示できます。'));
     $('answer').prepend(node);
     setStatus(res.status === 'ok' ? 'AIによる説明を表示しました。' : 'AIによる説明は取得できませんでした。');
   });
 });
+
+function aiCandidates(response, source) {
+  const candidates = response.test_candidates || [];
+  if (!candidates.length) return null;
+  return h('section', { 'aria-label': 'AIからの確認候補' }, h('h5', {}, '次に確かめる候補'),
+    h('p', { class: 'note' }, '候補はまだ保存・実行していません。根拠の行と未確認事項を読み、必要な候補を自分の条件に直してから保存します。'),
+    candidates.map(candidate => h('div', { class: 'statement', 'data-ai-candidate': '' },
+      h('p', {}, h('strong', {}, candidate.expectation)), h('p', {}, candidate.reason), refLinks(candidate.refs),
+      candidate.unknowns.length ? [h('h6', {}, 'この候補でまだ分からないこと'), h('ul', { class: 'items' }, candidate.unknowns.map(u => h('li', {}, u)))] : null,
+      candidate.can_use ? button('この候補を編集する', () => guarded(async () => {
+        if (source.repository !== state.source?.repository || source.commit !== state.source?.commit) throw Error('対象の版が変わりました。現在のコードで問い合わせ直してください。');
+        if (state.expectDraft?.trim()) throw Error('書きかけの期待があります。期待の画面で保存するか、内容を消してから候補を選んでください。');
+        state.pendingAI = { source, model: response.model, provenance: candidate.provenance, candidate, unknowns: response.unknowns };
+        state.pendingRef = null;
+        state.expectDraft = candidate.expectation; goto('expect'); $('expect-text').focus();
+      })) : h('p', { class: 'ref-unverified' }, candidate.unavailable_reason || '今回AIへ渡した抜粋に根拠をそろえられないため、この候補は取り込めません。'))));
+}
 
 // ---------- コード表示 ----------
 async function fileText(path) {
@@ -535,6 +558,12 @@ function renderExpect() {
   const checks = repoChecks();
   fill(body,
     pending,
+    state.pendingAI ? banner('info', 'AIの確認候補を編集しています（未保存）',
+      h('p', {}, `${state.pendingAI.model}による提案です。保存しても試験済みや合意済みにはなりません。`),
+      h('p', {}, `対象: ${state.pendingAI.source.repository}（${shortCommit(state.pendingAI.source.commit)}）`),
+      h('p', {}, state.pendingAI.candidate.reason), h('span', {}, state.pendingAI.candidate.refs.map(r => refLinksFor({ ...state.pendingAI.source, path: r.path, line: r.line, end_line: r.end_line }))),
+      h('ul', { class: 'items' }, [...state.pendingAI.unknowns, ...state.pendingAI.candidate.unknowns].map(u => h('li', {}, u))),
+      button('この候補を使わず書き直す', () => { state.pendingAI = null; state.expectDraft = ''; renderExpect(); }, 'text')) : null,
     h('h3', { class: 'dads-u-std-20B-150' }, '期待を書く'), form, proposals(), scopeHelp(),
     h('h3', { class: 'dads-u-std-20B-150' }, `このリポジトリの期待（${checks.length} 件）`),
     checks.length ? checks.map(expectationCard) : h('p', { class: 'note' }, 'まだ期待は記録されていません。'));
@@ -548,9 +577,14 @@ async function addExpectation(control) {
     let n = repoChecks().length + 1;
     while (state.view.workspace.checks.some(c => c.id === `${prefix}-${n}`)) n++;
     const id = `${prefix}-${n}`;
-    await change({ op: 'add_check', check: { id, version: 1, text: value, origin: `${p.name}（${ROLE[p.role]}）が画面で入力した期待`, source: null, observation: null, rule: 'manual_only', dependencies: [], questions: [] } }, '期待する動作を記録した');
-    await change({ op: 'add_statement', statement: { id: randomId('s'), kind: 'statement', role: p.role, text: value, origin: `${p.name}が自分の言葉で書いた期待`, check_ids: [id] } }, '期待を書いた人の発言として残した');
-    state.checkId = id; state.expectDraft = '';
+    const draft = state.pendingAI;
+    if (draft && (draft.source.repository !== state.source.repository || draft.source.commit !== state.source.commit)) throw Error('AI候補の対象の版が変わりました。現在のコードから候補を選び直してください。');
+    const origin = draft ? `AIの未検証の確認候補から${p.name}が期待を保存。出所: ${draft.provenance}` : `${p.name}（${ROLE[p.role]}）が画面で入力した期待`;
+    const ref = draft?.candidate.refs[0];
+    const source = ref ? { ...draft.source, path: ref.path, line: ref.line, end_line: ref.end_line } : null;
+    await change({ op: 'add_check', check: { id, version: 1, text: value, origin, source, observation: null, rule: 'manual_only', dependencies: [], questions: [] } }, '期待する動作を記録した');
+    await change({ op: 'add_statement', statement: { id: randomId('s'), kind: draft ? 'proposal' : 'statement', role: p.role, text: value, origin: draft ? origin : `${p.name}が自分の言葉で書いた期待`, source, check_ids: [id] } }, draft ? 'AI候補から編集した提案として残した' : '期待を書いた人の発言として残した');
+    state.checkId = id; state.expectDraft = ''; state.pendingAI = null;
     renderCurrent(); goto('expect-edit');
     setStatus('期待を記録しました。続けて、実装と確認方法を対応づけてください。');
   });
@@ -562,9 +596,16 @@ function expectationCard(check) {
   const pending = state.pendingRef;
   const disc = textarea({ rows: 2 }), question = textarea({ rows: 2 }), revise = textarea({ rows: 2, value: check.text });
   const unanswered = check.questions.filter(q => !q.answer);
+  const aiOrigin = readAiOrigin(check.origin);
   return h('div', { class: 'box', 'data-check': check.id },
     h('h4', {}, check.text),
-    disclosure('記録の出所と現在の状態', h('p', { class: 'statement-meta' }, `識別子 ${check.id}・条件の版 ${check.version}・出所: ${check.origin}`), cv ? verdictBox(cv.verdict, cv.reason) : null),
+    disclosure('記録の出所と現在の状態', h('p', { class: 'statement-meta' }, `識別子 ${check.id}・条件の版 ${check.version}・出所: ${aiOrigin ? 'AIの未検証の確認候補から記入者が保存' : check.origin}`), cv ? verdictBox(cv.verdict, cv.reason) : null),
+    aiOrigin ? disclosure('AI候補の出所と未確認事項',
+      h('p', {}, `モデル: ${aiOrigin.model}。質問: ${aiOrigin.question}`),
+      h('p', {}, `元の候補: ${aiOrigin.candidate.expectation}`), h('p', {}, aiOrigin.candidate.reason),
+      h('ul', { class: 'items' }, [...aiOrigin.unknowns, ...aiOrigin.candidate.unknowns].map(u => h('li', {}, u))),
+      h('p', { class: 'note' }, '保存時の提案です。試験結果や人の確認を表すものではありません。'),
+      disclosure('内容を識別する値', h('p', {}, `コード抜粋 SHA-256: ${aiOrigin.context_sha256}`), h('p', {}, `AI応答 SHA-256: ${aiOrigin.response_sha256}`))) : null,
     h('p', { class: 'note' }, cv?.evidence.length ? '試行の結果は「結果を見る」で確認できます。' : 'まだ試していません。コードと確認方法を対応づけたら試験へ進めます。'),
     h('p', {}, h('strong', {}, '対応づけたコード: '), check.source ? refLinksFor(check.source) : 'まだありません。'),
     unanswered.length ? h('div', {}, h('strong', {}, '未回答の質問'), h('ul', { class: 'items' }, unanswered.map(q => answerForm(check, q)))) : null,
@@ -597,6 +638,18 @@ function expectationCard(check) {
       await change({ op: 'add_statement', statement: { id: randomId('s'), kind: 'statement', role: p.role, text: t, origin: `${p.name}が直した期待`, check_ids: [check.id] } }, '直した期待を発言として残した'); renderExpect();
     }))),
     h('div', { class: 'button-row' }, button('この期待を試す', () => { state.checkId = check.id; renderCurrent(); goto('trial'); }, 'solid-fill', 'md'), button('結果を見る', () => { state.checkId = check.id; renderCurrent(); goto('result'); })));
+}
+
+function readAiOrigin(origin) {
+  try {
+    const marker = '。出所: ', index = origin.indexOf(marker);
+    if (index < 0) return null;
+    const record = JSON.parse(origin.slice(index + marker.length));
+    const strings = values => Array.isArray(values) && values.every(v => typeof v === 'string');
+    return record?.kind === 'ai_candidate' && typeof record.model === 'string' && typeof record.question === 'string'
+      && typeof record.candidate?.expectation === 'string' && typeof record.candidate.reason === 'string'
+      && strings(record.unknowns) && strings(record.candidate.unknowns) ? record : null;
+  } catch { return null; }
 }
 function answerForm(check, q) {
   const a = textarea({ rows: 2 });
