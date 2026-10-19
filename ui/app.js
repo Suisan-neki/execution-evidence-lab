@@ -1,3 +1,4 @@
+import { mountModeSwitch } from '/ui/mode-switch.js';
 import { mountReviewTools } from '/ui/review-tools.js';
 // 理解と試験の画面。解析・照合・判定はサーバーのAPIが行い、この画面は結果を表示して操作を送る。
 // 画面の文字はtextContentで入れ、取得したコードや記録をHTMLとして解釈しない。
@@ -155,21 +156,69 @@ function renderCurrent() {
   $('current-function').textContent = state.fn ? `${state.fn.name}（${state.fn.path} ${state.fn.line}行目）` : '未選択';
   const check = currentCheck();
   $('current-check').textContent = check ? `${check.text}（${check.id}・条件の版${check.version}）` : '未選択';
-  $('current-trial').textContent = state.lastRun || '未実行';
+  const job = state.execution?.job, evidence = check ? checkView(check.id)?.evidence.at(-1) : null;
+  $('current-trial').textContent = job?.status === 'running' && job.check_id === check?.id ? `${job.id}（実行中）` : evidence ? `${evidence.run_id}${evidence.applicable ? '' : '（再確認待ち）'}` : '未実行';
 }
-function goto(step, focus = true) {
+const STEP_GUIDES = {
+  understand: ['コードを読みました。まだ実行していません。', '目的と主な構成を確認したら、次に確かめたい動作を書きます。'],
+  'expect-edit': ['期待を記録しました。次に試す箇所を決めます。', '実装と確認方法を対応づけたら、試験の設定へ進めます。疑問や確認の記録は必要なときに開けます。'],
+  expect: ['何ができればよいかを決めます。', '期待を書いて保存し、試すコードと確認方法を対応づけます。ここではまだ試験しません。'],
+  trial: ['まず、何を起動して何を入力するかを確認します。', '次に試す状況、判定の条件を順に決めます。この画面ではまだ実行しません。'],
+  'trial-fault': ['次に、試す状況を選びます。', '通常時と失敗時を別々の試行として記録します。ここではまだ実行しません。'],
+  'trial-checks': ['何を観測すれば期待どおりと言えるかを決めます。', '条件を確認したら、最後に実行内容の確認画面へ進みます。'],
+  result: ['実際に取得した記録から結果を見ます。', '確認できたことと未確認事項を分けて表示します。必要なら別の状況や修正後の版で試します。'],
+};
+function goto(step, focus = true, record = true) {
+  if (!['open', 'repository'].includes(step) && (!STEP_GUIDES[step] || !state.source)) step = 'open';
   state.step = step;
-  for (const id of ['understand', 'expect', 'trial', 'result']) $(id).hidden = id !== step || !state.source;
+  renderCurrent();
+  const atStart = ['open', 'repository'].includes(step);
+  const panelStep = step === 'repository' ? 'open' : step === 'expect-edit' ? 'expect' : step.startsWith('trial') ? 'trial' : step;
+  $('open').hidden = !atStart;
+  $('target-choice').hidden = step !== 'open';
+  $('repository-input').hidden = step !== 'repository';
+  $('open').setAttribute('aria-labelledby', step === 'repository' ? 'repository-heading' : 'open-heading');
+  if (atStart) $('code').hidden = true;
+  $('steps').hidden = atStart;
+  $('current').hidden = atStart;
+  $('person').hidden = !['expect', 'expect-edit', 'trial', 'trial-fault', 'trial-checks', 'result'].includes(step);
+  $('change-target').hidden = atStart;
+  $('step-guide').hidden = atStart;
+  for (const id of ['understand', 'expect', 'trial', 'result']) $(id).hidden = id !== panelStep;
   for (const li of document.querySelectorAll('.steps li')) {
-    if (li.dataset.step === step) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
+    if (li.dataset.step === panelStep) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
   }
-  if (step === 'expect') renderExpect();
-  if (step === 'trial') renderTrial();
+  if (step === 'expect' || step === 'expect-edit') renderExpect();
+  if (step.startsWith('trial')) renderTrial();
   if (step === 'result') renderResult();
-  if (focus && state.source) $(step).focus();
-  history.replaceState(null, '', `#${step}`);
+  if (STEP_GUIDES[step]) $('step-guide').replaceChildren(h('strong', {}, STEP_GUIDES[step][0]), h('p', {}, STEP_GUIDES[step][1]));
+  if (!atStart) fitSteps();
+  if (focus) { $(panelStep).focus(); $('main').scrollIntoView({ block: 'start' }); }
+  if (record) {
+    const url = new URL(location.href);
+    if (state.source && !atStart) { url.searchParams.set('url', 'https://github.com/' + state.source.repository); url.searchParams.set('ref', state.source.commit); }
+    else url.search = '';
+    if (state.checkId && !atStart) url.searchParams.set('check', state.checkId);
+    url.hash = step;
+    if (url.href !== location.href) history.pushState(null, '', url);
+  }
 }
 for (const a of document.querySelectorAll('.step-link')) a.addEventListener('click', e => { e.preventDefault(); goto(a.getAttribute('href').slice(1)); });
+$('secondary-tools').addEventListener('toggle', () => { if ($('secondary-tools').open) window.dispatchEvent(new CustomEvent('eel-case-updated', { detail: { prefix: '' } })); });
+$('open-repository').addEventListener('click', e => { e.preventDefault(); goto('repository'); });
+$('back-to-choice').addEventListener('click', e => { e.preventDefault(); goto('open'); });
+$('change-target').addEventListener('click', e => { e.preventDefault(); goto('open'); });
+async function restoreLocation() {
+  const params = new URLSearchParams(location.search), step = location.hash.slice(1);
+  if (!params.get('url') || step === 'open') { goto(step === 'repository' ? 'repository' : 'open', false, false); return; }
+  $('repo-url').value = params.get('url'); $('repo-ref').value = params.get('ref') || '';
+  if (!state.source || state.source.commit !== params.get('ref') || 'https://github.com/' + state.source.repository !== params.get('url')) {
+    if (!await openRepository(params.get('url'), params.get('ref') || '', false)) return;
+  }
+  state.checkId = params.get('check') || state.checkId;
+  goto(STEP_GUIDES[step] ? step : step === 'trial-confirm' ? 'trial' : 'understand', false, false);
+}
+window.addEventListener('popstate', () => guarded(restoreLocation));
 // 横並びで手順の名前が入りきらない幅・文字の大きさでは、縦並びにして名前を隠さない。
 function fitSteps() {
   const nav = $('steps');
@@ -190,26 +239,27 @@ $('open-form').addEventListener('submit', async e => {
   url.removeAttribute('aria-invalid'); error.hidden = true;
   await openRepository(url.value.trim(), $('repo-ref').value.trim());
 });
-async function openRepository(url, reference) {
+async function openRepository(url, reference, record = true) {
   return guarded(async () => {
     setStatus('GitHubから読み込んでいます。対象のコードは実行しません。');
     const res = await api('POST', '/api/v1/understand', { operation: 'open', url, reference });
+    if (state.source?.repository !== res.source.repository) { state.checkId = null; state.lastRun = null; state.trialForm = null; state.retest = null; state.expectDraft = ''; }
     state.source = res.source; state.overview = res.result; state.overviewRefs = res.references;
     state.files.clear(); state.fn = null; state.plan = null;
     state.code = null; state.selectedLine = null;
     $('code').hidden = true; $('code-view').replaceChildren(); $('code-meta').replaceChildren();
     $('steps').hidden = false; fitSteps();
-    if ($('person').hidden) { $('person').replaceChildren(personFields()); $('person').hidden = false; }
+    if (!$('person').hasChildNodes()) $('person').replaceChildren(personFields());
     renderCurrent(); renderUnderstand();
     // Show the new source before waiting for case data; later replies must keep the user's selected step.
-    goto('understand');
+    goto('understand', true, record);
     loadPlan(); await loadCase();
     setStatus(`コミット ${shortCommit(res.source.commit)} に固定して読み込みました。`);
     return res;
   });
 }
 async function loadPlan() {
-  try { const res = await api('POST', '/api/v1/understand', { operation: 'plan', repository: state.source.repository, commit: state.source.commit }); state.plan = res.result; if (state.step === 'trial') renderTrial(); }
+  try { const res = await api('POST', '/api/v1/understand', { operation: 'plan', repository: state.source.repository, commit: state.source.commit }); state.plan = res.result; if (state.step.startsWith('trial')) renderTrial(); }
   catch (e) { state.plan = { error: e.message }; }
 }
 function readScope() {
@@ -241,9 +291,9 @@ function renderUnderstand() {
     f.unresolved_calls ? h('p', { class: 'note' }, `呼び出し先を読み取っていないため、たどれなかった呼び出しが ${f.unresolved_calls} 件あります。`) : null));
   const behaviorsByFile = path => o.behaviors.filter(b => b.path === path);
   fill(body,
-    readScope(),
+    disclosure('読んだ範囲とコードの版', readScope()),
     h('h3', { class: 'dads-u-std-20B-150' }, '目的'), items(o.purpose.map(p => ({ ...p, text: p.origin ? `${p.text}（出所: ${p.origin}）` : p.text })), 'READMEやリポジトリの説明が見つかりませんでした。'),
-    h('h3', { class: 'dads-u-std-20B-150' }, '起動のしかたと入口'), items(o.start, '起動方法の記述は見つかりませんでした。'),
+    disclosure('起動のしかたと入口', items(o.start, '起動方法の記述は見つかりませんでした。')),
     h('h3', { class: 'dads-u-std-20B-150' }, '言語と、この基盤での実行'), h('ul', { class: 'items' }, o.languages.map(l => h('li', {}, `${l.name}（${l.files} ファイル）: ${l.execution}`))),
     h('h3', { class: 'dads-u-std-20B-150' }, '主な構成と役割'),
     o.components.map(c => h('div', { class: 'box' },
@@ -251,10 +301,8 @@ function renderUnderstand() {
       c.description ? items([c.description]) : null,
       items(behaviorsByFile(c.path), '入力・保存・送信・エラー処理に当たる記述は見つかりませんでした。'),
       disclosure(`関数・メソッド（${c.functions.length} 件）`, h('ul', { class: 'items' }, c.functions.map(fn => h('li', {}, h('button', { class: 'linklike', type: 'button', onclick: () => inspectFunction(c.path, fn.line) }, fn.name), `（${fn.line}行目）`)))))),
-    h('h3', { class: 'dads-u-std-20B-150' }, '入力から保存・送信まで'),
-    flows.length ? flows : h('p', { class: 'note' }, '入口を特定できなかったため、処理の関係を作れませんでした。'),
-    h('h3', { class: 'dads-u-std-20B-150' }, '既存のテスト'),
-    o.tests.length ? h('ul', { class: 'items' }, o.tests.map(t => h('li', {}, `${t.path}（${t.kind}）`, t.read ? refLinks(t.refs) : '（未読）'))) : h('p', { class: 'note' }, 'テストのファイルは見つかりませんでした。'),
+    disclosure('入力から保存・送信まで', flows.length ? flows : h('p', { class: 'note' }, '入口を特定できなかったため、処理の関係を作れませんでした。')),
+    disclosure('既存のテスト', o.tests.length ? h('ul', { class: 'items' }, o.tests.map(t => h('li', {}, `${t.path}（${t.kind}）`, t.read ? refLinks(t.refs) : '（未読）'))) : h('p', { class: 'note' }, 'テストのファイルは見つかりませんでした。')),
     h('h3', { class: 'dads-u-std-20B-150' }, 'コードを読むだけでは確かめていないこと'), items(o.unknown),
     h('p', { class: 'note' }, o.limits),
     h('div', { class: 'button-row' }, button('期待する動作を確認する', () => goto('expect'), 'solid-fill', 'md')));
@@ -392,12 +440,15 @@ $('code-link').addEventListener('click', () => {
 // ---------- 事例（期待・記録） ----------
 async function loadCase() {
   try {
-    state.view = await api('GET', '/api/v1/case');
-    state.execution = await api('GET', '/api/v1/execution');
+    const view = await api('GET', '/api/v1/case');
+    const execution = await api('GET', '/api/v1/execution');
+    if (state.view && view.workspace.revision < state.view.workspace.revision) return;
+    state.view = view; state.execution = execution;
   } catch (e) { showError(e); }
   renderCurrent();
-  if (state.step === 'expect') renderExpect();
-  if (state.step === 'trial') renderTrial();
+  if (['open', 'repository'].includes(state.step)) $('current').hidden = true;
+  if (state.step === 'expect' || state.step === 'expect-edit') renderExpect();
+  if (state.step.startsWith('trial')) renderTrial();
   if (state.step === 'result') renderResult();
 }
 function person() { try { return JSON.parse(sessionStorage.getItem('eel-person')) || { name: '', role: 'operator' }; } catch { return { name: '', role: 'operator' }; } }
@@ -408,7 +459,7 @@ function personFields() {
   role.control.value = p.role;
   const save = () => sessionStorage.setItem('eel-person', JSON.stringify({ name: name.control.value.trim(), role: role.control.value }));
   name.control.addEventListener('input', save); role.control.addEventListener('change', save);
-  return h('fieldset', {}, h('legend', {}, '記入する人'), h('p', { class: 'note' }, '期待・説明・確認・試行・判断を記録するときに、記入者として残します。コードを読むだけなら入力は不要です。'),
+  return h('fieldset', { class: 'identity-strip' }, h('legend', {}, '記入する人（自己申告）'),
     h('div', { class: 'inline-fields' }, field({ label: '名前', control: name, required: true }), field({ label: '役割', control: role })));
 }
 function requirePerson() {
@@ -470,7 +521,12 @@ function proposals() {
 function renderExpect() {
   const body = $('expect-body');
   if (!state.view) { body.replaceChildren(h('p', {}, '記録を読み込んでいます。')); return; }
-  const text = textarea({ rows: 3 });
+  if (state.step === 'expect-edit' && currentCheck()) {
+    fill(body, expectationCard(currentCheck()), h('div', { class: 'journey-actions' }, button('期待の一覧に戻る', () => goto('expect'))));
+    return;
+  }
+  const text = textarea({ rows: 3, value: state.expectDraft || '' });
+  text.control.addEventListener('input', () => { state.expectDraft = text.control.value; });
   text.control.id = 'expect-text';
   const form = h('form', { novalidate: true, onsubmit: e => { e.preventDefault(); addExpectation(text.control); } },
     field({ label: '誰が何をしたとき、何がどうなってほしいか', id: 'expect-text', control: text, required: true, support: '例: 利用者がタスクを追加したとき、後から一覧で同じタスクを読み出せる。例: 保存できなかったとき、利用者に失敗が分かる。' }),
@@ -494,8 +550,8 @@ async function addExpectation(control) {
     const id = `${prefix}-${n}`;
     await change({ op: 'add_check', check: { id, version: 1, text: value, origin: `${p.name}（${ROLE[p.role]}）が画面で入力した期待`, source: null, observation: null, rule: 'manual_only', dependencies: [], questions: [] } }, '期待する動作を記録した');
     await change({ op: 'add_statement', statement: { id: randomId('s'), kind: 'statement', role: p.role, text: value, origin: `${p.name}が自分の言葉で書いた期待`, check_ids: [id] } }, '期待を書いた人の発言として残した');
-    state.checkId = id;
-    renderCurrent(); renderExpect();
+    state.checkId = id; state.expectDraft = '';
+    renderCurrent(); goto('expect-edit');
     setStatus('期待を記録しました。続けて、実装と確認方法を対応づけてください。');
   });
 }
@@ -508,11 +564,11 @@ function expectationCard(check) {
   const unanswered = check.questions.filter(q => !q.answer);
   return h('div', { class: 'box', 'data-check': check.id },
     h('h4', {}, check.text),
-    h('p', { class: 'statement-meta' }, `識別子 ${check.id}・条件の版 ${check.version}・出所: ${check.origin}`),
-    cv ? verdictBox(cv.verdict, cv.reason) : null,
+    disclosure('記録の出所と現在の状態', h('p', { class: 'statement-meta' }, `識別子 ${check.id}・条件の版 ${check.version}・出所: ${check.origin}`), cv ? verdictBox(cv.verdict, cv.reason) : null),
+    h('p', { class: 'note' }, cv?.evidence.length ? '試行の結果は「結果を見る」で確認できます。' : 'まだ試していません。コードと確認方法を対応づけたら試験へ進めます。'),
     h('p', {}, h('strong', {}, '対応づけたコード: '), check.source ? refLinksFor(check.source) : 'まだありません。'),
     unanswered.length ? h('div', {}, h('strong', {}, '未回答の質問'), h('ul', { class: 'items' }, unanswered.map(q => answerForm(check, q)))) : null,
-    statements.map(statementBlock),
+    disclosure('期待・説明と確認の記録', statements.map(statementBlock)),
     h('details', { class: 'dads-disclosure', open: Boolean(pending) }, h('summary', { class: 'dads-disclosure__summary' }, '実装と確認方法を対応づける（技術者）'), h('div', { class: 'dads-disclosure__content' },
       pending ? h('p', {}, `使うコード: ${pending.path} ${pending.line}〜${pending.end_line}行目（コミット ${shortCommit(pending.commit)}）`) : field({ label: 'コードの行', control: refUrl, support: 'コードの画面で行を選んで「この行を期待に対応づける」を押すと入ります。固定コミットのGitHubの行のURLも使えます。' }),
       field({ label: 'この期待は、どのコードがどう動くことで満たされるか', control: explain, required: true }),
@@ -625,7 +681,7 @@ function renderTrial() {
   if (!state.view) { body.replaceChildren(h('p', {}, '記録を読み込んでいます。')); return; }
   const pick = select([['', '選んでください'], ...checks.map(c => [c.id, c.text])]);
   pick.control.value = state.checkId || '';
-  pick.control.addEventListener('change', () => { state.checkId = pick.control.value || null; state.trialForm = null; renderCurrent(); renderTrial(); });
+  pick.control.addEventListener('change', () => { state.checkId = pick.control.value || null; state.trialForm = null; renderCurrent(); goto('trial', false); });
   const check = currentCheck();
   const plan = state.plan;
   const exec = state.execution;
@@ -641,7 +697,7 @@ function renderTrial() {
   state.trialForm = form;
   fill(body, header, notes,
     h('p', {}, h('strong', {}, '期待: '), check.text),
-    plan && !plan.error ? planInfo(plan) : null,
+    plan && !plan.error ? disclosure('コードから読み取った試験の手がかり', planInfo(plan)) : null,
     trialFormView(check, form, plan, exec));
 }
 function planInfo(plan) {
@@ -718,7 +774,7 @@ function trialFormView(check, form, plan, exec) {
   const preview = h('div', {});
   const updatePreview = () => { state.trialForm = read(); preview.replaceChildren(previewBox(check, state.trialForm, exec)); };
   const runtimeNote = h('div', {});
-  const submit = h('button', { class: 'dads-button', 'data-type': 'solid-fill', 'data-size': 'lg', type: 'submit' }, 'この内容で試す');
+  const submit = h('button', { class: 'dads-button', 'data-type': 'solid-fill', 'data-size': 'lg', type: 'submit' }, '実行前に確認する');
   const updateRuntime = () => {
     const rt = exec?.runtimes?.find(r => r.name === runtime.control.value);
     runtimeNote.replaceChildren(rt ? h('p', { class: rt.available ? 'note' : 'ref-unverified' }, rt.available ? `実行環境: ${rt.detail}` : `実行環境がないため試せません: ${rt.detail}`) : h('p', { class: 'note' }, '実行環境を確認できません。'));
@@ -728,7 +784,7 @@ function trialFormView(check, form, plan, exec) {
   for (const [box, kind] of [[entry, launch], [readbackEntry, readbackLaunch], [serverEntry, serverLaunch]])
     box.control.addEventListener('change', () => { const c = entries.find(e => e.entrypoint === box.control.value.trim()); if (c) kind.control.value = c.launch || 'file'; });
   updateRuntime();
-  const container = h('form', { novalidate: true, oninput: updatePreview, onchange: updatePreview, onsubmit: e => { e.preventDefault(); runTrial(check, read()); } },
+  const container = h('form', { novalidate: true, oninput: updatePreview, onchange: updatePreview, onsubmit: e => { e.preventDefault(); state.trialForm = read(); showTrialConfirmation(check, state.trialForm, exec); } },
     h('datalist', { id: 'entry-candidates' }, entries.map(e => h('option', { value: e.entrypoint, label: LAUNCH_LABEL[e.launch || 'file'] }))),
     h('datalist', { id: 'scope-candidates' }, SCOPES.map(s => h('option', { value: s }))),
     h('h3', { class: 'dads-u-std-20B-150' }, '試験の内容'),
@@ -755,10 +811,43 @@ function trialFormView(check, form, plan, exec) {
     faults,
     h('fieldset', {}, h('legend', {}, '判定の条件'), h('p', { class: 'note' }, '終了コードだけでは成功と判定しません。終了コード以外の条件を少なくとも1つ入れてください。「確認する範囲」が同じ条件は、同じことを別の方法で確かめる条件として扱い、結果が食い違ったときは「判定できない」になります。別のことを確かめる条件には、別の範囲の名前を付けてください。'), rows, button('条件を追加', () => { addRow({ scope: '', method: 'stdout', expect: 'contains', text: '' }); updatePreview(); })),
     field({ label: '待機の上限（ミリ秒）', control: timeout }),
-    preview,
+    disclosure('実行内容の要約', preview),
     h('div', { class: 'button-row' }, submit));
+  for (const group of [...container.querySelectorAll(':scope > fieldset')]) {
+    const title = group.querySelector('legend')?.textContent || '';
+    if (!title.includes('任意')) continue;
+    const details = disclosure(title); group.replaceWith(details); details.lastChild.append(group);
+  }
+  // 起動設定・故障・判定条件を一つずつ選ぶ。入力は既存の試験案に保持する。
+  const stage = state.step === 'trial-fault' ? 'fault' : state.step === 'trial-checks' ? 'checks' : 'setup';
+  const children = [...container.children], faultIndex = children.indexOf(faults);
+  children.forEach((child, i) => {
+    child.hidden = stage === 'setup' ? i >= faultIndex : stage === 'fault' ? child !== faults : i <= faultIndex;
+  });
+  runtimeNote.hidden = false;
+  const actions = h('div', { class: 'journey-actions' });
+  if (stage === 'setup') actions.append(button('期待の画面へ戻る', () => goto('expect-edit')), button('次へ：試す状況を選ぶ', () => { state.trialForm = read(); goto('trial-fault'); }, 'solid-fill', 'md'));
+  if (stage === 'fault') actions.append(button('起動と入力に戻る', () => { state.trialForm = read(); goto('trial'); }), button('次へ：判定の条件を確認する', () => { state.trialForm = read(); goto('trial-checks'); }, 'solid-fill', 'md'));
+  if (stage === 'checks') {
+    children.at(-1).hidden = true;
+    actions.append(button('試す状況に戻る', () => { state.trialForm = read(); goto('trial-fault'); }), submit);
+  }
+  container.append(actions);
   setTimeout(updatePreview);
   return container;
+}
+function showTrialConfirmation(check, form, exec) {
+  const body = $('trial-body');
+  const run = button('試験を始める', async () => {
+    if (run.disabled) return;
+    run.disabled = true;
+    await runTrial(check, form);
+    run.disabled = false;
+  }, 'solid-fill', 'lg');
+  run.disabled = !check.source;
+  body.replaceChildren(h('h3', {}, 'この内容で実行します'), h('p', {}, '次のボタンを押すと、固定版を取得して対象を起動します。'), previewBox(check, form, exec), h('div', { class: 'journey-actions' }, button('設定に戻る', () => { history.back(); }), run));
+  history.pushState(null, '', location.href.replace(/#.*$/, '') + '#trial-confirm');
+  $('trial').focus(); $('main').scrollIntoView({ block: 'start' });
 }
 function previewBox(check, f, exec) {
   const commit = check.source?.commit;
@@ -833,7 +922,7 @@ function renderResult() {
   if (!state.view) { body.replaceChildren(h('p', {}, '記録を読み込んでいます。')); return; }
   const pick = select([['', '選んでください'], ...checks.map(c => [c.id, c.text])]);
   pick.control.value = state.checkId || '';
-  pick.control.addEventListener('change', () => { state.checkId = pick.control.value || null; renderCurrent(); renderResult(); });
+  pick.control.addEventListener('change', () => { state.checkId = pick.control.value || null; renderCurrent(); goto('result', false); });
   const check = currentCheck();
   if (!check) { body.replaceChildren(field({ label: '結果を見る期待', control: pick })); return; }
   const cv = checkView(check.id);
@@ -847,11 +936,10 @@ function renderResult() {
     verdictBox(cv.verdict, cv.reason, h('p', {}, h('strong', {}, '次に確認すること: '), cv.next.text)),
     h('p', { class: 'note' }, '現在の判定は、最新の試行だけから決めます。最新の試行で観測が足りないときに、前の試行の成功で補いません。'),
     h('h3', { class: 'dads-u-std-20B-150' }, `試行の記録（${evidence.length} 件、新しい順）`),
-    evidence.length ? evidence.map(v => evidenceCard(check, v, raw(v.id))) : h('p', { class: 'note' }, 'まだ試行はありません。'),
+    evidence.length ? [evidenceCard(check, evidence[0], raw(evidence[0].id)), evidence.length > 1 ? disclosure('過去の試行を見る', evidence.slice(1).map(v => evidenceCard(check, v, raw(v.id)))) : null] : h('p', { class: 'note' }, 'まだ試行はありません。', button('試験の画面へ進む', () => goto('trial'), 'solid-fill', 'md')),
     evidence.length >= 2 ? compareForm(check, evidence) : null,
-    retestForm(check),
-    decisionForm(check),
-    decisionsList(check));
+    disclosure('修正した版で再試験する', retestForm(check)),
+    disclosure('判断を記録・確認する', decisionForm(check), decisionsList(check)));
 }
 function evidenceCard(check, v, e) {
   const s = v.summary;
@@ -895,12 +983,16 @@ function evidenceCard(check, v, e) {
       h('p', {}, '標準エラー（抜粋）'), h('pre', { class: 'output' }, trace.stderr_excerpt || '（なし）'),
       trace.trial?.readback ? [h('p', {}, '読み出しの標準出力（抜粋）'), h('pre', { class: 'output' }, trace.trial.readback.stdout_excerpt || '（なし）')] : null,
       h('p', {}, '試験の設定（JSON）'), h('pre', { class: 'output' }, JSON.stringify(trace.recipe, null, 2))) : null,
-    h('div', {}, h('h5', {}, `この結果への質問・異論（${comments.length} 件）`), comments.map(statementBlock),
+    disclosure(`この結果への質問・異論（${comments.length} 件）`, h('h5', {}, '質問・異論'), comments.map(statementBlock),
       field({ label: '質問・異論', control: comment, support: '技術者もそれ以外の人も書けます。記入者と事例の版を一緒に残します。' }),
       button('質問・異論を記録', () => guarded(async () => {
         const p = requirePerson(); if (!comment.control.value.trim()) throw Error('質問・異論を入力してください。');
         await change({ op: 'add_statement', statement: { id: randomId('s'), kind: 'comment', role: p.role, text: comment.control.value.trim(), origin: `${p.name}の質問・異論`, check_ids: [check.id], evidence_id: v.id } }, '試行の結果に質問・異論を書いた');
         renderResult();
+        const recorded = [...$('result-body').querySelectorAll('[data-evidence]')].find(node => node.dataset.evidence === v.id);
+        const discussion = [...(recorded?.querySelectorAll('details') || [])].find(node => node.querySelector(':scope > summary')?.textContent.startsWith('この結果への質問・異論'));
+        if (discussion) discussion.open = true;
+        setStatus('質問・異論を記録しました。');
       }))));
 }
 /// 起動したもののコードへのリンク。モジュール・コマンドは、基盤が解決した固定版の中のファイルへつなぐ。
@@ -960,7 +1052,7 @@ function compareForm(check, evidence) {
 }
 function retestForm(check) {
   const ref = input({ placeholder: 'main、v1.2、40桁のコミット' });
-  return h('div', {}, h('h3', { class: 'dads-u-std-20B-150' }, '修正した版で再試験する'),
+  return h('div', {}, h('h3', { class: 'dads-u-std-20B-150' }, '修正後の版を読み込む'),
     h('p', { class: 'note' }, '修正したブランチ・タグ・コミットを読み込み、対応づけたコードの行を新しいコミットで確かめてから試します。前の試行と判断の記録は残ります。結果が変わっても、修正が原因だとは断定しません。'),
     field({ label: '修正した版（ブランチ、タグ、またはコミット）', control: ref, required: true }),
     button('修正した版を読み込む', () => guarded(async () => {
@@ -1019,3 +1111,5 @@ const params = new URLSearchParams(location.search);
 if (params.get('url')) { $('repo-url').value = params.get('url'); $('repo-ref').value = params.get('ref') || ''; }
 
 mountReviewTools($('review-tools'), { token, onChange: loadCase });
+mountModeSwitch($('mode-switch'), { token, onChange: view => { state.view = view; renderCurrent(); if (['open', 'repository'].includes(state.step)) $('current').hidden = true; } });
+restoreLocation();

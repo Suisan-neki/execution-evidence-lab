@@ -50,6 +50,21 @@ pub fn app_html(token: &str) -> String {
         .replace("__REVIEW_TOKEN__", token)
 }
 
+pub fn demo_html(token: &str) -> String {
+    include_str!("../ui/demo.html")
+        .replace(
+            "__APP_STYLE__",
+            &[
+                include_str!("../ui/dads/tokens.css"),
+                include_str!("../ui/dads/components.css"),
+                include_str!("../ui/app.css"),
+                include_str!("../ui/review-tools.css"),
+            ]
+            .concat(),
+        )
+        .replace("__REVIEW_TOKEN__", token)
+}
+
 pub fn architecture_html(token: &str) -> String {
     include_str!("../ui/architecture.html")
         .replace(
@@ -70,6 +85,7 @@ pub fn architecture_html(token: &str) -> String {
 pub struct App {
     pub store: crate::understanding::Store,
     pub ai: Option<crate::ai::Config>,
+    pub demo_directory: PathBuf,
 }
 
 struct Request {
@@ -263,7 +279,7 @@ fn handle_connection_mode(
     controller: Option<&Controller>,
     app: Option<&App>,
 ) -> io::Result<()> {
-    let request = match read_request(stream) {
+    let mut request = match read_request(stream) {
         Ok(request) => request,
         Err(error) => {
             return json(
@@ -272,6 +288,28 @@ fn handle_connection_mode(
                 &serde_json::json!({"error": error.to_string()}),
             );
         }
+    };
+    // 画面の復元用クエリはブラウザが読む。APIの経路は曖昧にしない。
+    if request.method == "GET"
+        && let Some((path, _)) = request.path.split_once('?')
+        && matches!(
+            path,
+            "/" | "/demo" | "/review" | "/architecture" | "/explore"
+        )
+    {
+        request.path = path.to_owned();
+    }
+    // ブラウザのデモは独立した事例へ送る。トークン・Originの検証は通常のAPIと共用する。
+    let demo_app = app.filter(|_| request.path == "/demo" || request.path.starts_with("/demo/"));
+    let (directory, controller, app) = if let Some(app) = demo_app {
+        request.path = if request.path == "/demo" || request.path == "/demo/" {
+            "/demo-page".into()
+        } else {
+            request.path.trim_start_matches("/demo").to_owned()
+        };
+        (Some(app.demo_directory.as_path()), None, None)
+    } else {
+        (directory, controller, app)
     };
     let port = stream.local_addr()?.port();
     let host = request
@@ -341,7 +379,7 @@ fn handle_connection_mode(
                     stream,
                     200,
                     "text/html; charset=utf-8",
-                    "<!doctype html><html lang=\"ja\"><meta charset=\"utf-8\"><title>検証用の例</title><body><p>保存の練習用デモ（検証用の例）は、この画面とは別の事例で動きます。次のコマンドで別に起動してください。</p><pre>cargo run -- case init demo-case\ncargo run -- review demo-case --port 8766</pre><p><a href=\"/\">理解と試験の画面へ戻る</a></p></body></html>".as_bytes(),
+                    demo_html(token).as_bytes(),
                 );
             }
             ("GET", "/ui/app.js") => {
@@ -401,6 +439,17 @@ fn handle_connection_mode(
     }
     if request.method == "GET" {
         let resource = match request.path.as_str() {
+            "/demo-page" if demo_app.is_some() => {
+                Some(("text/html; charset=utf-8", demo_html(token)))
+            }
+            "/ui/demo.js" => Some((
+                "text/javascript; charset=utf-8",
+                include_str!("../ui/demo.js").to_owned(),
+            )),
+            "/ui/mode-switch.js" => Some((
+                "text/javascript; charset=utf-8",
+                include_str!("../ui/mode-switch.js").to_owned(),
+            )),
             "/architecture" => Some(("text/html; charset=utf-8", architecture_html(token))),
             "/ui/architecture.js" => Some((
                 "text/javascript; charset=utf-8",
@@ -679,10 +728,21 @@ pub fn serve_app(
         )?;
     }
     workspace::load(&case)?;
+    let demo_directory = data.join("demo-case");
+    if !demo_directory.exists() {
+        workspace::initialize(
+            &demo_directory,
+            workspace::demo_workspace(),
+            "基盤",
+            "ブラウザで選べる練習用の事例を作成した",
+        )?;
+    }
+    workspace::load(&demo_directory)?;
     let controller = Controller::managed(case.clone(), data.join("repositories"), mode)?;
     let app = App {
         store: crate::understanding::Store::new(data.join("snapshots"))?,
         ai: crate::ai::Config::from_env(),
+        demo_directory,
     };
     println!(
         "データの保存先: {}\nAIによる説明: {}",

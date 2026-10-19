@@ -31,7 +31,7 @@ p { margin: 0.5rem 0; }
 .status-line { min-height: 1.7em; margin: 1rem 0 0; font-weight: bold; }
 .status-line:empty { min-height: 0; margin: 0; }
 
-.current-bar { position: sticky; top: 0; z-index: 10; background: var(--color-key-50); border-bottom: 1px solid var(--color-key-900); }
+.current-bar { background: var(--color-key-50); border-bottom: 1px solid var(--color-key-900); }
 .current-list { display: flex; flex-wrap: wrap; gap: 0.25rem 1.5rem; margin: 0; padding: 0.5rem 0; font-size: 0.875rem; }
 .current-list div { display: flex; gap: 0.5rem; min-width: 0; }
 .current-list dt { font-weight: bold; }
@@ -112,3 +112,48 @@ legend { font-weight: bold; padding: 0 0.25rem; }
 .person fieldset { margin: 0 0 1.5rem; }
 
 .browser-evidence { overflow-wrap: anywhere; }
+
+/* 一画面で一つの段階を扱い、詳細は必要なときに開く。 */
+.journey { max-width: 72rem; padding-top: 1.25rem; }
+.journey:has(.code-panel:not([hidden])) { max-width: 90rem; }
+.mode-bar { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.4rem 1rem; border-bottom: 1px solid var(--color-neutral-solid-gray-200); padding-bottom: 0.75rem; }
+.mode-bar label { font-weight: bold; }
+.mode-bar select { font: inherit; color: inherit; background: var(--color-neutral-white); border: 1px solid var(--color-neutral-solid-gray-600); border-radius: 0.5rem; padding: 0.4rem 2rem 0.4rem 0.75rem; }
+.mode-bar p { flex-basis: 100%; margin: 0; }
+.mode-bar [role="status"] { font-size: 0.875rem; }
+.eyebrow { color: var(--color-key-900); font-size: 0.875rem; font-weight: bold; margin-top: 1.5rem; }
+.entry-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1.5rem 0 2rem; }
+.entry-card { padding: 1.25rem; border: 1px solid var(--color-neutral-solid-gray-420); border-radius: 0.5rem; }
+.entry-card h2 { margin-top: 0; font-size: 1.25rem; }
+.entry-card p { margin-bottom: 1.25rem; }
+.step-guide { padding: 1rem 1.25rem; margin: 1rem 0; background: var(--color-key-50); border-left: 4px solid var(--color-key-900); }
+.step-guide p { margin-bottom: 0; }
+.journey-actions { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; border-top: 1px solid var(--color-neutral-solid-gray-200); margin-top: 2rem; padding-top: 1.5rem; }
+.journey-links { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 2rem; }
+.secondary-tools { border-top: 1px solid var(--color-neutral-solid-gray-200); padding-top: 1rem; margin-top: 2rem; }
+summary { cursor: pointer; }
+.dads-disclosure__summary::before { content: '＋'; display: inline-block; width: 1.5em; font-weight: bold; color: var(--color-key-900); }
+.dads-disclosure[open] > .dads-disclosure__summary::before { content: '−'; }
+.identity-strip { padding-top: 0; padding-bottom: 0.25rem; }
+.identity-strip .dads-form-control-label { margin: 0.25rem 0; }
+.journey-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0; list-style: none; gap: 0.5rem; margin: 1.5rem 0; }
+.journey-steps a { display: block; padding: 0.75rem; border-bottom: 3px solid var(--color-neutral-solid-gray-200); color: inherit; text-decoration: none; }
+.journey-steps [aria-current] a { border-color: var(--color-key-900); color: var(--color-key-900); font-weight: bold; }
+.journey-steps a:hover { text-decoration: underline; }
+.process-list li { padding: 0.75rem; margin: 0.5rem 0; background: var(--color-neutral-solid-gray-50); }
+.choice { display: flex; align-items: baseline; gap: 0.75rem; padding: 1rem; margin: 0.5rem 0; border: 1px solid var(--color-neutral-solid-gray-420); border-radius: 0.5rem; cursor: pointer; }
+.choice:has(:checked) { border: 2px solid var(--color-key-900); background: var(--color-key-50); }
+.choice input { min-width: 1.25rem; width: 1.25rem; height: 1.25rem; accent-color: var(--color-key-900); }
+.choice-description { display: block; font-size: 0.9375rem; margin-top: 0.25rem; }
+#demo-screen { max-width: 52rem; margin: 0 auto; scroll-margin-top: 1rem; }
+#demo-screen h1 { font-size: 1.75rem; }
+#demo-screen h2 { font-size: 1.25rem; }
+#demo-screen input[type="text"] { display: block; max-width: 32rem; width: 100%; }
+a:focus-visible, button:focus-visible, select:focus-visible, summary:focus-visible, input:focus-visible { outline: 3px solid var(--color-neutral-black); outline-offset: 3px; }
+@media (max-width: 40rem) {
+  .entry-options { grid-template-columns: minmax(0, 1fr); }
+  .journey-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mode-bar, .journey-actions { align-items: stretch; }
+  .journey-actions .dads-button { min-width: 0; white-space: normal; }
+  .step-guide { padding: 0.75rem; }
+}

@@ -34,19 +34,8 @@ jobs:
           cargo build --locked
       - run: npx playwright install --with-deps chromium
       - run: npm run test:queue-architecture
+      - run: npm run test:journey
       - run: npm run test:modes
-      - run: npm run test:browser
-      - run: cargo test --locked --test containers browser_observes_nginx -- --ignored --nocapture
-      - run: npm run test:ui
-      - name: Register a synthetic OpenEMR patient and visit, then repeat with the database stopped
-        run: |
-          umask 077
-          printf '%s' '{"username":"eel-operator","password":"eel-pass-trial"}' > "$RUNNER_TEMP/openemr-secrets.json"
-          EEL_BROWSER_SECRETS_FILE="$RUNNER_TEMP/openemr-secrets.json" cargo test --locked --test containers openemr_browser -- --ignored --nocapture
-      - name: Save and switch the three target diagrams
-        run: npm run test:architecture-targets -- presets
-      - name: Read the actual OpenEMR evidence through the architecture diagram
-        run: npm run test:architecture -- --real
       - name: Operate the app against the public repository sjl/t
         env:
           GH_TOKEN: ${{ github.token }}
@@ -62,6 +51,18 @@ jobs:
           umask 077
           printf '%s' "$GH_TOKEN" > "$RUNNER_TEMP/github-token"
           EEL_GITHUB_TOKEN_FILE="$RUNNER_TEMP/github-token" npm run test:dicom
+      - run: npm run test:browser
+      - run: cargo test --locked --test containers browser_observes_nginx -- --ignored --nocapture
+      - run: npm run test:ui
+      - name: Register a synthetic OpenEMR patient and visit, then repeat with the database stopped
+        run: |
+          umask 077
+          printf '%s' '{"username":"eel-operator","password":"eel-pass-trial"}' > "$RUNNER_TEMP/openemr-secrets.json"
+          EEL_BROWSER_SECRETS_FILE="$RUNNER_TEMP/openemr-secrets.json" cargo test --locked --test containers openemr_browser -- --ignored --nocapture
+      - name: Save and switch the three target diagrams
+        run: npm run test:architecture-targets -- presets
+      - name: Read the actual OpenEMR evidence through the architecture diagram
+        run: npm run test:architecture -- --real
       - name: Keep synthetic review screenshots
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
