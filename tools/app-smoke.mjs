@@ -217,6 +217,7 @@ try {
   await page.locator('#trial:not([hidden])').waitFor();
   await page.getByRole('button', { name: '通常時の案を入れる' }).click();
   await page.locator('#trial-body form').waitFor();
+  await page.getByText('実行する内容', { exact: true }).waitFor({ state: 'attached' });
   const preview = await page.locator('#trial-body').textContent();
   assert.match(preview, /python3 t\.py --task-dir \. --list tasks \{\{test_value\}\}/);
   assert.match(preview, /依存パッケージのインストールは行いません/);
@@ -293,6 +294,7 @@ try {
   await relink.locator('.statement[data-kind="implementation"]').nth(1).waitFor();
   await relink.getByRole('button', { name: 'この期待を試す' }).click();
   await page.locator('#trial-body form').waitFor();
+  await page.getByText('実行する内容', { exact: true }).waitFor({ state: 'attached' });
   const retestPreview = await page.locator('#trial-body').textContent();
   assert.match(retestPreview, new RegExp(`コミット ${AFTER}`));
   assert.match(retestPreview, /保存先を書き込み不可にする/);
@@ -465,6 +467,9 @@ try {
   await barePage.locator('#understand:not([hidden])').waitFor({ timeout: 30000 });
   await barePage.locator('#steps a[href="#expect"]').click();
   await barePage.getByRole('button', { name: 'この期待を試す' }).first().click();
+  await barePage.getByText('実行環境がないため試せません').waitFor();
+  await barePage.getByRole('button', { name: '次へ：試す状況を選ぶ', exact: true }).click();
+  await barePage.getByRole('button', { name: '次へ：判定の条件を確認する', exact: true }).click();
   await barePage.getByText('実行環境がないため試せません').waitFor();
   assert.equal(await barePage.getByRole('button', { name: '実行前に確認する' }).isDisabled(), true);
   await barePage.screenshot({ path: join(output, 'app-no-runtime.png'), fullPage: true });

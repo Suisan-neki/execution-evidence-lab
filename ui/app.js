@@ -824,6 +824,7 @@ function trialFormView(check, form, plan, exec) {
   children.forEach((child, i) => {
     child.hidden = stage === 'setup' ? i >= faultIndex : stage === 'fault' ? child !== faults : i <= faultIndex;
   });
+  runtimeNote.hidden = false;
   const actions = h('div', { class: 'journey-actions' });
   if (stage === 'setup') actions.append(button('期待の画面へ戻る', () => goto('expect-edit')), button('次へ：試す状況を選ぶ', () => { state.trialForm = read(); goto('trial-fault'); }, 'solid-fill', 'md'));
   if (stage === 'fault') actions.append(button('起動と入力に戻る', () => { state.trialForm = read(); goto('trial'); }), button('次へ：判定の条件を確認する', () => { state.trialForm = read(); goto('trial-checks'); }, 'solid-fill', 'md'));
