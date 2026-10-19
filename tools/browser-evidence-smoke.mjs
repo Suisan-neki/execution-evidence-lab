@@ -19,7 +19,7 @@ try{
    containers:{
      browser:{version:'151.0.7922.34',prepared:true,completed:false,detail:'途中で止まった合成の記録',
        steps:[{id:'saved',phase:'action',completed:true,text:'保存しました <img src=x onerror=alert(1)>',detail:'操作完了',screenshot:'browser/action-saved.png',canvas:{width:64,height:64,levels:1,non_black_pixels:0,rgba_sha256:'b'.repeat(64),variation:false}},
-              {id:'missing',phase:'action',completed:false,text:null,detail:'要素が見つからない',screenshot:null}],
+              {id:'missing',phase:'action',completed:false,text:null,detail:'要素が見つからない。操作が未完了となった後の画面写真。保存の成功を示す記録とは別',screenshot:'browser/action-missing.png'}],
        responses:[{watch:'save',request_step:'saved',method:'POST',path:'/save',status:200,body_match:null,payload_sha256:'a'.repeat(64)}]},
      http_reads:[{id:'frame-direct',performed:true,status:200,bytes:8192,sha256:'c'.repeat(64),detail:'合成の直接読取'}],
      database_reads:[{id:'row',performed:false,exit_code:null,text:'',detail:'DB停止により読取未完了'}]
@@ -30,7 +30,8 @@ try{
  assert.match(await panel.innerText(),/本文は未観測/);assert.match(await panel.innerText(),/DB停止により読取未完了/);assert.match(await panel.innerText(),/操作未完了/);assert.equal(await panel.locator('img').count(),0);assert.match(await panel.innerText(),/指定した明暗の条件：満たさない/);assert.match(await panel.innerText(),/基盤がサーバーから直接読んだ応答/);assert.match(await panel.innerText(),/8192 bytes/);
  await panel.getByRole('button',{name:'savedの画面写真を開く'}).click();const dialog=page.locator('.browser-photo-dialog');await dialog.locator('img').waitFor();await page.waitForFunction(()=>document.querySelector('.browser-photo-dialog img')?.naturalWidth===1);assert.equal(photoRequests,1);
  await mkdir(join(root,'test-results'),{recursive:true});await page.screenshot({path:join(root,'test-results/browser-evidence-1440.png'),fullPage:true});await dialog.getByRole('button',{name:'画面写真を閉じる'}).click();await dialog.waitFor({state:'detached'});assert.equal(await dialog.count(),0);
+ const failedRow=panel.getByRole('row').filter({hasText:'要素が見つからない'});assert.match(await failedRow.innerText(),/未完了/);await failedRow.getByRole('button',{name:'missingの画面写真を開く'}).click();const failedDialog=page.locator('.browser-photo-dialog');await page.waitForFunction(()=>document.querySelector('.browser-photo-dialog img')?.naturalWidth===1);assert.equal(photoRequests,2);await failedDialog.getByRole('button',{name:'画面写真を閉じる'}).click();await failedDialog.waitFor({state:'detached'});assert.match(await failedRow.innerText(),/未完了/);
  available=false;await panel.getByRole('button',{name:'savedの画面写真を開く'}).click();await page.getByRole('status').filter({hasText:'この事例内に対応する画面写真がありません'}).waitFor();assert.equal(await dialog.locator('img').count(),0);await page.keyboard.press('Escape');await dialog.waitFor({state:'detached'});
  await page.setViewportSize({width:390,height:1000});await page.screenshot({path:join(root,'test-results/browser-evidence-390.png'),fullPage:true});assert.deepEqual(errors,[]);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
- console.log(JSON.stringify({checks:['separate display/HTTP/DB sections','partial steps','escaped page text','authenticated photo request','photo dialog','missing photo message','1440px and 390px screenshots']}));
+ console.log(JSON.stringify({checks:['separate display/HTTP/DB sections','partial steps','escaped page text','authenticated photo request','photo dialog','failed-step photo retains incomplete state','missing photo message','1440px and 390px screenshots']}));
 }finally{if(browser)await browser.close();server.kill('SIGTERM');await rm(temp,{recursive:true,force:true});}
