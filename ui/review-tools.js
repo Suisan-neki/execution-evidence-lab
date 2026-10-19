@@ -64,7 +64,7 @@ export async function mountReviewTools(root, { token, prefix = '', onChange = as
   async function reload() {
     const seq = ++generation;
     const [next, nextCatalog] = await Promise.all([request('case'), request('profiles')]);
-    if (seq !== generation) return;
+    if (seq !== generation || (view && next.workspace.revision < view.workspace.revision)) return;
     view = next; catalog = nextCatalog; render();
   }
   function render() {
