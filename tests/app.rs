@@ -463,3 +463,154 @@ fn ai_is_reported_as_unconfigured_or_failed_and_never_replaced_by_fixed_text() {
             .contains("synthetic-key")
     );
 }
+
+/// 合成のモデル応答だけを返すlocalhostサーバー。実際のモデルや課金先へ接続しない。
+fn synthetic_ai(response: Value) -> (String, std::thread::JoinHandle<Value>) {
+    use std::io::{Read, Write};
+    use std::time::{Duration, Instant};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let thread = std::thread::spawn(move || {
+        let started = Instant::now();
+        let mut stream = loop {
+            match listener.accept() {
+                Ok((stream, _)) => break stream,
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    assert!(
+                        started.elapsed() < Duration::from_secs(10),
+                        "合成AIへの接続がない"
+                    );
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                Err(error) => panic!("合成AI: {error}"),
+            }
+        };
+        stream.set_nonblocking(false).unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let mut bytes = Vec::new();
+        let mut buffer = [0; 4096];
+        let (offset, length) = loop {
+            let count = stream.read(&mut buffer).unwrap();
+            assert!(count > 0);
+            bytes.extend_from_slice(&buffer[..count]);
+            assert!(bytes.len() <= 2 * 1024 * 1024);
+            if let Some(end) = bytes.windows(4).position(|v| v == b"\r\n\r\n") {
+                let header = String::from_utf8_lossy(&bytes[..end]);
+                assert!(header.starts_with("POST /v1/chat/completions "));
+                let length: usize = header
+                    .lines()
+                    .find_map(|l| {
+                        l.to_ascii_lowercase()
+                            .strip_prefix("content-length:")
+                            .map(|s| s.trim().parse().unwrap())
+                    })
+                    .unwrap();
+                break (end + 4, length);
+            }
+        };
+        while bytes.len() < offset + length {
+            let count = stream.read(&mut buffer).unwrap();
+            assert!(count > 0);
+            bytes.extend_from_slice(&buffer[..count]);
+        }
+        let request = serde_json::from_slice(&bytes[offset..offset + length]).unwrap();
+        let body = json!({"model":"synthetic-review", "choices":[{"message":{"content":response.to_string()}}]}).to_string();
+        write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body).unwrap();
+        request
+    });
+    (format!("http://{address}/v1"), thread)
+}
+
+#[test]
+fn ai_candidates_use_the_real_transport_and_do_not_write_or_confirm_the_case() {
+    let sandbox = Sandbox::new();
+    let store = store(&sandbox);
+    let case = sandbox.case();
+    let before = serde_json::to_value(load(&case).unwrap()).unwrap();
+    let key = sandbox.0.join("synthetic-key");
+    fs::write(&key, "synthetic-key").unwrap();
+    let response = json!({
+        "answer":"書き込みの例外を扱う処理がある。実際の保存は未確認。",
+        "claims":[{"text":"ファイルに書き込む", "refs":[{"path":"notes.py","line":8}]}],
+        "unknowns":["運用時の閲覧権限は不明"],
+        "test_candidates":[
+            {"expectation":"保存後に同じ値を読み出せる", "reason":"書き込みと読出しを分けて確かめる", "refs":[{"path":"notes.py","line":8,"end_line":9}], "unknowns":["後からの閲覧は未確認"]},
+            {"expectation":"未読の説明が現在の動作と一致する", "reason":"説明の内容は不明", "refs":[{"path":"docs/guide.md","line":1}], "unknowns":["ファイルを読んでいない"]}
+        ]
+    });
+    let (url, server) = synthetic_ai(response.clone());
+    let config = ai::Config::new(&url, "synthetic-review", key.clone());
+    let request = || ai::AiRequest {
+        repository: "example/notes".into(),
+        commit: COMMIT.into(),
+        question: "保存できなかったらどうなる？".into(),
+        path: None,
+        line: None,
+    };
+    let result = ai::explain(Some(&config), &store, request()).unwrap();
+    let sent = server.join().unwrap();
+    assert!(
+        sent["messages"][1]["content"]
+            .as_str()
+            .unwrap()
+            .contains("8:         with open(path, 'w') as f:")
+    );
+    assert!(
+        sent["messages"][0]["content"]
+            .as_str()
+            .unwrap()
+            .contains("test_candidates")
+    );
+    assert_eq!(result["status"], "ok");
+    assert_eq!(result["test_candidates"][0]["can_use"], true);
+    assert_eq!(result["test_candidates"][1]["can_use"], false);
+    assert_eq!(result["source"]["commit"], COMMIT);
+    assert_eq!(result["context_sha256"].as_str().unwrap().len(), 64);
+    assert_eq!(result["response_sha256"].as_str().unwrap().len(), 64);
+    let provenance: Value =
+        serde_json::from_str(result["test_candidates"][0]["provenance"].as_str().unwrap()).unwrap();
+    assert_eq!(provenance["question"], "保存できなかったらどうなる？");
+    assert_eq!(
+        provenance["candidate"]["unknowns"][0],
+        "後からの閲覧は未確認"
+    );
+    assert_eq!(provenance["response_sha256"], result["response_sha256"]);
+    assert_eq!(serde_json::to_value(load(&case).unwrap()).unwrap(), before);
+
+    let mut oversized = response;
+    oversized["unknowns"] = json!(vec!["未確認".repeat(400); 16]);
+    let (url, server) = synthetic_ai(oversized.clone());
+    let result = ai::explain(
+        Some(&ai::Config::new(&url, "synthetic-review", key.clone())),
+        &store,
+        request(),
+    )
+    .unwrap();
+    server.join().unwrap();
+    assert_eq!(result["status"], "ok");
+    assert_eq!(result["unknowns"], oversized["unknowns"]);
+    assert_eq!(result["test_candidates"][0]["can_use"], false);
+    assert!(result["test_candidates"][0].get("provenance").is_none());
+    assert!(
+        result["test_candidates"][0]["unavailable_reason"]
+            .as_str()
+            .unwrap()
+            .contains("保存上限")
+    );
+
+    let (url, server) =
+        synthetic_ai(json!({"answer":"壊れた応答", "claims":[null], "unknowns":[]}));
+    let failed = ai::explain(
+        Some(&ai::Config::new(&url, "synthetic-review", key)),
+        &store,
+        request(),
+    )
+    .unwrap();
+    server.join().unwrap();
+    assert_eq!(failed["status"], "failed");
+    assert!(failed.get("test_candidates").is_none());
+    assert_eq!(serde_json::to_value(load(&case).unwrap()).unwrap(), before);
+}
