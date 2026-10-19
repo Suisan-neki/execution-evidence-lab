@@ -127,7 +127,7 @@ try {
     }
   };
   const run = async () => {
-    await page.getByRole('button', { name: '実行前に確認する' }).click();
+    if (await page.getByRole('button', { name: '実行前に確認する' }).isVisible()) await page.getByRole('button', { name: '実行前に確認する' }).click();
     await page.getByRole('button', { name: '試験を始める', exact: true }).click();
     await page.locator('#result:not([hidden])').waitFor({ timeout: 180000 });
     return (await caseView()).workspace.evidence.at(-1).execution;
@@ -141,6 +141,8 @@ try {
     { scope: '後からの読み出し', method: 'readback_output', expect: 'contains', text: PATIENT_ID },
     { scope: '受信側のエラー', method: 'server_output', expect: 'not_contains', text: 'E: ' },
   ] });
+  await page.getByRole('button', { name: '実行前に確認する', exact: true }).click();
+  await page.getByText('実行する内容', { exact: true }).waitFor();
   const preview = await page.locator('#trial-body').innerText();
   assert.match(preview, /pydicom\/pydicom のコミット 20aa4b73aef76bffb6fbc46a8827588dfa9bb89d の src/);
   assert.match(preview, /python3 -S -P -m pynetdicom storescp \{\{port\}\}/);
