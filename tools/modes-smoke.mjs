@@ -30,6 +30,7 @@ try {
   page = await context.newPage(); const errors = [];
   page.on('pageerror', e => errors.push(e.message)); page.setDefaultTimeout(10000);
   await page.goto(app.url);
+  await page.locator('#secondary-tools > summary').click();
   const panel = page.locator('#review-tools');
   await panel.getByText('現在は汎用モードです。', { exact: false }).waitFor();
   const token = await page.locator('meta[name=review-token]').getAttribute('content');

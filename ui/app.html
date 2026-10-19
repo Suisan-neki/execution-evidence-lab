@@ -12,7 +12,7 @@
 <header class="site-header">
   <div class="container">
     <p class="site-title">ソフトウェアの動作を確かめる</p>
-    <p class="site-purpose">公開されているGitHubのリポジトリについて、コードが何をするかを理解し、期待する動作を実際に試して確かめます。期待・試した内容・観測した結果・確かめていないことを、技術者とそれ以外の人が同じ記録で確認できます。</p>
+    <p class="site-purpose">仕組みを知る → 確かめたい動作を決める → 実際に試す → 結果を見る。順に進めます。</p>
   </div>
 </header>
 
@@ -29,14 +29,20 @@
   </div>
 </div>
 
-<p class="container"><a href="/architecture">構成図から説明・疑問・試験結果を確認する</a></p>
-<main id="main" class="container" tabindex="-1">
-  <section id="review-tools" class="panel" aria-label="確認モードと確認資料"></section>
+
+<main id="main" class="container journey" tabindex="-1">
+  <div id="mode-switch" class="mode-bar"></div>
       <div id="status" class="status-line" role="status" aria-live="polite"></div>
   <div id="alert" role="alert"></div>
 
   <section id="open" aria-labelledby="open-heading" class="panel">
-    <h1 id="open-heading" class="dads-u-std-24B-150">リポジトリを開く</h1>
+    <p class="eyebrow">はじめに</p>
+    <h1 id="open-heading" class="dads-u-std-24B-150">何を確かめますか</h1>
+    <div class="entry-options">
+      <section class="entry-card"><h2>まずデモで試す</h2><p>架空データの送信と保存を試します。失敗した場合や、記録を取得できなかった場合も比べられます。</p><a class="dads-button" data-type="outline" data-size="md" href="/demo#1">デモを始める</a></section>
+      <section class="entry-card"><h2>自分のソフトウェアを調べる</h2><p>公開GitHubのURLからコードを読みます。この操作では対象のコードを実行しません。</p><a href="#open-form">下のURL欄から始める</a></section>
+    </div>
+    <h2>GitHubのリポジトリを開く</h2>
     <form id="open-form" novalidate>
       <div class="dads-form-control-label" data-size="md">
         <label class="dads-form-control-label__label" for="repo-url">
@@ -85,6 +91,7 @@
     </ul>
   </nav>
 
+  <div id="step-guide" class="step-guide" hidden></div>
   <div id="person" class="person" hidden></div>
 
   <div class="layout">
@@ -137,10 +144,12 @@
       <div id="code-view" class="code-view" tabindex="0" role="region" aria-label="コードの本文"></div>
     </aside>
   </div>
+  <details class="secondary-tools" id="secondary-tools"><summary>確認項目・変更履歴・共有資料</summary><section id="review-tools" aria-label="確認モードと確認資料"></section></details>
+  <nav class="journey-links" aria-label="補助操作"><a href="#open" id="change-target" hidden>対象を選び直す</a><a href="/architecture">構成図から説明・疑問・試験結果を確認する</a></nav>
 </main>
 <footer class="site-footer">
   <div class="container">
-    <p>画面の部品と色・文字の指定は、デジタル庁デザインシステム（@digital-go-jp/design-tokens 2.0.1、design-system-example-components-html af8b665）を使っています。保存の練習用デモは<a href="/review">検証用の例</a>として別に起動します。</p>
+    <p>画面の部品と色・文字の指定は、デジタル庁デザインシステム（@digital-go-jp/design-tokens 2.0.1、design-system-example-components-html af8b665）を使っています。<a href="/demo#1">保存の練習用デモ</a>もこのブラウザから試せます。</p>
   </div>
 </footer>
 <script type="module" src="/ui/app.js"></script>

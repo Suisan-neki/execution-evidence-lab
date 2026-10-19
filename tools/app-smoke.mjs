@@ -76,6 +76,9 @@ try {
   await page.getByRole('button', { name: '読み込む', exact: true }).click();
   await page.locator('#understand:not([hidden])').waitFor({ timeout: 60000 });
   assert.match(await page.locator('#current-commit').innerText(), new RegExp(BEFORE));
+  await page.getByText('読んだ範囲とコードの版', { exact: true }).click();
+  await page.getByText('起動のしかたと入口', { exact: true }).click();
+  await page.getByText('入力から保存・送信まで', { exact: true }).click();
   const understand = await page.locator('#understand-body').innerText();
   await writeFile(join(output, 'app-understand.txt'), understand);
   for (const text of ['読んだ範囲', '目的', '起動のしかたと入口', '主な構成と役割', '入力から保存・送信まで', 'TaskDict.write', 'コードで確認', '作者の説明', '解析の推測'])
@@ -130,6 +133,7 @@ try {
   await page.locator('#person').getByLabel('役割').selectOption('operator');
   await page.getByRole('button', { name: 'この動作を確かめる' }).click();
   await page.locator('[data-check="sjl-t-1"]').waitFor();
+  await page.locator('#steps a[href="#expect"]').click();
   await page.locator('#expect-text').fill('保存できなかったとき、利用者に失敗が分かる');
   await page.getByRole('button', { name: 'この動作を確かめる' }).click();
   await page.locator('[data-check="sjl-t-2"]').waitFor();
@@ -139,6 +143,7 @@ try {
   assert.ok(view.statements.every(s => s.status === 'unconfirmed'));
   log('期待を2件記録した。確認者はまだいない（未確認）');
 
+  await page.locator('#steps a[href="#expect"]').click();
   // 技術者が実装と確認方法を対応づける。
   const as = async (name, role) => { await page.locator('#person').getByLabel('名前').fill(name); await page.locator('#person').getByLabel('役割').selectOption(role); };
   const linkAs = async (checkId, line, explain, method) => {
@@ -149,6 +154,7 @@ try {
     await card.getByLabel('この期待は、どのコードがどう動くことで満たされるか').fill(explain);
     await card.getByLabel('どう確かめるか（確認の方法）').fill(method);
     await card.getByRole('button', { name: '対応づけを記録' }).click();
+    await card.getByText('期待・説明と確認の記録', { exact: true }).click();
     await card.locator('.statement[data-kind="implementation"]').waitFor();
   };
   await linkAs('sjl-t-1', 244, 'TaskDict.write が tasks ファイルを書き込み用に開き、タスクを1行ずつ書き込む。一覧の表示は同じファイルを読み直す。', '試験用の値でタスクを追加し、基盤が保存先 tasks を直接読み出して値があること、別のプロセスで一覧を表示して値が出ることを確かめる。');
@@ -158,8 +164,10 @@ try {
 
   // 運用担当が対応づけを読んで確認する。開発者の確認がないので「両方確認」にならない。
   await as('架空の運用担当', 'operator');
+  await page.locator('[data-check="sjl-t-1"]').getByText('期待・説明と確認の記録', { exact: true }).click();
   const impl = page.locator('[data-check="sjl-t-1"] .statement[data-kind="implementation"]');
   await impl.getByRole('button', { name: '内容を確認したことを記録する' }).click();
+  await page.locator('[data-check="sjl-t-1"]').getByText('期待・説明と確認の記録', { exact: true }).click();
   await page.locator('[data-check="sjl-t-1"] .statement[data-kind="implementation"]', { hasText: '架空の運用担当（運用担当）が事例の版' }).waitFor();
   view = await caseView();
   const implView = view.statements.find(s => s.id === view.workspace.statements.find(x => x.kind === 'implementation' && x.check_ids.includes('sjl-t-1')).id);
@@ -170,6 +178,7 @@ try {
   await card2.getByText('食い違いを指摘する').click();
   await card2.getByLabel('期待・説明・コードのどこが食い違うか').fill('期待は「利用者に失敗が分かる」だが、呼び出し側のプログラムが終了コードで失敗を知れるかは説明にない。');
   await card2.getByRole('button', { name: '指摘を記録' }).click();
+  await card2.getByText('期待・説明と確認の記録', { exact: true }).click();
   await card2.locator('.statement[data-kind="discrepancy"]').waitFor();
   await card2.getByText('答えが必要な質問を残す').click();
   await card2.getByLabel('質問').fill('「失敗が分かる」には、エラー表示だけでなく終了コードが0以外であることも含めるか？');
@@ -181,9 +190,11 @@ try {
   await card2.getByLabel('回答').fill('含める。ほかのプログラムから使うときは終了コードで判断するため。');
   await card2.getByRole('button', { name: '回答を記録' }).click();
   await card2.getByText('未回答の質問').waitFor({ state: 'detached' });
+  await card2.getByText('期待・説明と確認の記録', { exact: true }).click();
   await card2.locator('.statement[data-kind="discrepancy"]').getByText('対応を記録する').click();
   await card2.locator('.statement[data-kind="discrepancy"]').getByLabel('対応の内容').fill('質問への回答で、終了コードも判定の条件に含めることにした。');
   await card2.locator('.statement[data-kind="discrepancy"]').getByRole('button', { name: '対応を記録' }).click();
+  await card2.getByText('期待・説明と確認の記録', { exact: true }).click();
   await card2.locator('.statement[data-kind="discrepancy"]', { hasText: '対応: 質問への回答で' }).waitFor();
   log('対応づけ・確認・食い違い・質問と回答・対応を記録した');
   await shot('expect');
@@ -203,14 +214,17 @@ try {
   await page.locator('[data-check="sjl-t-1"]').getByRole('button', { name: 'この期待を試す' }).click();
   await page.locator('#trial:not([hidden])').waitFor();
   await page.getByRole('button', { name: '通常時の案を入れる' }).click();
-  await page.getByText('実行する内容').waitFor();
-  const preview = await page.locator('#trial-body').innerText();
+  await page.locator('#trial-body form').waitFor();
+  const preview = await page.locator('#trial-body').textContent();
   assert.match(preview, /python3 t\.py --task-dir \. --list tasks \{\{test_value\}\}/);
   assert.match(preview, /依存パッケージのインストールは行いません/);
   assert.match(await page.locator('#trial-body').textContent(), /cram tests\/\*\.t（cram形式のテスト）[\s\S]*インストールしないため、既存テストは実行しない/);
   await shot('trial-normal');
   const runTrial = async () => {
-    await page.getByRole('button', { name: 'この内容で試す' }).click();
+    if (await page.getByRole('button', { name: '次へ：試す状況を選ぶ', exact: true }).isVisible()) await page.getByRole('button', { name: '次へ：試す状況を選ぶ', exact: true }).click();
+    await page.getByRole('button', { name: '次へ：判定の条件を確認する', exact: true }).click();
+    await page.getByRole('button', { name: '実行前に確認する' }).click();
+    await page.getByRole('button', { name: '試験を始める', exact: true }).click();
     await page.locator('#result:not([hidden])').waitFor({ timeout: 120000 });
   };
   await runTrial();
@@ -223,11 +237,13 @@ try {
 
   // 観測の欠落: 基盤の読み出しを止めると、前の成功で補わず「判定できない」。
   await page.locator('#steps').getByRole('link', { name: /実際に試す/ }).click();
+  await page.getByRole('button', { name: '次へ：試す状況を選ぶ', exact: true }).click();
   await page.getByLabel(/基盤による保存先の読み出しを止める/).check();
   await runTrial();
   result = await page.locator('#result-body').innerText();
   assert.match(result, /現在の判定[\s\S]*判定できない/);
-  assert.match(result, /この試行は現在の期待には当てはまりません/);
+  await page.getByText('過去の試行を見る', { exact: true }).click();
+  assert.match(await page.locator('#result-body').innerText(), /この試行は現在の期待には当てはまりません/);
   log('観測の欠落: 前の成功を使わず「判定できない」');
 
   // 故障: 修正前のコミットで書き込み不可にする。
@@ -247,9 +263,11 @@ try {
 
   // 結果への異論を書く。
   const evCard = page.locator('[data-evidence]').first();
+  await evCard.locator('summary', { hasText: /^この結果への質問・異論/ }).click();
   await evCard.getByLabel('質問・異論').fill('エラー表示が出ているので、人が使う場合は失敗に気づける。終了コードだけで「満たさない」としてよいか。');
   await as('架空の運用担当', 'operator');
   await evCard.getByRole('button', { name: '質問・異論を記録' }).click();
+  await evCard.locator('summary', { hasText: /^この結果への質問・異論/ }).click();
   await evCard.locator('.statement[data-kind="comment"]').waitFor();
 
   // 結果からコードへ戻る。
@@ -257,6 +275,7 @@ try {
   await page.locator('#code:not([hidden]) .code-line[data-line="244"][data-mark]').waitFor();
 
   // 修正後のコミットで再試験する。
+  await page.getByText('修正した版で再試験する', { exact: true }).click();
   await page.getByLabel('修正した版（ブランチ、タグ、またはコミット）').fill(AFTER);
   await page.getByRole('button', { name: '修正した版を読み込む' }).click();
   await page.getByText('新しいコミットでの対応づけを確かめてください').waitFor({ timeout: 60000 });
@@ -268,10 +287,11 @@ try {
   await relink.getByLabel('この期待は、どのコードがどう動くことで満たされるか').fill('修正後も TaskDict.write が書き込み、失敗すると BadFile を _main が _die に渡して終了コード1で終わる。');
   await relink.getByLabel('どう確かめるか（確認の方法）').fill('前と同じ故障・判定の条件で再試験する。');
   await relink.getByRole('button', { name: '対応づけを記録' }).click();
+  await relink.getByText('期待・説明と確認の記録', { exact: true }).click();
   await relink.locator('.statement[data-kind="implementation"]').nth(1).waitFor();
   await relink.getByRole('button', { name: 'この期待を試す' }).click();
-  await page.getByText('実行する内容').waitFor();
-  const retestPreview = await page.locator('#trial-body').innerText();
+  await page.locator('#trial-body form').waitFor();
+  const retestPreview = await page.locator('#trial-body').textContent();
   assert.match(retestPreview, new RegExp(`コミット ${AFTER}`));
   assert.match(retestPreview, /保存先を書き込み不可にする/);
   await runTrial();
@@ -321,9 +341,11 @@ try {
 
   // 判断。合意済みにはならない。
   await as('架空の開発者', 'developer');
+  await page.getByText('判断を記録・確認する', { exact: true }).click();
   await page.getByLabel('判断').selectOption('verify');
   await page.getByLabel(/^理由\s*※必須$/).fill('修正後は条件を満たした。人が使う場合の扱いへの異論が未対応のため、運用担当の確認を待つ。');
   await page.getByRole('button', { name: '判断を記録' }).click();
+  await page.getByText('判断を記録・確認する', { exact: true }).click();
   await page.getByText('記録した判断（1 件）').waitFor();
   view = await caseView();
   assert.ok(!JSON.stringify(view).includes('合意済み'));
@@ -366,6 +388,7 @@ try {
   };
   await page.route('**/api/v1/case', holdCase);
   // 実行が未対応の言語。
+  await page.getByRole('link', { name: '対象を選び直す', exact: true }).click();
   await page.locator('#repo-url').fill('https://github.com/spf13/cobra');
   await page.locator('#repo-ref').fill('');
   await page.getByRole('button', { name: '読み込む', exact: true }).click();
@@ -380,11 +403,12 @@ try {
   await page.getByText('この対象の実行は未対応です').waitFor();
   assert.equal(await page.locator('#steps li[data-step=trial]').getAttribute('aria-current'), 'step');
   await page.unroute('**/api/v1/case', holdCase);
-  const unread = page.locator('#understand-body details', { hasText: '読み取っていないファイル' });
+  const unread = page.locator('#understand-body details', { has: page.locator('summary', { hasText: /^読み取っていないファイル（/ }) }).last();
   log('Goのリポジトリで「実行は未対応」を表示した');
   await page.locator('#steps').getByRole('link', { name: /ソフトウェアを理解する/ }).click();
   const unreadCount = Number(/（(\d+) 件）/.exec(await unread.locator('summary').innerText())[1]);
   assert.ok(unreadCount > 0, '本文の読取上限を超えるリポジトリで、未読のファイルを表示していない');
+  await page.getByText('読んだ範囲とコードの版', { exact: true }).click();
   await unread.locator('summary').click();
   await unread.locator('li', { hasText: /\.go（解析に対応していない種類/ }).first().getByRole('button', { name: '読む' }).click();
   await page.locator('#code-meta', { hasText: /\.go（コミット/ }).waitFor();
@@ -437,7 +461,7 @@ try {
   await barePage.locator('#steps a[href="#expect"]').click();
   await barePage.getByRole('button', { name: 'この期待を試す' }).first().click();
   await barePage.getByText('実行環境がないため試せません').waitFor();
-  assert.equal(await barePage.getByRole('button', { name: 'この内容で試す' }).isDisabled(), true);
+  assert.equal(await barePage.getByRole('button', { name: '実行前に確認する' }).isDisabled(), true);
   await barePage.screenshot({ path: join(output, 'app-no-runtime.png'), fullPage: true });
   log('python3が見つからないことを表示し、実行のボタンを止めた');
 

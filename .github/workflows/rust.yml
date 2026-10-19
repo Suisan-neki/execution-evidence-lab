@@ -34,6 +34,7 @@ jobs:
           cargo build --locked
       - run: npx playwright install --with-deps chromium
       - run: npm run test:queue-architecture
+      - run: npm run test:journey
       - run: npm run test:modes
       - run: npm run test:browser
       - run: cargo test --locked --test containers browser_observes_nginx -- --ignored --nocapture

@@ -57,14 +57,15 @@ try {
   log('pynetdicom の固定コミットを読んだ');
 
   // 2. 期待を書き、受信した画像を保存するコードに対応づける。
-  await as('架空の運用担当', 'operator');
   await page.getByRole('link', { name: /期待する動作を確認する/ }).click();
+  await as('架空の運用担当', 'operator');
   await page.locator('#expect-text').fill('装置から受け取った画像は、保存先に書き込まれ、後から読み出せる');
   await page.getByRole('button', { name: 'この動作を確かめる' }).click();
   await page.locator('[data-check]').nth(0).waitFor();
+  await page.locator('#steps a[href="#expect"]').click();
   await page.locator('#expect-text').fill('画像を保存できなかったとき、送った側に失敗が分かる');
   await page.getByRole('button', { name: 'この動作を確かめる' }).click();
-  await page.locator('[data-check]').nth(1).waitFor();
+  await page.locator('[data-check]').waitFor();
   const view = await caseView();
   const [saved, failure] = view.workspace.checks.map(c => c.id);
   assert.ok(saved && failure);
@@ -72,7 +73,9 @@ try {
   await as('架空の開発者', 'developer');
   const link = async (checkId, explain, method) => {
     await page.getByRole('link', { name: /ソフトウェアを理解する/ }).click();
-    const files = page.locator('#understand details', { has: page.locator('summary', { hasText: /^ファイル一覧（/ }) });
+    const scope = page.locator('#understand-body > details').first();
+    if (!await scope.evaluate(d => d.open)) await scope.locator(':scope > summary').click();
+    const files = page.locator('#understand details', { has: page.locator('summary', { hasText: /^ファイル一覧（/ }) }).last();
     if (!(await files.evaluate(d => d.open))) await files.locator('summary').click();
     await files.getByRole('button', { name: 'pynetdicom/apps/common.py', exact: true }).click();
     await page.getByRole('button', { name: '633行目を選ぶ' }).click();
@@ -81,6 +84,7 @@ try {
     await card.getByLabel('この期待は、どのコードがどう動くことで満たされるか').fill(explain);
     await card.getByLabel('どう確かめるか（確認の方法）').fill(method);
     await card.getByRole('button', { name: '対応づけを記録' }).click();
+    await card.getByText('期待・説明と確認の記録', { exact: true }).click();
     await card.locator('.statement[data-kind="implementation"]').waitFor();
   };
   await link(saved, 'storescp の handle_store が、受け取った画像を出力先へ ds.save_as で書き込み、成功したら状態 0x0000 を返す。', '受信サーバーを起動して試験用の画像を送り、送信側の表示、基盤による保存先の読み出し、pydicom での読み出しを確かめる。');
@@ -91,6 +95,7 @@ try {
   const fill = async ({ fault, checks, server = true, readback = true }) => {
     await page.locator('#steps').getByRole('link', { name: /実際に試す/ }).click();
     const form = page.locator('#trial-body form');
+    for (const title of ['Pythonの読み込み先と依存先（任意）', '先に起動して待つプロセス（任意）', '後から読み出す（任意）']) await form.locator('summary', { hasText: title }).click();
     await form.getByLabel(/^起動するもの/).fill('pynetdicom');
     await form.getByLabel('起動のしかた').first().selectOption('module');
     await form.getByLabel('引数', { exact: true }).fill(['storescu', '-v', '127.0.0.1', '{{port}}', SAMPLE].join('\n'));
@@ -104,7 +109,9 @@ try {
     await back.getByLabel('読み出しに起動するもの').fill(readback ? 'pydicom' : '');
     await back.getByLabel('起動のしかた').selectOption('script');
     await back.getByLabel('読み出しの引数').fill(['show', STORED].join('\n'));
-    await form.getByLabel(fault).check();
+    await page.getByRole('button', { name: '次へ：試す状況を選ぶ', exact: true }).click();
+    await page.getByLabel(fault).check();
+    await page.getByRole('button', { name: '次へ：判定の条件を確認する', exact: true }).click();
     while (await form.getByRole('button', { name: 'この条件を外す' }).count()) await form.getByRole('button', { name: 'この条件を外す' }).first().click();
     for (const [i, c] of checks.entries()) {
       await form.getByRole('button', { name: '条件を追加' }).click();
@@ -116,7 +123,8 @@ try {
     }
   };
   const run = async () => {
-    await page.getByRole('button', { name: 'この内容で試す' }).click();
+    await page.getByRole('button', { name: '実行前に確認する' }).click();
+    await page.getByRole('button', { name: '試験を始める', exact: true }).click();
     await page.locator('#result:not([hidden])').waitFor({ timeout: 180000 });
     return (await caseView()).workspace.evidence.at(-1).execution;
   };

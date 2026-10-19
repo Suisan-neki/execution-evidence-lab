@@ -36,7 +36,7 @@ function download(content, type, filename) {
   document.body.append(link); link.click(); link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
-export async function mountReviewTools(root, { token, onChange = async () => {} }) {
+export async function mountReviewTools(root, { token, prefix = '', onChange = async () => {} }) {
   if (!root) return;
   let view, catalog, generation = 0, pending = false;
   let detail = 'plain';
@@ -46,7 +46,7 @@ export async function mountReviewTools(root, { token, onChange = async () => {} 
   const body = el('div');
   root.replaceChildren(title, status, body);
   async function request(path, data, html = false) {
-    const r = await fetch('/api/v1/' + path, {
+    const r = await fetch(prefix + '/api/v1/' + path, {
       method: data ? 'POST' : 'GET',
       headers: { 'X-Review-Token': token, ...(data ? { 'Content-Type': 'application/json' } : {}) },
       ...(data ? { body: JSON.stringify(data) } : {}),
@@ -87,6 +87,7 @@ export async function mountReviewTools(root, { token, onChange = async () => {} 
       render();
       const inputs = body.querySelectorAll('input'); inputs[0].value = name; inputs[1].value = why;
       await onChange();
+      window.dispatchEvent(new CustomEvent('eel-case-updated', { detail: { prefix, source: root } }));
     }
     details.addEventListener('change', () => {
       detail = details.value;
@@ -137,5 +138,6 @@ export async function mountReviewTools(root, { token, onChange = async () => {} 
     renderProposals();
     if (pending) root.querySelectorAll('button').forEach(b => { b.disabled = true; });
   }
+  window.addEventListener('eel-case-updated', async e => { if (e.detail?.prefix === prefix && e.detail.source !== root) { try { await reload(); } catch (error) { status.textContent = error.message; } } });
   try { await reload(); } catch (e) { status.textContent = e.message; }
 }
