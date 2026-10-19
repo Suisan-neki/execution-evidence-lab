@@ -204,6 +204,7 @@ try {
   const revision = (await caseView()).workspace.revision;
   const external = await context.request.post(url + '/api/v1/change', { headers: { 'X-Review-Token': token, Origin: url, 'Content-Type': 'application/json' }, data: { expected_revision: revision, actor: '架空の別の利用者', reason: '同時の更新を試す', action: { op: 'set_context', key: 'concurrent', value: 'yes' } } });
   assert.equal(external.status(), 200);
+  await page.locator('[data-check="sjl-t-1"]').getByText('期待・説明と確認の記録', { exact: true }).click();
   await impl.getByRole('button', { name: '内容を確認したことを記録する' }).click();
   await alert.getByText('ほかの操作で記録が更新されています').waitFor();
   await alert.getByRole('button', { name: '最新の記録を読み直す' }).click();

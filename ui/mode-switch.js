@@ -32,8 +32,8 @@ export async function mountModeSwitch(root, { token, prefix = '', onChange = asy
       // 最新版を照合する。失敗時は保存済みの表示に戻し、未保存の選択を現在値にしない。
       view = await request('case');
       view = await request('change', { expected_revision: view.workspace.revision, actor: 'ブラウザ操作（本人確認なし）', reason: `画面で確認モードを${domain === 'medical' ? '医療' : '汎用'}に切り替えた`, action: { op: 'select_profile', domain } });
+      render(); await onChange(view);
       status.textContent = `${domain === 'medical' ? '医療' : '汎用'}に切り替えました。結果と履歴は保持しています。`;
-      render(); await onChange();
       window.dispatchEvent(new CustomEvent('eel-case-updated', { detail: { prefix } }));
     } catch (e) { render(); status.textContent = `切り替えできませんでした。${e.message}`; }
     finally { pending = false; select.disabled = false; }

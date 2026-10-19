@@ -47,6 +47,11 @@ try {
   assert.equal(original.profile_history.at(-1).domain, 'medical');
   await shot('start');
 
+  let releaseExecution, executionArrived;
+  const heldExecution = new Promise(resolve => { releaseExecution = resolve; });
+  const executionRequested = new Promise(resolve => { executionArrived = resolve; });
+  const holdExecution = async route => { const response = await route.fetch(); executionArrived(); await heldExecution; await route.fulfill({ response }); };
+  await context.route('**/api/v1/execution', holdExecution);
   // 読み込みではコードを実行せず、ページを順に進める。戻る・再読込で同じ固定版へ戻る。
   await page.getByRole('link', { name: 'GitHubのURLを入力する', exact: true }).click();
   await page.locator('#repo-url').fill('https://github.com/' + snapshot.fullName);
@@ -58,6 +63,10 @@ try {
   await page.getByRole('button', { name: '期待する動作を確認する', exact: true }).click();
   await page.locator('#person').getByLabel('名前').fill('合成の作成者');
   await page.locator('#expect-text').fill('入力した値を後から読み出せる');
+  await executionRequested; releaseExecution();
+  await page.locator('#status', { hasText: /固定して読み込みました/ }).waitFor();
+  assert.equal(await page.locator('#expect-text').inputValue(), '入力した値を後から読み出せる', '遅い読取応答で書きかけの期待を消さない');
+  await context.unroute('**/api/v1/execution', holdExecution);
   await page.getByRole('button', { name: 'この動作を確かめる', exact: true }).click();
   await page.locator('[data-check="example-project-1"]').waitFor();
   assert.equal(await page.locator('[data-check] .verdict').isVisible(), false, '期待の記入直後に未判定の警告を前面へ出さない');
@@ -72,7 +81,9 @@ try {
   await card.getByLabel('この期待は、どのコードがどう動くことで満たされるか').fill('入力を標準出力へ返す。保存処理は未実装。');
   await card.getByLabel('どう確かめるか（確認の方法）').fill('合成の引数が出力に含まれるかを試す。');
   await card.getByRole('button', { name: '対応づけを記録', exact: true }).click();
+  await shot('expect');
   await card.getByRole('button', { name: 'この期待を試す', exact: true }).click();
+  await shot('trial-setup');
   await page.getByRole('button', { name: '次へ：試す状況を選ぶ', exact: true }).click();
   await page.getByRole('button', { name: '次へ：判定の条件を確認する', exact: true }).click();
   await page.getByRole('button', { name: '実行前に確認する', exact: true }).click();
@@ -82,9 +93,20 @@ try {
   await page.getByRole('button', { name: '実行前に確認する', exact: true }).click();
   await page.reload(); await page.locator('#trial-body form').waitFor();
   assert.equal((await state()).workspace.evidence.length, 0, '確認画面の再読込では実行しない');
+  await page.locator('#steps a[href="#expect"]').click();
+  await page.locator('#expect-text').fill('別の動作を確かめる');
+  await page.getByRole('button', { name: 'この動作を確かめる', exact: true }).click();
+  await page.locator('[data-check="example-project-2"]').getByRole('button', { name: '結果を見る', exact: true }).click();
+  await page.getByLabel('結果を見る期待', { exact: true }).selectOption('example-project-1');
+  assert.equal(new URL(page.url()).searchParams.get('check'), 'example-project-1');
+  await page.reload(); await page.locator('#result:not([hidden])').waitFor();
+  assert.match(await page.locator('#current-check').innerText(), /入力した値を後から読み出せる/);
+  assert.equal(await page.getByLabel('結果を見る期待', { exact: true }).inputValue(), 'example-project-1');
+  await page.goBack(); await page.locator('#result:not([hidden])').waitFor();
+  assert.equal(await page.getByLabel('結果を見る期待', { exact: true }).inputValue(), 'example-project-2');
   const main = (await state()).workspace;
-  assert.equal(main.checks.length, 1); assert.equal(main.evidence.length, 0);
-  await shot('trial-setup');
+  assert.equal(main.checks.length, 2); assert.equal(main.evidence.length, 0);
+  await shot('selected-result');
 
   // 同じサーバーから独立したデモへ移動する。戻っても元の条件とモードを保持する。
   await page.getByRole('link', { name: '対象を選び直す', exact: true }).click();

@@ -156,7 +156,8 @@ function renderCurrent() {
   $('current-function').textContent = state.fn ? `${state.fn.name}（${state.fn.path} ${state.fn.line}行目）` : '未選択';
   const check = currentCheck();
   $('current-check').textContent = check ? `${check.text}（${check.id}・条件の版${check.version}）` : '未選択';
-  $('current-trial').textContent = state.lastRun || '未実行';
+  const job = state.execution?.job, evidence = check ? checkView(check.id)?.evidence.at(-1) : null;
+  $('current-trial').textContent = job?.status === 'running' && job.check_id === check?.id ? `${job.id}（実行中）` : evidence ? `${evidence.run_id}${evidence.applicable ? '' : '（再確認待ち）'}` : '未実行';
 }
 const STEP_GUIDES = {
   understand: ['コードを読みました。まだ実行していません。', '目的と主な構成を確認したら、次に確かめたい動作を書きます。'],
@@ -170,6 +171,7 @@ const STEP_GUIDES = {
 function goto(step, focus = true, record = true) {
   if (!['open', 'repository'].includes(step) && (!STEP_GUIDES[step] || !state.source)) step = 'open';
   state.step = step;
+  renderCurrent();
   const atStart = ['open', 'repository'].includes(step);
   const panelStep = step === 'repository' ? 'open' : step === 'expect-edit' ? 'expect' : step.startsWith('trial') ? 'trial' : step;
   $('open').hidden = !atStart;
@@ -241,7 +243,7 @@ async function openRepository(url, reference, record = true) {
   return guarded(async () => {
     setStatus('GitHubから読み込んでいます。対象のコードは実行しません。');
     const res = await api('POST', '/api/v1/understand', { operation: 'open', url, reference });
-    if (state.source?.repository !== res.source.repository) { state.checkId = null; state.lastRun = null; state.trialForm = null; state.retest = null; }
+    if (state.source?.repository !== res.source.repository) { state.checkId = null; state.lastRun = null; state.trialForm = null; state.retest = null; state.expectDraft = ''; }
     state.source = res.source; state.overview = res.result; state.overviewRefs = res.references;
     state.files.clear(); state.fn = null; state.plan = null;
     state.code = null; state.selectedLine = null;
@@ -438,8 +440,10 @@ $('code-link').addEventListener('click', () => {
 // ---------- 事例（期待・記録） ----------
 async function loadCase() {
   try {
-    state.view = await api('GET', '/api/v1/case');
-    state.execution = await api('GET', '/api/v1/execution');
+    const view = await api('GET', '/api/v1/case');
+    const execution = await api('GET', '/api/v1/execution');
+    if (state.view && view.workspace.revision < state.view.workspace.revision) return;
+    state.view = view; state.execution = execution;
   } catch (e) { showError(e); }
   renderCurrent();
   if (['open', 'repository'].includes(state.step)) $('current').hidden = true;
@@ -521,7 +525,8 @@ function renderExpect() {
     fill(body, expectationCard(currentCheck()), h('div', { class: 'journey-actions' }, button('期待の一覧に戻る', () => goto('expect'))));
     return;
   }
-  const text = textarea({ rows: 3 });
+  const text = textarea({ rows: 3, value: state.expectDraft || '' });
+  text.control.addEventListener('input', () => { state.expectDraft = text.control.value; });
   text.control.id = 'expect-text';
   const form = h('form', { novalidate: true, onsubmit: e => { e.preventDefault(); addExpectation(text.control); } },
     field({ label: '誰が何をしたとき、何がどうなってほしいか', id: 'expect-text', control: text, required: true, support: '例: 利用者がタスクを追加したとき、後から一覧で同じタスクを読み出せる。例: 保存できなかったとき、利用者に失敗が分かる。' }),
@@ -545,7 +550,7 @@ async function addExpectation(control) {
     const id = `${prefix}-${n}`;
     await change({ op: 'add_check', check: { id, version: 1, text: value, origin: `${p.name}（${ROLE[p.role]}）が画面で入力した期待`, source: null, observation: null, rule: 'manual_only', dependencies: [], questions: [] } }, '期待する動作を記録した');
     await change({ op: 'add_statement', statement: { id: randomId('s'), kind: 'statement', role: p.role, text: value, origin: `${p.name}が自分の言葉で書いた期待`, check_ids: [id] } }, '期待を書いた人の発言として残した');
-    state.checkId = id;
+    state.checkId = id; state.expectDraft = '';
     renderCurrent(); goto('expect-edit');
     setStatus('期待を記録しました。続けて、実装と確認方法を対応づけてください。');
   });
@@ -676,7 +681,7 @@ function renderTrial() {
   if (!state.view) { body.replaceChildren(h('p', {}, '記録を読み込んでいます。')); return; }
   const pick = select([['', '選んでください'], ...checks.map(c => [c.id, c.text])]);
   pick.control.value = state.checkId || '';
-  pick.control.addEventListener('change', () => { state.checkId = pick.control.value || null; state.trialForm = null; renderCurrent(); renderTrial(); });
+  pick.control.addEventListener('change', () => { state.checkId = pick.control.value || null; state.trialForm = null; renderCurrent(); goto('trial', false); });
   const check = currentCheck();
   const plan = state.plan;
   const exec = state.execution;
@@ -916,7 +921,7 @@ function renderResult() {
   if (!state.view) { body.replaceChildren(h('p', {}, '記録を読み込んでいます。')); return; }
   const pick = select([['', '選んでください'], ...checks.map(c => [c.id, c.text])]);
   pick.control.value = state.checkId || '';
-  pick.control.addEventListener('change', () => { state.checkId = pick.control.value || null; renderCurrent(); renderResult(); });
+  pick.control.addEventListener('change', () => { state.checkId = pick.control.value || null; renderCurrent(); goto('result', false); });
   const check = currentCheck();
   if (!check) { body.replaceChildren(field({ label: '結果を見る期待', control: pick })); return; }
   const cv = checkView(check.id);
@@ -1101,5 +1106,5 @@ const params = new URLSearchParams(location.search);
 if (params.get('url')) { $('repo-url').value = params.get('url'); $('repo-ref').value = params.get('ref') || ''; }
 
 mountReviewTools($('review-tools'), { token, onChange: loadCase });
-mountModeSwitch($('mode-switch'), { token, onChange: loadCase });
+mountModeSwitch($('mode-switch'), { token, onChange: view => { state.view = view; renderCurrent(); if (['open', 'repository'].includes(state.step)) $('current').hidden = true; } });
 restoreLocation();

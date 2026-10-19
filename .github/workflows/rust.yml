@@ -36,6 +36,14 @@ jobs:
       - run: npm run test:queue-architecture
       - run: npm run test:journey
       - run: npm run test:modes
+      - name: Operate the app against the public repository sjl/t
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          umask 077
+          printf '%s' "$GH_TOKEN" > "$RUNNER_TEMP/github-token"
+          EEL_GITHUB_TOKEN_FILE="$RUNNER_TEMP/github-token" npm run test:reader-native -- --live
+          EEL_GITHUB_TOKEN_FILE="$RUNNER_TEMP/github-token" npm run test:app
       - run: npm run test:browser
       - run: cargo test --locked --test containers browser_observes_nginx -- --ignored --nocapture
       - run: npm run test:ui
@@ -48,14 +56,6 @@ jobs:
         run: npm run test:architecture-targets -- presets
       - name: Read the actual OpenEMR evidence through the architecture diagram
         run: npm run test:architecture -- --real
-      - name: Operate the app against the public repository sjl/t
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          umask 077
-          printf '%s' "$GH_TOKEN" > "$RUNNER_TEMP/github-token"
-          EEL_GITHUB_TOKEN_FILE="$RUNNER_TEMP/github-token" npm run test:reader-native -- --live
-          EEL_GITHUB_TOKEN_FILE="$RUNNER_TEMP/github-token" npm run test:app
       - name: Send and store a DICOM image with pinned pynetdicom and pydicom
         env:
           GH_TOKEN: ${{ github.token }}
