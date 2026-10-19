@@ -16,6 +16,10 @@ const AFTER = '815ccaf';
 const temp = await mkdtemp(join(tmpdir(), 'eel-app-'));
 await mkdir(output, { recursive: true });
 const log = (...a) => console.log('・', ...a);
+async function openDetails(summary) {
+  if (!await summary.evaluate(node => node.parentElement.open)) await summary.click();
+}
+
 const servers = [];
 
 function start(data, env = {}) {
@@ -155,7 +159,8 @@ try {
     await card.getByLabel('この期待は、どのコードがどう動くことで満たされるか').fill(explain);
     await card.getByLabel('どう確かめるか（確認の方法）').fill(method);
     await card.getByRole('button', { name: '対応づけを記録' }).click();
-    await card.getByText('期待・説明と確認の記録', { exact: true }).click();
+    await card.locator('.statement[data-kind="implementation"]').waitFor({ state: 'attached' });
+    await openDetails(card.getByText('期待・説明と確認の記録', { exact: true }));
     await card.locator('.statement[data-kind="implementation"]').waitFor();
   };
   await linkAs('sjl-t-1', 244, 'TaskDict.write が tasks ファイルを書き込み用に開き、タスクを1行ずつ書き込む。一覧の表示は同じファイルを読み直す。', '試験用の値でタスクを追加し、基盤が保存先 tasks を直接読み出して値があること、別のプロセスで一覧を表示して値が出ることを確かめる。');
@@ -168,8 +173,8 @@ try {
   await page.locator('[data-check="sjl-t-1"]').getByText('期待・説明と確認の記録', { exact: true }).click();
   const impl = page.locator('[data-check="sjl-t-1"] .statement[data-kind="implementation"]');
   await impl.getByRole('button', { name: '内容を確認したことを記録する' }).click();
-  await page.locator('[data-check="sjl-t-1"]').getByText('期待・説明と確認の記録', { exact: true }).click();
-  await page.locator('[data-check="sjl-t-1"] .statement[data-kind="implementation"]', { hasText: '架空の運用担当（運用担当）が事例の版' }).waitFor();
+  await page.locator('[data-check="sjl-t-1"] .statement[data-kind="implementation"]', { hasText: '架空の運用担当（運用担当）が事例の版' }).waitFor({ state: 'attached' });
+  await openDetails(page.locator('[data-check="sjl-t-1"]').getByText('期待・説明と確認の記録', { exact: true }));
   view = await caseView();
   const implView = view.statements.find(s => s.id === view.workspace.statements.find(x => x.kind === 'implementation' && x.check_ids.includes('sjl-t-1')).id);
   assert.equal(implView.status, 'partly_confirmed');
@@ -179,8 +184,8 @@ try {
   await card2.getByText('食い違いを指摘する').click();
   await card2.getByLabel('期待・説明・コードのどこが食い違うか').fill('期待は「利用者に失敗が分かる」だが、呼び出し側のプログラムが終了コードで失敗を知れるかは説明にない。');
   await card2.getByRole('button', { name: '指摘を記録' }).click();
-  await card2.getByText('期待・説明と確認の記録', { exact: true }).click();
-  await card2.locator('.statement[data-kind="discrepancy"]').waitFor();
+  await card2.locator('.statement[data-kind="discrepancy"]').waitFor({ state: 'attached' });
+  await openDetails(card2.getByText('期待・説明と確認の記録', { exact: true }));
   await card2.getByText('答えが必要な質問を残す').click();
   await card2.getByLabel('質問').fill('「失敗が分かる」には、エラー表示だけでなく終了コードが0以外であることも含めるか？');
   await card2.getByRole('button', { name: '質問を記録' }).click();
@@ -195,8 +200,8 @@ try {
   await card2.locator('.statement[data-kind="discrepancy"]').getByText('対応を記録する').click();
   await card2.locator('.statement[data-kind="discrepancy"]').getByLabel('対応の内容').fill('質問への回答で、終了コードも判定の条件に含めることにした。');
   await card2.locator('.statement[data-kind="discrepancy"]').getByRole('button', { name: '対応を記録' }).click();
-  await card2.getByText('期待・説明と確認の記録', { exact: true }).click();
-  await card2.locator('.statement[data-kind="discrepancy"]', { hasText: '対応: 質問への回答で' }).waitFor();
+  await card2.locator('.statement[data-kind="discrepancy"]', { hasText: '対応: 質問への回答で' }).waitFor({ state: 'attached' });
+  await openDetails(card2.getByText('期待・説明と確認の記録', { exact: true }));
   log('対応づけ・確認・食い違い・質問と回答・対応を記録した');
   await shot('expect');
 
@@ -270,7 +275,8 @@ try {
   await evCard.getByLabel('質問・異論').fill('エラー表示が出ているので、人が使う場合は失敗に気づける。終了コードだけで「満たさない」としてよいか。');
   await as('架空の運用担当', 'operator');
   await evCard.getByRole('button', { name: '質問・異論を記録' }).click();
-  await evCard.locator('summary', { hasText: /^この結果への質問・異論/ }).click();
+  await evCard.locator('.statement[data-kind="comment"]').waitFor({ state: 'attached' });
+  await openDetails(evCard.locator('summary', { hasText: /^この結果への質問・異論/ }));
   await evCard.locator('.statement[data-kind="comment"]').waitFor();
 
   // 結果からコードへ戻る。
@@ -290,8 +296,8 @@ try {
   await relink.getByLabel('この期待は、どのコードがどう動くことで満たされるか').fill('修正後も TaskDict.write が書き込み、失敗すると BadFile を _main が _die に渡して終了コード1で終わる。');
   await relink.getByLabel('どう確かめるか（確認の方法）').fill('前と同じ故障・判定の条件で再試験する。');
   await relink.getByRole('button', { name: '対応づけを記録' }).click();
-  await relink.getByText('期待・説明と確認の記録', { exact: true }).click();
-  await relink.locator('.statement[data-kind="implementation"]').nth(1).waitFor();
+  await relink.locator('.statement[data-kind="implementation"]').nth(1).waitFor({ state: 'attached' });
+  await openDetails(relink.getByText('期待・説明と確認の記録', { exact: true }));
   await relink.getByRole('button', { name: 'この期待を試す' }).click();
   await page.locator('#trial-body form').waitFor();
   await page.getByText('実行する内容', { exact: true }).waitFor({ state: 'attached' });
@@ -349,8 +355,8 @@ try {
   await page.getByLabel('判断').selectOption('verify');
   await page.getByLabel(/^理由\s*※必須$/).fill('修正後は条件を満たした。人が使う場合の扱いへの異論が未対応のため、運用担当の確認を待つ。');
   await page.getByRole('button', { name: '判断を記録' }).click();
-  await page.getByText('判断を記録・確認する', { exact: true }).click();
-  await page.getByText('記録した判断（1 件）').waitFor();
+  await page.getByText('記録した判断（1 件）').waitFor({ state: 'attached' });
+  await openDetails(page.getByText('判断を記録・確認する', { exact: true }));
   view = await caseView();
   assert.ok(!JSON.stringify(view).includes('合意済み'));
   assert.ok(view.statements.every(s => s.status !== 'both_confirmed'));

@@ -85,7 +85,9 @@ try {
     await card.getByLabel('この期待は、どのコードがどう動くことで満たされるか').fill(explain);
     await card.getByLabel('どう確かめるか（確認の方法）').fill(method);
     await card.getByRole('button', { name: '対応づけを記録' }).click();
-    await card.getByText('期待・説明と確認の記録', { exact: true }).click();
+    await card.locator('.statement[data-kind="implementation"]').waitFor({ state: 'attached' });
+    const records = card.getByText('期待・説明と確認の記録', { exact: true });
+    if (!await records.evaluate(node => node.parentElement.open)) await records.click();
     await card.locator('.statement[data-kind="implementation"]').waitFor();
   };
   await link(saved, 'storescp の handle_store が、受け取った画像を出力先へ ds.save_as で書き込み、成功したら状態 0x0000 を返す。', '受信サーバーを起動して試験用の画像を送り、送信側の表示、基盤による保存先の読み出し、pydicom での読み出しを確かめる。');

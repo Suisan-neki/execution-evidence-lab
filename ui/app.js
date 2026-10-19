@@ -989,6 +989,10 @@ function evidenceCard(check, v, e) {
         const p = requirePerson(); if (!comment.control.value.trim()) throw Error('質問・異論を入力してください。');
         await change({ op: 'add_statement', statement: { id: randomId('s'), kind: 'comment', role: p.role, text: comment.control.value.trim(), origin: `${p.name}の質問・異論`, check_ids: [check.id], evidence_id: v.id } }, '試行の結果に質問・異論を書いた');
         renderResult();
+        const recorded = [...$('result-body').querySelectorAll('[data-evidence]')].find(node => node.dataset.evidence === v.id);
+        const discussion = [...(recorded?.querySelectorAll('details') || [])].find(node => node.querySelector(':scope > summary')?.textContent.startsWith('この結果への質問・異論'));
+        if (discussion) discussion.open = true;
+        setStatus('質問・異論を記録しました。');
       }))));
 }
 /// 起動したもののコードへのリンク。モジュール・コマンドは、基盤が解決した固定版の中のファイルへつなぐ。
