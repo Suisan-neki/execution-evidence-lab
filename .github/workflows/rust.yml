@@ -44,6 +44,13 @@ jobs:
           printf '%s' "$GH_TOKEN" > "$RUNNER_TEMP/github-token"
           EEL_GITHUB_TOKEN_FILE="$RUNNER_TEMP/github-token" npm run test:reader-native -- --live
           EEL_GITHUB_TOKEN_FILE="$RUNNER_TEMP/github-token" npm run test:app
+      - name: Send and store a DICOM image with pinned pynetdicom and pydicom
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          umask 077
+          printf '%s' "$GH_TOKEN" > "$RUNNER_TEMP/github-token"
+          EEL_GITHUB_TOKEN_FILE="$RUNNER_TEMP/github-token" npm run test:dicom
       - run: npm run test:browser
       - run: cargo test --locked --test containers browser_observes_nginx -- --ignored --nocapture
       - run: npm run test:ui
@@ -56,13 +63,6 @@ jobs:
         run: npm run test:architecture-targets -- presets
       - name: Read the actual OpenEMR evidence through the architecture diagram
         run: npm run test:architecture -- --real
-      - name: Send and store a DICOM image with pinned pynetdicom and pydicom
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          umask 077
-          printf '%s' "$GH_TOKEN" > "$RUNNER_TEMP/github-token"
-          EEL_GITHUB_TOKEN_FILE="$RUNNER_TEMP/github-token" npm run test:dicom
       - name: Keep synthetic review screenshots
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

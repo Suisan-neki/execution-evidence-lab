@@ -54,6 +54,7 @@ try {
   await page.locator('#repo-ref').fill(PYNETDICOM);
   await page.getByRole('button', { name: '読み込む', exact: true }).click();
   await page.locator('#steps').waitFor({ timeout: 120000 });
+  await page.getByText('読んだ範囲とコードの版', { exact: true }).click();
   await page.getByText(`pydicom/pynetdicom のコミット ${PYNETDICOM} を読みました`).waitFor({ timeout: 120000 });
   log('pynetdicom の固定コミットを読んだ');
 
@@ -66,7 +67,7 @@ try {
   await page.locator('#steps a[href="#expect"]').click();
   await page.locator('#expect-text').fill('画像を保存できなかったとき、送った側に失敗が分かる');
   await page.getByRole('button', { name: 'この動作を確かめる' }).click();
-  await page.locator('[data-check]').waitFor();
+  await page.locator('[data-check="pydicom-pynetdicom-2"]').waitFor();
   const view = await caseView();
   const [saved, failure] = view.workspace.checks.map(c => c.id);
   assert.ok(saved && failure);
