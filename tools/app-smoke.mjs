@@ -417,10 +417,10 @@ try {
   const unread = page.locator('#understand-body details', { has: page.locator('summary', { hasText: /^読み取っていないファイル（/ }) }).last();
   log('Goのリポジトリで「実行は未対応」を表示した');
   await page.locator('#steps').getByRole('link', { name: /ソフトウェアを理解する/ }).click();
-  const unreadCount = Number(/（(\d+) 件）/.exec(await unread.locator('summary').innerText())[1]);
+  await openDetails(page.getByText('読んだ範囲とコードの版', { exact: true }));
+  const unreadCount = Number(/（(\d+)\s*件）/.exec(await unread.locator(':scope > summary').textContent())[1]);
   assert.ok(unreadCount > 0, '本文の読取上限を超えるリポジトリで、未読のファイルを表示していない');
-  await page.getByText('読んだ範囲とコードの版', { exact: true }).click();
-  await unread.locator('summary').click();
+  await openDetails(unread.locator(':scope > summary'));
   await unread.locator('li', { hasText: /\.go（解析に対応していない種類/ }).first().getByRole('button', { name: '読む' }).click();
   await page.locator('#code-meta', { hasText: /\.go（コミット/ }).waitFor();
   assert.match(await page.locator('#code-view').innerText(), /package cobra/);
