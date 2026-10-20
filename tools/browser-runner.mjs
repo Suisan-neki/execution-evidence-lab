@@ -13,6 +13,15 @@ const replace=s=>s.replaceAll('{{test_value}}',request.test_value);
 const save=async(name,data)=>{const temp=path.join(dir,name+'.tmp');await fs.writeFile(temp,JSON.stringify(data),{mode:0o600,flag:'wx'});await fs.rename(temp,path.join(dir,name));};
 function target(t){let scope=page;for(const frame of t.frames||[])scope=scope.frameLocator(frame);const l=t.locator;return l.by==='label'?scope.getByLabel(l.text,{exact:true}):l.by==='role'?scope.getByRole(l.role,{name:l.name,exact:true}):scope.locator(l.selector);}
 function remaining(){const n=deadline-Date.now();if(n<=0)throw Error('ブラウザ試験が待機上限に達した');return Math.min(n,15000);}
+async function screenshot(step,r,timeout,failed=false){
+ if(step.action==='fill'&&step.value.source==='secret')return;
+ try{
+  const name=`${r.phase}-${step.id}.png`;
+  await page.screenshot({path:path.join(dir,name),timeout,mask:[...masks,...page.frames().map(f=>f.locator('input[type=password]'))],animations:'disabled'});
+  r.screenshot='browser/'+name;
+  if(failed)r.detail+='。操作が未完了となった後の画面写真。保存の成功を示す記録とは別';
+ }catch(error){r.detail+='。画面写真は未取得: '+redact(error.message);}
+}
 function singleFrame(kind,bytes){
  if(!kind.toLowerCase().startsWith('multipart/related'))throw Error('multipart/relatedではない');
  const boundary=kind.split(';').slice(1).map(x=>x.trim()).find(x=>/^boundary=/i.test(x))?.split('=').slice(1).join('=').replace(/^"|"$/g,'');
@@ -54,8 +63,13 @@ async function steps(list,phase){
    }
    else throw Error('未対応の操作');
    r.completed=true;r.detail='操作を完了した。保存の成功を示す記録とは別';
-   if(step.action!=='read_canvas'&&!(step.action==='fill'&&step.value.source==='secret')){try{const name=`${phase}-${step.id}.png`;await page.screenshot({path:path.join(dir,name),timeout:remaining(),mask:[...masks,...page.frames().map(f=>f.locator('input[type=password]'))],animations:'disabled'});r.screenshot='browser/'+name;}catch(error){r.detail+='。画面写真は未取得: '+redact(error.message);}}
-  }catch(error){r.detail=redact(error.message);report.detail=`${phase}の手順 ${step.id} を完了できなかった`;return false;}
+   if(step.action!=='read_canvas')await screenshot(step,r,Math.max(1,Math.min(15000,deadline-Date.now())));
+  }catch(error){
+   r.detail=redact(error.message);report.detail=`${phase}の手順 ${step.id} を完了できなかった`;
+   // 操作の待機上限を使い切っていても、一度だけ短い上限で停止後の表示を残す。
+   // 追加の操作や再試行はせず、写真の有無で未完了という結果を変えない。
+   await screenshot(step,r,1000,true);return false;
+  }
  }
  active=null;return true;
 }
