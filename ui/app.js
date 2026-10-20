@@ -1,4 +1,4 @@
-import { mountDiagram } from '/ui/repository-diagram.js';
+import { mountDiagram, objectTitle, selectDiagramObject } from '/ui/repository-diagram.js';
 const $ = id => document.getElementById(id);
 const token = document.querySelector('meta[name="review-token"]').content;
 const state = { audience: null, source: null, overview: null, graph: null, selected: null, view: null, sequence: 0, loading: false, saving: false, draftKey: null, preparation: null };
@@ -32,31 +32,67 @@ function screen(name) {
 }
 function saveDraft() { if (state.draftKey) remember(state.draftKey, $('concern-text').value); }
 function draftKey() { return state.source ? `eel-concern:${state.source.repository}@${state.source.commit}:${state.selected?.id || 'whole'}` : null; }
+function findObject(id) {
+  const node = state.graph?.nodes.find(n => n.id === id); if (node) return { ...node, object_type: 'element' };
+  const edge = state.graph?.edges.find(e => e.id === id); return edge ? { ...edge, object_type: 'relation' } : null;
+}
+function concernLabel(object) {
+  if (!object) return 'システム全体';
+  return object.object_type === 'relation' ? `${state.graph.nodes.find(n => n.id === object.from)?.title} → ${state.graph.nodes.find(n => n.id === object.to)?.title}：${object.title}` : object.title;
+}
 function selectNode(node) {
   saveDraft(); state.selected = node; state.draftKey = draftKey();
   $('concern-text').value = remembered(state.draftKey) || '';
-  $('selected-heading').textContent = node ? (state.audience === 'developer' ? node.path : node.title) : 'システム全体について';
+  $('selected-heading').textContent = node?.object_type === 'relation' ? `${state.graph.nodes.find(n => n.id === node.from)?.title} → ${state.graph.nodes.find(n => n.id === node.to)?.title}` : objectTitle(node, false);
   $('selected-description').textContent = node?.description || '全体への不安や疑問も、そのまま書けます。';
   $('select-whole').hidden = !node;
+  selectDiagramObject($('repository-diagram'), node?.id);
+  const details = $('selected-details'); details.replaceChildren();
+  const technical = state.audience === 'developer';
+  if (node) {
+    if (node.scope_note) details.append(el('p', { className: 'note' }, node.scope_note));
+    details.append(el('p', { className: 'note' }, node.basis?.kind === 'configuration' ? '設定に定義された構成です。動作はまだ検証していません。' : 'コードの記述から整理した推定です。動作はまだ検証していません。'));
+    if (node.object_type === 'relation') details.append(el('p', {}, `やり取り：${node.title}`));
+    if (technical && (node.technology?.length || node.protocol)) details.append(el('p', { className: 'component-technology' }, `技術・接続：${node.protocol || node.technology.join(' / ')}`));
+    if (technical && node.details?.length) {
+      const internal = el('details', { className: 'component-internal', open: '' }, el('summary', {}, '内部の処理と起動設定'));
+      const groups = new Map();
+      for (const d of node.details) { if (!groups.has(d.title)) groups.set(d.title, []); groups.get(d.title).push(d); }
+      for (const [title, items] of groups) internal.append(el('h3', {}, title), el('ul', {}, items.map(d => el('li', {}, d.text))));
+      details.append(internal);
+    }
+  }
+  if (state.graph) {
+    const connections = node ? state.graph.edges.filter(e => e.from === node.id || e.to === node.id) : state.graph.edges;
+    if (connections.length && node?.object_type !== 'relation') {
+      const list = el('ul', { className: 'component-connections' });
+      for (const e of connections) {
+        const from = state.graph.nodes.find(n => n.id === e.from), to = state.graph.nodes.find(n => n.id === e.to);
+        list.append(el('li', {}, button(`${from.title} → ${to.title}：${e.title}`, () => selectNode({ ...e, object_type: 'relation' }), 'text')));
+      }
+      if (node) details.append(el('h3', {}, 'この部分とのやり取り'), list);
+      else details.append(el('details', {}, el('summary', {}, '図の接続を文章で読む'), list));
+    }
+  }
   const evidence = $('selected-evidence'); evidence.replaceChildren();
   if (node) {
-    const d = el('details', {}, el('summary', {}, '説明の根拠となるコード'));
+    const d = el('details', {}, el('summary', {}, '説明の根拠となる設定・コード'));
     for (const ref of node.refs || []) {
       const href = `https://github.com/${state.source.repository}/blob/${state.source.commit}/${ref.path.split('/').map(encodeURIComponent).join('/')}#L${ref.line}`;
-      d.append(el('p', {}, el('a', { href, target: '_blank', rel: 'noopener noreferrer' }, `${ref.path} ${ref.line}行目`)));
+      d.append(el('p', {}, el('a', { href, target: '_blank', rel: 'noopener noreferrer' }, `${ref.path} ${ref.line}行目`), technical && ref.excerpt ? el('code', {}, ref.excerpt) : null));
     }
     evidence.append(d);
   }
 }
 $('concern-text').addEventListener('input', saveDraft);
-function renderGraph() {
-  mountDiagram($('repository-diagram'), state.graph, { technical: state.audience === 'developer', selected: state.selected?.id, onSelect: selectNode });
+async function renderGraph() {
+  await mountDiagram($('repository-diagram'), state.graph, { technical: state.audience === 'developer', selected: state.selected?.id, onSelect: selectNode });
 }
 function setAudience(audience) {
   state.audience = audience; remember('eel-audience', audience);
   // 名前や権限を推測しない。詳細な検証画面にも自己申告の立場だけを引き継ぐ。
   remember('eel-person', JSON.stringify({ name: 'ブラウザ利用者（本人確認なし）', role: audience }));
-  if (state.source) { screen('system'); renderGraph(); selectNode(state.selected); renderConcerns(); }
+  if (state.source) { screen('system'); run(renderGraph); selectNode(state.selected); renderConcerns(); }
   else {
     screen('repository');
     const params = new URLSearchParams(location.search);
@@ -66,7 +102,12 @@ function setAudience(audience) {
 for (const b of document.querySelectorAll('[data-audience]')) b.addEventListener('click', () => setAudience(b.dataset.audience));
 $('change-audience').addEventListener('click', () => { saveDraft(); screen('audience'); });
 $('change-repository').addEventListener('click', () => { saveDraft(); state.sequence++; state.loading = false; $('load-repository').disabled = false; status(''); state.source = null; state.overview = null; state.graph = null; state.selected = null; state.draftKey = null; state.preparation = null; $('repository-url').value = ''; $('repository-ref').value = ''; document.querySelector('.repository-options').open = false; screen('repository'); history.pushState(null, '', '/'); });
-$('select-whole').addEventListener('click', () => { selectNode(null); renderGraph(); });
+$('select-whole').addEventListener('click', () => selectNode(null));
+let diagramZoom = 1;
+function zoomDiagram(value) { diagramZoom = Math.min(3, Math.max(.5, value)); const chart = $('repository-diagram').querySelector('svg'); if (chart) chart.style.width = diagramZoom === 1 ? '100%' : `${diagramZoom * 100}%`; }
+$('diagram-fit').addEventListener('click', () => zoomDiagram(1));
+$('diagram-zoom-in').addEventListener('click', () => zoomDiagram(diagramZoom * 1.3));
+$('diagram-zoom-out').addEventListener('click', () => zoomDiagram(diagramZoom / 1.3));
 $('repository-form').addEventListener('submit', e => { e.preventDefault(); openRepository($('repository-url').value.trim(), $('repository-ref').value.trim()); });
 async function openRepository(url, reference, record = true) {
   if (!/^https:\/\/github\.com\/[A-Za-z0-9-]+\/[A-Za-z0-9_.-]+\/?$/.test(url)) {
@@ -84,10 +125,15 @@ async function openRepository(url, reference, record = true) {
     state.source = read.source; state.overview = read.result; state.graph = map.result; state.view = view; state.selected = null; state.draftKey = null; state.preparation = null;
     $('system-heading').textContent = read.source.repository;
     $('repository-version').textContent = `読み込んだ版：${read.source.commit.slice(0, 12)}`;
-    $('system-purpose').textContent = (read.result.purpose || []).slice(0, 1).map(p => p.text).join('');
-    $('map-basis').replaceChildren(el('p', {}, map.result.basis), el('p', {}, map.result.unknown), el('p', {}, `本文を読んだファイル：${map.result.read_files}件。未読：${map.result.unread_files}件。${map.result.omitted_nodes ? `図から省略したコード：${map.result.omitted_nodes}件。` : ''}${map.result.inventory_truncated ? 'ファイル一覧自体も途中で切れています。' : ''}`));
-    renderGraph(); selectNode(null); renderConcerns(); screen('system');
-    if (record) history.pushState(null, '', `/?url=${encodeURIComponent(url)}&ref=${encodeURIComponent(read.source.commit)}`);
+    $('map-scope').textContent = `${map.result.scope}。実際の配置や動作は未確認です。`;
+    $('diagram-summary').textContent = map.result.summary;
+    $('map-basis').replaceChildren(el('p', {}, map.result.basis), el('p', {}, map.result.unknown), ...(map.result.notices || []).map(n => el('p', {}, n)), el('p', {}, `本文を読んだファイル：${map.result.read_files}件。構成に関係する候補の未読：${map.result.unread_files}件。${map.result.inventory_truncated ? 'ファイル一覧自体も途中で切れています。' : ''}`));
+    const params = new URLSearchParams(location.search);
+    const focus = params.get('url') === url ? findObject(params.get('focus')) : null;
+    selectNode(focus); renderConcerns(); screen('system'); diagramZoom = 1;
+    await renderGraph();
+    if (seq !== state.sequence) return;
+    if (record) history.pushState(null, '', `/?url=${encodeURIComponent(url)}&ref=${encodeURIComponent(read.source.commit)}${focus ? `&focus=${encodeURIComponent(focus.id)}` : ''}`);
     status('構成図を表示しました。気になる部分を選んでください。');
   }, () => seq === state.sequence);
   if (seq === state.sequence) { state.loading = false; $('load-repository').disabled = false; }
@@ -109,11 +155,11 @@ async function change(action, reason) {
 $('concern-form').addEventListener('submit', e => {
   e.preventDefault();
   if (state.saving || !state.source || !$('concern-text').value.trim()) return;
-  const source = state.source, node = state.selected, audience = state.audience, text = $('concern-text').value.trim(), savedDraftKey = state.draftKey;
+  const source = state.source, node = state.selected, model = state.graph, label = concernLabel(node), audience = state.audience, text = $('concern-text').value.trim(), savedDraftKey = state.draftKey;
   const ref = node?.refs?.[0];
   state.saving = true; $('save-concern').disabled = true;
   run(async () => {
-    const origin = JSON.stringify({ kind: 'repository_concern', repository: source.repository, commit: source.commit, node: node?.id || null, label: node?.title || 'システム全体' });
+    const origin = JSON.stringify({ kind: 'repository_concern', repository: source.repository, commit: source.commit, node: node?.id || null, object_type: node?.object_type || 'whole', model_id: model.model_id, model_revision: model.model_revision, label });
     await change({ op: 'add_statement', statement: { id: id('concern'), kind: 'unanswered', role: audience, text, origin, source: ref ? { repository: source.repository, commit: source.commit, path: ref.path, line: ref.line, end_line: ref.end_line || ref.line } : null, check_ids: [] } }, '構成図から不安・疑問を記録した');
     remember(savedDraftKey, '');
     if (state.source?.repository === source.repository && state.source.commit === source.commit) {
@@ -132,6 +178,10 @@ function renderConcerns() {
   for (const statement of list) {
     const m = meta(statement), check = checkFor(statement);
     const card = el('article', { className: 'concern-card', 'data-concern': statement.id }, el('p', { className: 'concern-location' }, `${m.label}${m.commit === state.source.commit ? '' : '（以前の版への疑問）'}`), el('h3', {}, statement.text));
+    const target = m.commit === state.source.commit ? findObject(m.node) : null;
+    if (target) card.append(button('図のこの部分を見る', () => { selectNode(target); $('repository-diagram').scrollIntoView({ block: 'center' }); }));
+    if (m.commit === state.source.commit && m.model_revision && m.model_revision !== state.graph.model_revision) card.append(el('p', { className: 'note' }, '疑問を残した後に、図の読み取り範囲や説明が変わっています。'));
+    if (m.commit === state.source.commit && m.node && !target) card.append(el('p', { className: 'note' }, '疑問を残した部分は、現在の図では特定できていません。元の出所を保持しています。'));
     if (check) {
       const cv = state.view.checks.find(c => c.check_id === check.id);
       card.append(el('p', {}, `確かめたい動作：${check.text}`));
@@ -173,7 +223,7 @@ function prepareConcern(card, statement) {
   card.append(form); text.focus();
 }
 function workbenchLink(label, check, m, step) {
-  const href = `/workbench?url=${encodeURIComponent('https://github.com/' + m.repository)}&ref=${encodeURIComponent(check.source?.commit || m.commit)}&check=${encodeURIComponent(check.id)}&from=system#${step}`;
+  const href = `/workbench?url=${encodeURIComponent('https://github.com/' + m.repository)}&ref=${encodeURIComponent(check.source?.commit || m.commit)}&check=${encodeURIComponent(check.id)}${m.node ? `&focus=${encodeURIComponent(m.node)}` : ''}&from=system#${step}`;
   return el('a', { href, className: 'dads-button', 'data-type': 'outline', 'data-size': 'sm' }, label);
 }
 async function restore() {

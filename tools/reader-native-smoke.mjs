@@ -22,6 +22,9 @@ try {
  assert.equal(analysis.guide.calls.find(c=>c.name==='persist').candidates[0].path,'ui/store.js');
  for(const operation of ['overview','plan']){const r=await request({operation,snapshot});assert.equal(r.schema_version,1);assert.equal(r.result.commit,snapshot.commit);}
  const detail=await request({operation:'function',snapshot,path:'ui/app.ts',line:8});assert.equal(detail.result.found,true);
+ const architectureSnapshot=JSON.parse(await readFile(join(root,'tests/fixtures/reader/system.json'),'utf8'));
+ const architecture=await request({operation:'architecture',snapshot:architectureSnapshot});
+ assert.equal(architecture.result.nodes.length,6);assert.ok(architecture.result.edges.some(e=>e.relation_type==='data'));assert.ok(architecture.result.edges.some(e=>e.relation_type==='startup'));
  const inquiry=await request({operation:'inquire',snapshot,question:'persist の入力は？',path:'ui/app.ts',line:8});assert.ok(inquiry.result.functions.length);assert.deepEqual(inquiry.result.failed_files,[]);
  await request({operation:'read',url:'https://example.invalid/a/b',reference:'main'},400);
  await request({operation:'analyze',snapshot:{...snapshot,files:{'ui/app.ts':'x'.repeat(128*1024+1)}},path:null,line:null},400);
@@ -38,5 +41,5 @@ try {
  }
  // 解析対象に含む宣言は起動されず、Node.js用の一時スクリプトも作られない。
  assert.equal(stderr,'');
- console.log(JSON.stringify({checks:['API without Node.js in server PATH','analyze','overview','plan','function','inquire','non-GitHub URL rejected','oversized text rejected'],live}));
+ console.log(JSON.stringify({checks:['API without Node.js in server PATH','architecture roles and relations','analyze','overview','plan','function','inquire','non-GitHub URL rejected','oversized text rejected'],live}));
 } finally {server.kill('SIGTERM');await new Promise(resolve=>server.exitCode!==null||server.signalCode!==null?resolve():server.once('exit',resolve));await rm(temp,{recursive:true,force:true});}

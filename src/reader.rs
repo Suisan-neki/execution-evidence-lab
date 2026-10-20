@@ -255,11 +255,17 @@ fn read_with<F: github::Fetch>(
             detail["loaded_files"] = json!(loaded);
             Ok(json!({"schema_version":1,"snapshot":snapshot,"result":detail}))
         }
-        ReaderRequest::Architecture { .. } => Ok(json!({
-            "schema_version": 1,
-            "result": repository_map::build(&snapshot, &analysis::analyze(&snapshot, budget)),
-            "snapshot": snapshot,
-        })),
+        ReaderRequest::Architecture { .. } => {
+            if snapshot.inventory.iter().any(|e| {
+                !snapshot.files.contains_key(&e.path)
+                    && snapshot::architecture_priority(&e.path).is_some()
+            }) {
+                github::architecture(&fetch()?, &mut snapshot)?;
+            }
+            Ok(
+                json!({"schema_version":1,"result":repository_map::build(&snapshot)?,"snapshot":snapshot}),
+            )
+        }
         ReaderRequest::Plan { .. } => Ok(
             json!({"schema_version":1,"snapshot":snapshot,"result":plan::plan(&snapshot,&analysis::analyze(&snapshot, budget))}),
         ),

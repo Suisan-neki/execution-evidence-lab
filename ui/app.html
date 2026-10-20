@@ -38,14 +38,14 @@
   <section id="system-screen" aria-labelledby="system-heading" hidden>
     <div class="system-heading-row"><div><p class="eyebrow">読み込んだシステム</p><h1 id="system-heading"></h1><p id="repository-version" class="note"></p></div><button id="change-repository" class="dads-button" data-type="text" data-size="sm" type="button">別のリポジトリを読む</button></div>
     <ol class="system-progress" aria-label="進め方"><li>構成を知る</li><li>疑問を整理する</li><li>検証・改善する</li></ol>
-    <p id="system-purpose"></p>
     <div class="system-workspace">
-      <section class="system-map-panel" aria-labelledby="map-heading"><h2 id="map-heading">システム構成図</h2><p>気になる部分を選ぶと、説明を読んで疑問を残せます。</p><p class="note">コードから作った構成の候補です。実際の配置や通信は、まだ確認していません。</p><div id="repository-diagram" class="repository-diagram" aria-busy="false"></div><details class="map-basis"><summary>図の根拠と読み取れなかった範囲</summary><div id="map-basis"></div></details></section>
-      <aside class="concern-panel" aria-labelledby="selected-heading"><h2 id="selected-heading">システム全体について</h2><p id="selected-description">全体への不安や疑問も、そのまま書けます。</p><div id="selected-evidence"></div><button id="select-whole" class="dads-button" data-type="text" data-size="sm" type="button" hidden>システム全体を選ぶ</button><form id="concern-form"><label class="system-label" for="concern-text">不安や疑問</label><textarea id="concern-text" class="system-input" rows="4" placeholder="気になることを、自分の言葉で書いてください。" maxlength="2000" required></textarea><button id="save-concern" class="dads-button" data-type="solid-fill" data-size="md" type="submit">疑問を残す</button></form></aside>
+      <section class="system-map-panel" aria-labelledby="map-heading"><h2 id="map-heading">システム構成図</h2><p>システムの役割と情報の流れを見渡し、気になる部分や接続線を選んでください。</p><p id="map-scope" class="note"></p><div class="diagram-controls" aria-label="図の表示"><button id="diagram-fit" type="button">全体を表示</button><button id="diagram-zoom-in" type="button">拡大</button><button id="diagram-zoom-out" type="button">縮小</button><span class="note">実線：要求・データのやり取り　点線：設定・起動の依存</span></div><div id="repository-diagram" class="repository-diagram" aria-busy="false"></div><p id="diagram-summary" class="note"></p><details class="map-basis"><summary>図の根拠と読み取れなかった範囲</summary><div id="map-basis"></div></details></section>
+      <aside class="concern-panel" aria-labelledby="selected-heading"><div class="component-explanation"><h2 id="selected-heading">システム全体について</h2><p id="selected-description">全体への不安や疑問も、そのまま書けます。</p><div id="selected-details"></div><div id="selected-evidence"></div><button id="select-whole" class="dads-button" data-type="text" data-size="sm" type="button" hidden>システム全体を選ぶ</button></div><form id="concern-form"><label class="system-label" for="concern-text">不安や疑問</label><textarea id="concern-text" class="system-input" rows="4" placeholder="気になることを、自分の言葉で書いてください。" maxlength="2000" required></textarea><button id="save-concern" class="dads-button" data-type="solid-fill" data-size="md" type="submit">疑問を残す</button></form></aside>
     </div>
     <section class="saved-concerns" aria-labelledby="concerns-heading"><h2 id="concerns-heading">整理した疑問</h2><div id="concerns"></div></section>
   </section>
 </main>
+<script src="/ui/repository-elk.js"></script>
 <script type="module" src="/ui/app.js"></script>
 </body>
 </html>

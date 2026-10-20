@@ -306,6 +306,90 @@ pub(super) fn scan(f: &impl Fetch, url: &str, reference: &str) -> io::Result<Sna
 
     Ok(s)
 }
+/// 既存の固定版を保って構成に必要な説明・設定・代表的なコードを補う。
+/// 初回の辞書順で一つのディレクトリだけに偏らないよう、設定と起動・接続を先に読む。
+pub(super) fn architecture(f: &impl Fetch, s: &mut Snapshot) -> io::Result<()> {
+    let mut candidates: Vec<_> = s
+        .inventory
+        .iter()
+        .filter(|e| {
+            !s.files.contains_key(&e.path)
+                && matches!(e.mode.as_str(), "100644" | "100755")
+                && e.size.is_none_or(|n| n <= MAX_FILE_BYTES)
+        })
+        .filter_map(|e| {
+            snapshot::architecture_priority(&e.path)
+                .map(|priority| (priority, e.path.matches('/').count(), e.path.clone()))
+        })
+        .collect();
+    candidates.sort();
+    let mut size: usize = s
+        .files
+        .values()
+        .filter_map(Value::as_str)
+        .map(str::len)
+        .sum();
+    let selected: Vec<_> = candidates
+        .into_iter()
+        .take(48)
+        .filter_map(|(_, _, path)| {
+            let estimate = s
+                .inventory
+                .iter()
+                .find(|e| e.path == path)
+                .and_then(|e| e.size)
+                .unwrap_or(MAX_FILE_BYTES);
+            if size + estimate > 6 * 1024 * 1024 {
+                None
+            } else {
+                size += estimate;
+                Some(path)
+            }
+        })
+        .collect();
+    let results = std::thread::scope(|scope| -> io::Result<Vec<_>> {
+        let mut workers = vec![];
+        for offset in 0..selected.len().min(4) {
+            let selected = &selected;
+            let snapshot = &*s;
+            workers.push(scope.spawn(move || {
+                selected
+                    .iter()
+                    .enumerate()
+                    .skip(offset)
+                    .step_by(4)
+                    .map(|(i, path)| (i, path.clone(), text(f, snapshot, path)))
+                    .collect::<Vec<_>>()
+            }));
+        }
+        let mut results = vec![];
+        for worker in workers {
+            results.extend(
+                worker
+                    .join()
+                    .map_err(|_| io::Error::other("構成の読取処理が終了しました"))?,
+            );
+        }
+        results.sort_by_key(|(i, _, _)| *i);
+        Ok(results)
+    })?;
+    for (_, path, result) in results {
+        match result {
+            Ok(text) => {
+                s.omitted.retain(|e| e.path != path);
+                s.files.insert(path, Value::String(text));
+            }
+            Err(e) => {
+                s.omitted.retain(|e| e.path != path);
+                s.omitted.push(Omitted {
+                    path,
+                    reason: e.to_string(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
 fn timestamp() -> io::Result<String> {
     // UTCの暦日へ変換する。対象コードの実行や外部コマンドは使わない。
     let t = SystemTime::now()

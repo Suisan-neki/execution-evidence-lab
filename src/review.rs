@@ -459,6 +459,15 @@ fn handle_connection_mode(
             .and_then(crate::reader::read);
         return result_response(stream, result);
     }
+    if request.method == "GET" && request.path == "/ui/repository-elk.js" {
+        return respond_encoded(
+            stream,
+            200,
+            "text/javascript; charset=utf-8",
+            include_bytes!("../ui/repository-generated/elk.js.gz"),
+            "Content-Encoding: gzip\r\n",
+        );
+    }
     if request.method == "GET" && request.path == "/ui/architecture-likec4.js" {
         return respond_encoded(
             stream,

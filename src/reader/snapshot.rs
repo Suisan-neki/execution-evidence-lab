@@ -104,11 +104,28 @@ pub fn readme(p: &str) -> bool {
 pub fn manifest(p: &str) -> bool {
     rx!(r"(^|/)(Cargo\.toml|package\.json|pyproject\.toml|requirements[^/]*\.txt|setup\.py|setup\.cfg|Makefile|tox\.ini|pytest\.ini)$").is_match(p)
 }
+/// 構成の説明と、サービス・接続の定義。認証情報を含みうる.envは読取候補にしない。
+pub fn architecture_config(p: &str) -> bool {
+    rx!(r"(?i)(^|/)(docker-compose[^/]*|compose[^/]*)\.ya?ml$|(^|/)(Dockerfile[^/]*|architecture[^/]*\.md|system[-_]design\.md)$|\.(tf|tf\.json)$|(^|/)(cdk|infra|infrastructure|k8s|kubernetes)/.*\.(ts|ya?ml|json)$").is_match(p)
+}
+pub fn architecture_priority(p: &str) -> Option<u8> {
+    if test_file(p) || !readable(p) {
+        return None;
+    }
+    if architecture_config(p) { Some(0) }
+    else if readme(p) || manifest(p) { Some(1) }
+    else if rx!(r"(?i)(^|/)(main|app|server|index|api|db|database|storage|auth|cognito|client|config|settings)\.(rs|py|[cm]?[jt]sx?)$|(^|/)(App|main)\.vue$").is_match(p) { Some(2) }
+    else if p.ends_with(".html") { Some(3) }
+    else if source(p) { Some(4) }
+    else { None }
+}
 pub fn readable(p: &str) -> bool {
     !rx!(r"(^|/)(node_modules|vendor|target|dist|build|\.git)(/|$)").is_match(p)
         && (source(p)
             || readme(p)
             || manifest(p)
+            || architecture_config(p)
+            || p.ends_with(".html")
             || rx!(r"^\.github/workflows/[^/]+\.ya?ml$|(^|/)tests?/[^/]+\.t$").is_match(p))
 }
 pub fn test_file(p: &str) -> bool {
@@ -120,7 +137,7 @@ pub fn priority(p: &str) -> u8 {
         0
     } else if manifest(p) && !p.contains('/') {
         1
-    } else if rx!(
+    } else if architecture_config(p) || rx!(
         r"(^|/)(main\.(rs|py|[jt]sx?)|lib\.rs|server\.[cm]?[jt]s|app\.[jt]sx?|index\.[cm]?[jt]sx?)$"
     )
     .is_match(p)
