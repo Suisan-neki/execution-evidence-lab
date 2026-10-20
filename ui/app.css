@@ -157,3 +157,52 @@ a:focus-visible, button:focus-visible, select:focus-visible, summary:focus-visib
   .journey-actions .dads-button { min-width: 0; white-space: normal; }
   .step-guide { padding: 0.75rem; }
 }
+
+/* リポジトリから始める利用者向けの画面。 */
+.system-header { display:flex; justify-content:space-between; align-items:center; gap:1rem; }
+.system-header .site-title { color:inherit; text-decoration:none; }
+.system-journey { max-width:80rem; padding-top:1.5rem; padding-bottom:4rem; }
+.system-journey h1 { font-size:1.8rem; line-height:1.5; }
+.system-journey h2 { font-size:1.25rem; }
+.system-journey #audience-screen, .system-journey #repository-screen { max-width:48rem; margin:2rem auto; }
+.system-journey #status:not(:empty) { padding:.6rem 0; color:var(--color-key-900); }
+.audience-options { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin:2rem 0; }
+.audience-card { display:flex; flex-direction:column; gap:.75rem; text-align:left; padding:1.5rem; border:1px solid var(--color-neutral-solid-gray-420); border-radius:.75rem; background:white; color:inherit; font:inherit; cursor:pointer; }
+.audience-card strong { font-size:1.35rem; color:var(--color-key-900); }
+.audience-card:hover { background:var(--color-key-50); border-color:var(--color-key-900); }
+.system-label { display:block; font-weight:bold; margin:1.25rem 0 .5rem; }
+.system-input { display:block; width:100%; font:inherit; padding:.75rem; border:1px solid var(--color-neutral-solid-gray-600); border-radius:.4rem; color:inherit; background:white; }
+.system-input:focus-visible { outline:3px solid var(--color-key-900); outline-offset:2px; }
+.repository-options { margin:1.5rem 0; }
+.input-error { color:var(--color-semantic-error-1); }
+.system-heading-row { display:flex; gap:1rem; justify-content:space-between; align-items:center; }
+.system-heading-row h1 { margin:.25rem 0; overflow-wrap:anywhere; }
+.system-heading-row .eyebrow { margin-top:0; }
+.system-progress { display:flex; gap:1.5rem; flex-wrap:wrap; padding:.75rem 0 .75rem 1.5rem; border-bottom:1px solid var(--color-neutral-solid-gray-200); margin:1rem 0; }
+.system-progress li { padding-right:1.25rem; font-size:.9375rem; }
+.system-workspace { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(19rem,1fr); gap:1.5rem; align-items:start; margin-top:1.5rem; }
+.system-map-panel, .concern-panel { min-width:0; }
+.system-map-panel h2, .concern-panel h2 { margin-top:0; }
+.repository-diagram { background:var(--color-neutral-solid-gray-50); border:1px solid var(--color-neutral-solid-gray-200); border-radius:.75rem; padding:.5rem; overflow:auto; max-height:42rem; margin:1rem 0; }
+.repository-diagram svg { display:block; width:100%; min-width:28rem; height:auto; }
+.map-edge { stroke:#607386; stroke-width:1.8; fill:none; }
+.map-node { cursor:pointer; }
+.map-node rect { fill:white; stroke:#a5b3c1; stroke-width:1.5; }
+.map-node:hover rect { fill:#f5f8fc; stroke:#5c7997; }
+.map-node[aria-pressed="true"] rect { fill:#edf3fc; stroke:#0055b8; stroke-width:3; }
+.map-node:focus-visible rect { stroke:#111; stroke-width:4; }
+.map-node-title { font:600 16px sans-serif; fill:#172a40; }
+.map-node-file { font:12px sans-serif; fill:#4e5d6c; }
+.map-basis { font-size:.875rem; color:var(--color-neutral-solid-gray-800); }
+.concern-panel { border:1px solid var(--color-neutral-solid-gray-200); border-radius:.75rem; padding:1.25rem; position:sticky; top:1rem; }
+.concern-panel details { font-size:.875rem; margin:.75rem 0; }
+.concern-panel form .dads-button { margin-top:1rem; }
+.ai-placeholder { margin-top:1.5rem; font-size:.8125rem; }
+.saved-concerns { margin-top:2.5rem; border-top:1px solid var(--color-neutral-solid-gray-200); padding-top:.75rem; }
+.concern-card { border:1px solid var(--color-neutral-solid-gray-200); border-radius:.5rem; padding:1.25rem; margin:1rem 0; }
+.concern-card h3 { font-size:1.1rem; margin:.25rem 0 1rem; white-space:pre-wrap; }
+.concern-card .dads-button { margin:.5rem .75rem .5rem 0; }
+.concern-location { font-size:.8125rem; color:var(--color-key-900); }
+.concern-card form { margin-top:1rem; max-width:44rem; }
+@media(max-width:60rem) { .system-workspace { grid-template-columns:minmax(0,1fr); } .concern-panel { position:static; } }
+@media(max-width:40rem) { .audience-options { grid-template-columns:1fr; } .system-heading-row, .system-header { align-items:flex-start; flex-direction:column; } .system-journey h1 { font-size:1.5rem; } .system-progress { gap:.5rem; } .system-progress li { padding-right:.25rem; } .repository-diagram svg { min-width:26rem; } }

@@ -88,8 +88,11 @@ fn print_result(result: &RunResult) {
 }
 fn run(args: &[String]) -> io::Result<()> {
     let Some(command) = args.first() else {
-        println!("{HELP}");
-        return Ok(());
+        return review::serve_app(
+            PathBuf::from("data/app"),
+            8765,
+            execution_evidence_lab::execution::ExecutionMode::Local,
+        );
     };
     match command.as_str() {
         "help" | "--help" | "-h" if args.len() == 1 => println!("{HELP}"),

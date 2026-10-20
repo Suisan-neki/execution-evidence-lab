@@ -1,6 +1,6 @@
 // 実APIを使い、モード・説明表示・候補・確認資料と参照アプリの画面を確認する。
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
@@ -25,12 +25,14 @@ async function stop(child) {
 try {
   browser = await chromium.launch({ headless: true, executablePath: process.env.REVIEW_BROWSER_EXECUTABLE || undefined, args: ['--no-sandbox'] });
   await mkdir(join(root, 'test-results'), { recursive: true });
-  const app = await server(binary, ['app', join(temp, 'app'), '--port', '0']);
+  const casePath = join(temp, 'case');
+  execFileSync(binary, ['case', 'init', casePath, '--template', 'general', '--id', 'modes-test', '--title', '架空のモード設定確認']);
+  const app = await server(binary, ['review', casePath, '--port', '0']);
   const context = await browser.newContext({ acceptDownloads: true, viewport: { width: 1440, height: 1000 } });
   page = await context.newPage(); const errors = [];
   page.on('pageerror', e => errors.push(e.message)); page.setDefaultTimeout(10000);
-  await page.goto(app.url);
-  await page.locator('#secondary-tools > summary').click();
+  // 旧モード・資料の部品は開発者向けのレビュー画面で確認する。
+  await page.goto(app.url + '/architecture');
   const panel = page.locator('#review-tools');
   await panel.getByText('現在は汎用モードです。', { exact: false }).waitFor();
   const token = await page.locator('meta[name=review-token]').getAttribute('content');

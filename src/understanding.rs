@@ -21,6 +21,10 @@ pub enum UnderstandRequest {
         repository: String,
         commit: String,
     },
+    Architecture {
+        repository: String,
+        commit: String,
+    },
     Inquire {
         repository: String,
         commit: String,
@@ -154,6 +158,11 @@ impl Store {
             UnderstandRequest::Overview { repository, commit } => {
                 let snapshot = self.load(&repository, &commit)?;
                 let output = reader::read(ReaderRequest::Overview { snapshot })?;
+                (output["snapshot"].clone(), output)
+            }
+            UnderstandRequest::Architecture { repository, commit } => {
+                let snapshot = self.load(&repository, &commit)?;
+                let output = reader::read(ReaderRequest::Architecture { snapshot })?;
                 (output["snapshot"].clone(), output)
             }
             UnderstandRequest::Inquire {

@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="review-token" content="__REVIEW_TOKEN__">
+<title>検証の詳細設定</title>
+<style>__APP_STYLE__</style>
+</head>
+<body>
+<a class="skip-link" href="#main">本文へ移動</a>
+<header class="site-header">
+  <div class="container">
+    <p class="site-title">検証の詳細設定</p><p><a id="back-to-system" href="/">構成図と疑問に戻る</a></p>
+    <p class="site-purpose">仕組みを知る → 確かめたい動作を決める → 実際に試す → 結果を見る。順に進めます。</p>
+  </div>
+</header>
+
+<div id="current" class="current-bar" hidden>
+  <div class="container">
+    <h2 class="dads-u-visually-hidden">現在の対象</h2>
+    <dl class="current-list">
+      <div><dt>リポジトリ</dt><dd id="current-repository"></dd></div>
+      <div><dt>コミット</dt><dd id="current-commit"></dd></div>
+      <div><dt>関数</dt><dd id="current-function">未選択</dd></div>
+      <div><dt>期待</dt><dd id="current-check">未選択</dd></div>
+      <div><dt>試行</dt><dd id="current-trial">未実行</dd></div>
+    </dl>
+  </div>
+</div>
+
+
+<main id="main" class="container journey" tabindex="-1">
+  <div id="mode-switch" class="mode-bar"></div>
+      <div id="status" class="status-line" role="status" aria-live="polite"></div>
+  <div id="alert" role="alert"></div>
+
+  <section id="open" aria-labelledby="open-heading" class="panel" tabindex="-1">
+    <div id="target-choice"><p class="eyebrow">はじめに</p>
+    <h1 id="open-heading" class="dads-u-std-24B-150">何を確かめますか</h1>
+    <div class="entry-options">
+      <section class="entry-card"><h2>まずデモで試す</h2><p>架空データの送信と保存を試します。失敗した場合や、記録を取得できなかった場合も比べられます。</p><a class="dads-button" data-type="outline" data-size="md" href="/demo#1">デモを始める</a></section>
+      <section class="entry-card"><h2>自分のソフトウェアを調べる</h2><p>公開GitHubのURLからコードを読みます。この操作では対象のコードを実行しません。</p><a class="dads-button" data-type="outline" data-size="md" href="#repository" id="open-repository">GitHubのURLを入力する</a></section>
+    </div>
+    </div>
+    <div id="repository-input" hidden><h1 id="repository-heading" class="dads-u-std-24B-150">GitHubのリポジトリを開く</h1>
+    <form id="open-form" novalidate>
+      <div class="dads-form-control-label" data-size="md">
+        <label class="dads-form-control-label__label" for="repo-url">
+          GitHubのリポジトリのURL
+          <span class="dads-form-control-label__requirement" data-required="true">※必須</span>
+        </label>
+        <p id="repo-url-support" class="dads-form-control-label__support-text">例: https://github.com/sjl/t 。公開されているリポジトリだけを読めます。</p>
+        <div>
+          <span class="dads-input-text">
+            <input id="repo-url" class="dads-input-text__input" type="url" data-size="md" autocomplete="url" required aria-describedby="repo-url-error repo-url-support">
+            <span id="repo-url-error" class="dads-input-text__error-text" hidden></span>
+          </span>
+        </div>
+      </div>
+      <div class="dads-form-control-label" data-size="md">
+        <label class="dads-form-control-label__label" for="repo-ref">
+          ブランチ、タグ、またはコミット
+          <span class="dads-form-control-label__requirement">任意</span>
+        </label>
+        <p id="repo-ref-support" class="dads-form-control-label__support-text">空欄のときは既定のブランチを読みます。読んだ時点のコミットに固定し、以降の説明・試験はそのコミットを対象にします。</p>
+        <div>
+          <span class="dads-input-text">
+            <input id="repo-ref" class="dads-input-text__input" type="text" data-size="md" aria-describedby="repo-ref-support">
+          </span>
+        </div>
+      </div>
+      <p class="note">URLを入力して読み込んでも、対象のコードやインストール用のスクリプトは実行しません。実行するのは「実際に試す」で内容を確認し、開始を選んだときだけです。</p>
+      <button class="dads-button" data-type="solid-fill" data-size="lg" type="submit">読み込む</button>
+    </form>
+    <p><a href="#open" id="back-to-choice">対象の選択に戻る</a></p></div>
+  </section>
+
+  <nav id="steps" class="dads-step-navigation steps" data-orientation="horizontal" data-size="small" aria-label="手順" hidden>
+    <ul>
+      <li class="dads-step-navigation__step" data-first data-step="understand">
+        <a class="step-link" href="#understand"><span class="dads-step-navigation__header"><span class="dads-u-visually-hidden">ステップ</span><span class="dads-step-navigation__number">1</span><span class="dads-step-navigation__title">ソフトウェアを理解する</span></span></a>
+      </li>
+      <li class="dads-step-navigation__step" data-step="expect">
+        <a class="step-link" href="#expect"><span class="dads-step-navigation__header"><span class="dads-u-visually-hidden">ステップ</span><span class="dads-step-navigation__number">2</span><span class="dads-step-navigation__title">期待する動作を確認する</span></span></a>
+      </li>
+      <li class="dads-step-navigation__step" data-step="trial">
+        <a class="step-link" href="#trial"><span class="dads-step-navigation__header"><span class="dads-u-visually-hidden">ステップ</span><span class="dads-step-navigation__number">3</span><span class="dads-step-navigation__title">実際に試す</span></span></a>
+      </li>
+      <li class="dads-step-navigation__step" data-last data-step="result">
+        <a class="step-link" href="#result"><span class="dads-step-navigation__header"><span class="dads-u-visually-hidden">ステップ</span><span class="dads-step-navigation__number">4</span><span class="dads-step-navigation__title">結果を確認する</span></span></a>
+      </li>
+    </ul>
+  </nav>
+
+  <div id="step-guide" class="step-guide" hidden></div>
+  <div id="person" class="person" hidden></div>
+
+  <div class="layout">
+    <div class="layout-main">
+      <section id="understand" class="step-panel" aria-labelledby="understand-heading" hidden tabindex="-1">
+        <h2 id="understand-heading" class="dads-u-std-24B-150">1. ソフトウェアを理解する</h2>
+        <div id="understand-body"></div>
+        <section class="panel" aria-labelledby="ask-heading">
+          <h3 id="ask-heading" class="dads-u-std-20B-150">コードに質問する</h3>
+          <form id="ask-form" novalidate>
+            <div class="dads-form-control-label" data-size="md">
+              <label class="dads-form-control-label__label" for="question">質問</label>
+              <p id="question-support" class="dads-form-control-label__support-text">例:「タスクはどこに保存される？」「保存できなかったらどうなる？」。関数名を入れると、その関数を詳しく調べます。読み取っていないファイルが必要なときは、最大8件まで追加で読みます。</p>
+              <div><span class="dads-textarea"><textarea id="question" class="dads-textarea__textarea" rows="2" aria-describedby="question-support"></textarea></span></div>
+            </div>
+            <div class="button-row">
+              <button class="dads-button" data-type="solid-fill" data-size="md" type="submit">調べる</button>
+              <button id="ask-ai" class="dads-button" data-type="outline" data-size="md" type="button" hidden>AIの説明も求める</button>
+            </div>
+            <p id="ai-status" class="note"></p>
+          </form>
+          <div id="answer" aria-live="polite"></div>
+        </section>
+      </section>
+
+      <section id="expect" class="step-panel" aria-labelledby="expect-heading" hidden tabindex="-1">
+        <h2 id="expect-heading" class="dads-u-std-24B-150">2. 期待する動作を確認する</h2>
+        <div id="expect-body"></div>
+      </section>
+
+      <section id="trial" class="step-panel" aria-labelledby="trial-heading" hidden tabindex="-1">
+        <h2 id="trial-heading" class="dads-u-std-24B-150">3. 実際に試す</h2>
+        <div id="trial-body"></div>
+      </section>
+
+      <section id="result" class="step-panel" aria-labelledby="result-heading" hidden tabindex="-1">
+        <h2 id="result-heading" class="dads-u-std-24B-150">4. 結果を確認する</h2>
+        <div id="result-body"></div>
+      </section>
+    </div>
+
+    <aside id="code" class="code-panel" aria-labelledby="code-heading" hidden>
+      <h2 id="code-heading" class="dads-u-std-20B-150">コード</h2>
+      <p id="code-meta" class="note"></p>
+      <div class="button-row">
+        <button id="code-function" class="dads-button" data-type="outline" data-size="sm" type="button">この行の関数を調べる</button>
+        <button id="code-link" class="dads-button" data-type="outline" data-size="sm" type="button">この行を期待に対応づける</button>
+        <button id="code-close" class="dads-button" data-type="text" data-size="sm" type="button">閉じる</button>
+      </div>
+      <div id="code-view" class="code-view" tabindex="0" role="region" aria-label="コードの本文"></div>
+    </aside>
+  </div>
+  <details class="secondary-tools" id="secondary-tools" hidden><summary>確認項目・変更履歴・共有資料</summary><section id="review-tools" aria-label="確認モードと確認資料"></section></details>
+  <nav class="journey-links" aria-label="補助操作"><a href="#open" id="change-target" hidden>対象を選び直す</a></nav>
+</main>
+<footer class="site-footer">
+  <div class="container">
+    <p>画面の部品と色・文字の指定は、デジタル庁デザインシステム（@digital-go-jp/design-tokens 2.0.1、design-system-example-components-html af8b665）を使っています。<a href="/demo#1">保存の練習用デモ</a>もこのブラウザから試せます。</p>
+  </div>
+</footer>
+<script type="module" src="/ui/workbench.js"></script>
+</body>
+</html>

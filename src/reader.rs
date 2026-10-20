@@ -17,6 +17,7 @@ mod github;
 mod inquiry;
 mod overview;
 mod plan;
+mod repository_map;
 mod snapshot;
 fn invalid(message: impl Into<String>) -> std::io::Error {
     std::io::Error::new(std::io::ErrorKind::InvalidInput, message.into())
@@ -46,6 +47,9 @@ pub enum ReaderRequest {
         reference: String,
     },
     Overview {
+        snapshot: Value,
+    },
+    Architecture {
         snapshot: Value,
     },
     /// 質問・選んだ関数に関係する箇所を集める。必要な未読ファイルを最大8件読む。
@@ -127,6 +131,7 @@ fn read_with<F: github::Fetch>(
         ReaderRequest::Analyze { snapshot, .. }
         | ReaderRequest::File { snapshot, .. }
         | ReaderRequest::Overview { snapshot }
+        | ReaderRequest::Architecture { snapshot }
         | ReaderRequest::Inquire { snapshot, .. }
         | ReaderRequest::Function { snapshot, .. }
         | ReaderRequest::Plan { snapshot } => {
@@ -250,6 +255,11 @@ fn read_with<F: github::Fetch>(
             detail["loaded_files"] = json!(loaded);
             Ok(json!({"schema_version":1,"snapshot":snapshot,"result":detail}))
         }
+        ReaderRequest::Architecture { .. } => Ok(json!({
+            "schema_version": 1,
+            "result": repository_map::build(&snapshot, &analysis::analyze(&snapshot, budget)),
+            "snapshot": snapshot,
+        })),
         ReaderRequest::Plan { .. } => Ok(
             json!({"schema_version":1,"snapshot":snapshot,"result":plan::plan(&snapshot,&analysis::analyze(&snapshot, budget))}),
         ),

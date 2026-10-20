@@ -42,7 +42,7 @@ try {
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto(url);
+  await page.goto(url + '/workbench');
   const token = await page.locator('meta[name="review-token"]').getAttribute('content');
   const caseView = async () => (await context.request.get(url + '/api/v1/case', { headers: { 'X-Review-Token': token } })).json();
   const shot = name => page.screenshot({ path: join(output, `dicom-${name}.png`), fullPage: true });

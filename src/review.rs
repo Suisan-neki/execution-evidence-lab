@@ -36,18 +36,25 @@ pub fn explorer_html() -> String {
 
 /// 理解と試験の画面。デジタル庁デザインシステムのCSSを同じ応答に含める。
 pub fn app_html(token: &str) -> String {
-    include_str!("../ui/app.html")
-        .replace(
-            "__APP_STYLE__",
-            &[
-                include_str!("../ui/dads/tokens.css"),
-                include_str!("../ui/dads/components.css"),
-                include_str!("../ui/app.css"),
-                include_str!("../ui/review-tools.css"),
-            ]
-            .concat(),
-        )
-        .replace("__REVIEW_TOKEN__", token)
+    styled_app(include_str!("../ui/app.html"), token)
+}
+
+fn workbench_html(token: &str) -> String {
+    styled_app(include_str!("../ui/workbench.html"), token)
+}
+
+fn styled_app(html: &str, token: &str) -> String {
+    html.replace(
+        "__APP_STYLE__",
+        &[
+            include_str!("../ui/dads/tokens.css"),
+            include_str!("../ui/dads/components.css"),
+            include_str!("../ui/app.css"),
+            include_str!("../ui/review-tools.css"),
+        ]
+        .concat(),
+    )
+    .replace("__REVIEW_TOKEN__", token)
 }
 
 pub fn demo_html(token: &str) -> String {
@@ -294,7 +301,7 @@ fn handle_connection_mode(
         && let Some((path, _)) = request.path.split_once('?')
         && matches!(
             path,
-            "/" | "/demo" | "/review" | "/architecture" | "/explore"
+            "/" | "/demo" | "/review" | "/architecture" | "/explore" | "/workbench"
         )
     {
         request.path = path.to_owned();
@@ -366,12 +373,36 @@ fn handle_connection_mode(
     }
     if let Some(app) = app {
         match (request.method.as_str(), request.path.as_str()) {
-            ("GET", "/") => {
+            ("GET", "/" | "/architecture") => {
                 return respond(
                     stream,
                     200,
                     "text/html; charset=utf-8",
                     app_html(token).as_bytes(),
+                );
+            }
+            ("GET", "/workbench") => {
+                return respond(
+                    stream,
+                    200,
+                    "text/html; charset=utf-8",
+                    workbench_html(token).as_bytes(),
+                );
+            }
+            ("GET", "/ui/workbench.js") => {
+                return respond(
+                    stream,
+                    200,
+                    "text/javascript; charset=utf-8",
+                    include_str!("../ui/workbench.js").as_bytes(),
+                );
+            }
+            ("GET", "/ui/repository-diagram.js") => {
+                return respond(
+                    stream,
+                    200,
+                    "text/javascript; charset=utf-8",
+                    include_str!("../ui/repository-diagram.js").as_bytes(),
                 );
             }
             ("GET", "/review") => {
