@@ -1,5 +1,6 @@
 //! GitDiagramの構成把握の方針を踏襲し、根拠付きの共通モデルを生成・保存する。
 mod context;
+pub mod dialogue;
 mod model;
 #[cfg(test)]
 mod tests;

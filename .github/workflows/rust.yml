@@ -35,6 +35,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:queue-architecture
       - run: npm run test:journey
+      - run: npm run test:dialogue
       - run: npm run test:modes
       - name: Operate the app against the public repository sjl/t
         env:

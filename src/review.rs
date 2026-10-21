@@ -92,6 +92,7 @@ pub fn architecture_html(token: &str) -> String {
 pub struct App {
     pub store: crate::understanding::Store,
     pub ai: Option<crate::ai::Config>,
+    pub dify: Option<crate::system_diagram::dialogue::DifyConfig>,
     pub demo_directory: PathBuf,
 }
 
@@ -450,6 +451,32 @@ fn handle_connection_mode(
                         });
                 return result_response(stream, result);
             }
+            ("POST", "/api/v1/system-diagram/dialogue/read") => {
+                let result = serde_json::from_slice::<crate::system_diagram::dialogue::Binding>(
+                    &request.body,
+                )
+                .map_err(io::Error::other)
+                .and_then(|binding| crate::system_diagram::dialogue::read(&app.store, binding));
+                return result_response(stream, result);
+            }
+            ("POST", "/api/v1/system-diagram/dialogue") => {
+                let result = serde_json::from_slice::<crate::system_diagram::dialogue::Message>(
+                    &request.body,
+                )
+                .map_err(io::Error::other)
+                .and_then(|message| {
+                    let directory =
+                        directory.ok_or_else(|| io::Error::other("事例の保存先がありません"))?;
+                    crate::system_diagram::dialogue::send(
+                        app.ai.as_ref(),
+                        app.dify.as_ref(),
+                        &app.store,
+                        directory,
+                        message,
+                    )
+                });
+                return result_response(stream, result);
+            }
             ("POST", "/api/v1/ai") => {
                 let result = serde_json::from_slice::<crate::ai::AiRequest>(&request.body)
                     .map_err(io::Error::other)
@@ -801,6 +828,7 @@ pub fn serve_app(
     let app = App {
         store: crate::understanding::Store::new(data.join("snapshots"))?,
         ai: crate::ai::Config::for_app(&data)?,
+        dify: crate::system_diagram::dialogue::DifyConfig::for_app(&data)?,
         demo_directory,
     };
     println!(

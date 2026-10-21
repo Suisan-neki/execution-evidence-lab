@@ -19,7 +19,8 @@
     "demo:queue": "node tools/queue-demo.mjs",
     "test:modes": "node tools/modes-smoke.mjs",
     "test:queue-architecture": "node tools/queue-architecture-smoke.mjs",
-    "test:journey": "node tools/journey-smoke.mjs"
+    "test:journey": "node tools/journey-smoke.mjs",
+    "test:dialogue": "node tools/dialogue-smoke.mjs"
   },
   "devDependencies": {
     "elkjs": "0.12.0",

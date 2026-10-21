@@ -235,4 +235,15 @@ a:focus-visible, button:focus-visible, select:focus-visible, summary:focus-visib
 .system-overview p { white-space:pre-wrap; }
 #concern-ai-answer p { white-space:pre-wrap; }
 #concern-ai-answer a { display:block; overflow-wrap:anywhere; margin:.3rem 0; }
+#concern-ai-answer { grid-column:1 / -1; border-top:1px solid var(--color-neutral-solid-gray-200); padding-top:1rem; }
+.dialogue-history { max-height:24rem; overflow:auto; }
+.dialogue-user { background:#edf3fc; padding:.75rem; border-radius:.5rem; }
+.dialogue-reply { white-space:pre-wrap; overflow-wrap:anywhere; }
+.dialogue-record { border-left:4px solid #0055b8; padding:0 1rem; margin:1.5rem 0; }
+.dialogue-record dt { font-weight:700; margin-top:.75rem; }
+.dialogue-record dd { margin:.25rem 0 0; white-space:pre-wrap; }
+.dialogue-record li { margin-bottom:.75rem; }
+.dialogue-handoff { max-width:48rem; }
+.map-node[data-discussion="true"] rect { stroke:#0055b8; stroke-width:3; stroke-dasharray:7 3; }
+.map-connection[data-discussion="true"] .map-edge { stroke:#0055b8; stroke-width:4; }
 .map-role-actor > rect { fill:#edf3fc; }

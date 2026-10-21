@@ -118,7 +118,7 @@ fn verified_ranges(v: &Value, out: &mut Vec<(String, u64, u64)>) {
         _ => {}
     }
 }
-fn excerpts(
+pub(crate) fn excerpts(
     snapshot: &Value,
     inquiry: &Value,
     limit: usize,

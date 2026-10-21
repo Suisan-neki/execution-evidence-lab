@@ -11,6 +11,22 @@ export async function startSyntheticArchitectureAI() {
     if (body.messages[0].content.includes('EEL_CONNECTION_TEST')) {
       res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ model: 'synthetic-architecture', choices: [{ message: { content: '{"connected":true}' } }] })); return;
     }
+    if (body.messages[0].content.includes('JSONは {"answer"')) {
+      const input = JSON.parse(body.messages[1].content);
+      const record = JSON.parse(input.record).record;
+      const response = { answer: record.expectation ? '前の会話で確認した人・操作・期待を引き継ぎ、未実施の検証案を整理しました。保存表示と保存先の状態は別に確認します。' : '保存の失敗を利用者が確認できるか、期待する動作と実際の結果を分けて確かめます。どんな動作を期待していますか？' };
+      res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({model:'synthetic-dialogue',choices:[{message:{content:JSON.stringify(response)}}]})); return;
+    }
+    if (body.messages[0].content.includes('request_id')) {
+      state.questions++;
+      const query = JSON.parse(body.messages[1].content.split('今回の入力:\n')[1]);
+      const context = JSON.parse(body.messages[1].content.split('今回の入力:\n')[0].replace('調査資料:\n', '').trim());
+      const ready = query.message.includes('開き直して') || query.previous_record?.expectation;
+      const record = {concern:query.previous_record?.concern || query.message, actor:ready?'私':'', operation:ready?'保存して画面を開き直す':'', expectation:ready?'保存後に画面を開き直しても同じ内容を読める':'',related_object_ids:context.architecture.nodes.filter(n=>['api','database'].includes(n.role)).map(n=>n.id),claims:[{text:'記録管理のAPIが定義されています。',refs:[{path:'server/main.py',line:3,end_line:3}]}],unknowns:['再読込時の表示は未検証です。'],test_plan:ready?[{operation:'架空のメモを保存して画面を開き直す',expected:'同じ内容を読める',observe:'保存時の表示と開き直した後の本文'}]:[],reported_observations:[],improvement_ideas:[]};
+      if (state.mode === 'bad-dialogue' || state.dialogueMode === 'object') record.related_object_ids = ['invented_database'];
+      if (state.dialogueMode === 'ref') record.claims[0].refs[0].line = 999;
+      res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({model:'synthetic-dialogue',choices:[{message:{content:JSON.stringify({request_id:state.dialogueMode === 'stale' ? 'previous-request' : query.request_id,record})}}]})); return;
+    }
     const question = body.messages[0].content.includes('test_candidates');
     if (question) state.questions++; else state.calls++;
     const result = structuredClone(graph);

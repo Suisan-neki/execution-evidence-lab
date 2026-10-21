@@ -1,7 +1,7 @@
 import { mountDiagram, objectTitle, selectDiagramObject } from '/ui/repository-diagram.js';
 const $ = id => document.getElementById(id);
 const token = document.querySelector('meta[name="review-token"]').content;
-const state = { audience: null, source: null, overview: null, graph: null, selected: null, view: null, sequence: 0, loading: false, saving: false, draftKey: null, preparation: null };
+const state = { audience: null, source: null, overview: null, graph: null, selected: null, view: null, sequence: 0, loading: false, saving: false, draftKey: null, preparation: null, dialogue: null, dialogueSequence: 0 };
 const AUDIENCE = { operator: '非技術者', developer: '技術者' };
 function el(tag, attrs = {}, ...children) {
   const n = document.createElement(tag);
@@ -41,7 +41,7 @@ function concernLabel(object) {
   return object.object_type === 'relation' ? `${state.graph.nodes.find(n => n.id === object.from)?.title} → ${state.graph.nodes.find(n => n.id === object.to)?.title}：${object.title}` : object.title;
 }
 function selectNode(node) {
-  saveDraft(); state.selected = node; state.draftKey = draftKey(); $('concern-ai-answer').replaceChildren();
+  saveDraft(); state.selected = node; state.draftKey = draftKey(); state.dialogue = null; $('concern-ai-answer').replaceChildren();
   $('concern-text').value = remembered(state.draftKey) || '';
   $('selected-heading').textContent = node?.object_type === 'relation' ? `${state.graph.nodes.find(n => n.id === node.from)?.title} → ${state.graph.nodes.find(n => n.id === node.to)?.title}` : objectTitle(node, false);
   $('selected-description').textContent = (state.audience === 'developer' && node?.technical_description ? node.technical_description : node?.description) || state.graph?.overview?.workflow || '全体への不安や疑問も、そのまま書けます。';
@@ -83,10 +83,19 @@ function selectNode(node) {
     }
     evidence.append(d);
   }
+  if (state.source && state.graph) {
+    const url = new URL(location.href);
+    if (url.searchParams.get('url') === 'https://github.com/' + state.source.repository && url.searchParams.get('ref') === state.source.commit && url.searchParams.get('diagram') === state.graph.model_revision) {
+      if (node) url.searchParams.set('focus', node.id); else url.searchParams.delete('focus');
+      history.replaceState(null, '', url.pathname + url.search);
+    }
+  }
+  run(restoreDialogue);
 }
 $('concern-text').addEventListener('input', saveDraft);
 async function renderGraph() {
   await mountDiagram($('repository-diagram'), state.graph, { technical: state.audience === 'developer', selected: state.selected?.id, onSelect: selectNode });
+  highlightRelated();
 }
 function setAudience(audience) {
   state.audience = audience; remember('eel-audience', audience);
@@ -101,7 +110,7 @@ function setAudience(audience) {
 }
 for (const b of document.querySelectorAll('[data-audience]')) b.addEventListener('click', () => setAudience(b.dataset.audience));
 $('change-audience').addEventListener('click', () => { saveDraft(); screen('audience'); });
-$('change-repository').addEventListener('click', () => { saveDraft(); state.sequence++; state.loading = false; $('load-repository').disabled = false; status(''); state.source = null; state.overview = null; state.graph = null; state.selected = null; state.draftKey = null; state.preparation = null; $('repository-url').value = ''; $('repository-ref').value = ''; document.querySelector('.repository-options').open = false; screen('repository'); history.pushState(null, '', '/'); });
+$('change-repository').addEventListener('click', () => { saveDraft(); state.sequence++; state.dialogueSequence++; state.dialogue = null; state.loading = false; $('load-repository').disabled = false; status(''); state.source = null; state.overview = null; state.graph = null; state.selected = null; state.draftKey = null; state.preparation = null; $('repository-url').value = ''; $('repository-ref').value = ''; document.querySelector('.repository-options').open = false; screen('repository'); history.pushState(null, '', '/'); });
 $('select-whole').addEventListener('click', () => selectNode(null));
 let diagramZoom = 1;
 function zoomDiagram(value) { diagramZoom = Math.min(6, Math.max(.5, value)); const chart = $('repository-diagram').querySelector('svg'); if (chart) { chart.style.width = `${Number(chart.dataset.fitWidth) * diagramZoom}px`; chart.dataset.zoom = diagramZoom; } if (diagramZoom === 1) { $('repository-diagram').scrollTop = 0; $('repository-diagram').scrollLeft = 0; } }
@@ -113,7 +122,7 @@ async function openRepository(url, reference, record = true) {
   if (!/^https:\/\/github\.com\/[A-Za-z0-9-]+\/[A-Za-z0-9_.-]+\/?$/.test(url)) {
     $('repository-error').hidden = false; $('repository-error').textContent = 'https://github.com/所有者/リポジトリ の形で入力してください。'; $('repository-url').setAttribute('aria-invalid', 'true'); $('repository-url').focus(); return;
   }
-  const seq = ++state.sequence; state.loading = true; saveDraft();
+  const seq = ++state.sequence; state.dialogueSequence++; state.dialogue = null; state.loading = true; saveDraft();
   $('repository-error').hidden = true; $('repository-url').removeAttribute('aria-invalid'); $('load-repository').disabled = true;
   status('リポジトリを読み込み、構成図を作成しています。');
   await run(async () => {
@@ -244,7 +253,7 @@ async function restore() {
   screen('repository');
   if (params.get('url')) { $('repository-url').value = params.get('url'); $('repository-ref').value = params.get('ref') || ''; await openRepository(params.get('url'), params.get('ref') || '', false); }
 }
-window.addEventListener('popstate', () => { saveDraft(); state.sequence++; state.loading = false; $('load-repository').disabled = false; restore(); });
+window.addEventListener('popstate', () => { saveDraft(); state.sequence++; state.dialogueSequence++; state.dialogue = null; state.loading = false; $('load-repository').disabled = false; restore(); });
 restore();
 
 async function loadAvailability() {
@@ -264,23 +273,109 @@ $('regenerate-diagram').addEventListener('click', () => {
     await openRepository('https://github.com/' + source.repository, source.commit, false);
   }, () => seq === state.sequence).finally(() => { submit.disabled = false; });
 });
+function dialogueBinding() {
+  return { repository: state.source.repository, commit: state.source.commit, revision: state.graph.model_revision, object_id: state.selected?.id || null };
+}
+function highlightRelated() {
+  const related = state.dialogue?.record?.related_object_ids || [];
+  for (const node of $('repository-diagram').querySelectorAll('[data-object]')) node.setAttribute('data-discussion', String(related.includes(node.dataset.object)));
+}
+async function restoreDialogue() {
+  if (!state.source || !state.graph) return;
+  const seq = ++state.dialogueSequence, binding = dialogueBinding();
+  $('ask-concern-ai').disabled = true;
+  try {
+    const dialogue = await api('system-diagram/dialogue/read', binding);
+    if (seq !== state.dialogueSequence) return;
+    state.dialogue = dialogue; renderDialogue();
+  } finally { if (seq === state.dialogueSequence) $('ask-concern-ai').disabled = false; }
+}
+function renderDialogue() {
+  const root = $('concern-ai-answer'), dialogue = state.dialogue; root.replaceChildren(); highlightRelated();
+  if (!dialogue?.history?.length) return;
+  const history = el('details', { className: 'dialogue-history' }, el('summary', {}, `この部分についての会話（${dialogue.turn}往復）`));
+  for (const turn of dialogue.history) history.append(el('p', { className: 'dialogue-user' }, `あなた：${turn.question}`), el('p', { className: 'dialogue-reply' }, turn.answer));
+  root.append(history, el('h3', {}, 'AIからの返答'), el('p', { className: 'dialogue-reply' }, dialogue.answer));
+  const record = dialogue.record;
+  const summary = el('section', { className: 'dialogue-record' }, el('h3', {}, 'ここまでに整理したこと'), el('p', { className: 'note' }, '会話から整理した案です。期待する動作や検証内容を確認してから記録できます。'));
+  const details = el('dl', {});
+  for (const [label, value] of [['気になっていること', record.concern], ['操作する人', record.actor], ['操作・場面', record.operation], ['期待する動作', record.expectation]]) details.append(el('dt', {}, label), el('dd', {}, value || 'まだ分かっていません'));
+  summary.append(details);
+  const names = record.related_object_ids.map(id => concernLabel(findObject(id)));
+  if (names.length) summary.append(el('p', { className: 'note' }, `図の関係箇所：${names.join('、')}。図では枠線で示しています。`));
+  if (dialogue.claims?.length) {
+    const basis = el('details', {}, el('summary', {}, 'コードの記述と根拠'));
+    for (const claim of dialogue.claims) {
+      basis.append(el('p', {}, claim.text));
+      for (const ref of claim.refs) if (ref.in_context && ref.verified) basis.append(el('p', {}, el('a', { href: ref.url, target: '_blank', rel: 'noopener noreferrer' }, `${ref.path} ${ref.line}〜${ref.end_line}行目`)));
+    }
+    summary.append(basis);
+  }
+  for (const [label, values] of [['まだ分からないこと', record.unknowns], ['あなたから報告された結果', record.reported_observations], ['未実施の改善案', record.improvement_ideas]]) if (values.length) summary.append(el('h4', {}, label), el('ul', {}, values.map(v => el('li', {}, v))));
+  if (record.test_plan.length) summary.append(el('h4', {}, 'まだ実行していない検証案'), el('ol', {}, record.test_plan.map(step => el('li', {}, el('p', {}, step.operation), el('p', {}, `期待：${step.expected}`), el('p', {}, `記録するもの：${step.observe}`)))));
+  root.append(summary);
+  if (record.expectation) {
+    const linked = [...state.view.workspace.statements].reverse().find(s => meta(s)?.dialogue_id === dialogue.thread_id && checkFor(s));
+    const existing = linked ? checkFor(linked) : null;
+    if (existing) {
+      const result = state.view.checks.find(c => c.check_id === existing.id);
+      root.append(el('p', {}, `記録している検証内容：${existing.text}`));
+      if (result?.evidence.length) root.append(workbenchLink('検証結果を確認する', existing, meta(linked), 'result'));
+    }
+    const form = el('form', { className: 'dialogue-handoff' });
+    const inputId = `dialogue-expect-${dialogue.thread_id.slice(0, 12)}`;
+    const input = el('textarea', { id: inputId, className: 'system-input', rows: 3, maxlength: 2000, required: '' });
+    const earlierProposal = linked && dialogue.history[meta(linked).dialogue_turn - 1]?.record.expectation;
+    input.value = existing && record.expectation === earlierProposal ? existing.text : record.expectation;
+    const submit = el('button', { type: 'submit', className: 'dads-button', 'data-type': 'solid-fill', 'data-size': 'md' }, existing ? 'この内容で再検証する' : 'この内容を検証する');
+    form.append(el('label', { className: 'system-label', for: inputId }, '検証したい動作を確認する'), input, el('p', { className: 'note' }, '内容は編集できます。未確認事項も一緒に残し、起動方法と観測方法の設定へ進みます。'), submit);
+    form.addEventListener('submit', e => { e.preventDefault(); if (!input.value.trim() || submit.disabled) return; submit.disabled = true; run(() => handoffDialogue(dialogue, input.value.trim())).finally(() => { submit.disabled = false; }); });
+    root.append(form);
+  }
+}
+async function handoffDialogue(dialogue, expectation) {
+  const binding = dialogue.binding, record = dialogue.record, statementId = `dialogue-${dialogue.thread_id.slice(0, 24)}-${dialogue.turn}`;
+  const label = concernLabel(findObject(binding.object_id));
+  const origin = { kind: 'repository_concern', repository: binding.repository, commit: binding.commit, node: binding.object_id, model_revision: binding.revision, label, dialogue_id: dialogue.thread_id, dialogue_turn: dialogue.turn };
+  const ref = dialogue.claims?.flatMap(c => c.refs).find(r => r.verified && r.in_context);
+  const source = ref ? { repository: binding.repository, commit: binding.commit, path: ref.path, line: ref.line, end_line: ref.end_line } : null;
+  state.view = await api('case');
+  const previousStatement = [...state.view.workspace.statements].reverse().find(s => meta(s)?.dialogue_id === dialogue.thread_id && checkFor(s));
+  const previousCheck = previousStatement ? checkFor(previousStatement) : null;
+  if (previousCheck?.text === expectation) {
+    location.assign(workbenchLink('検証の設定へ進む', previousCheck, meta(previousStatement), 'trial').href); return;
+  }
+  let statement = state.view.workspace.statements.find(s => s.id === statementId);
+  if (!statement) {
+    await change({ op: 'add_statement', statement: { id: statementId, kind: 'unanswered', role: state.audience, text: record.concern || dialogue.history[0].question, origin: JSON.stringify(origin), source, check_ids: [] } }, '構成図についての会話から疑問を記録した');
+    statement = state.view.workspace.statements.find(s => s.id === statementId);
+  }
+  let check = checkFor(statement);
+  if (!check) {
+    if (previousCheck) {
+      await change({ op: 'revise_check', check_id: previousCheck.id, text: expectation, origin: `repository-concern:${statementId}`, rule: 'manual_only', dependencies: previousCheck.dependencies }, '会話で整理し直した期待を利用者が確認し、検証内容の版を更新した');
+      const updated = state.view.workspace.checks.find(c => c.id === previousCheck.id);
+      for (const [n, text] of record.unknowns.entries()) if (!updated.questions.some(q => q.text === text)) await change({ op: 'add_question', check_id: previousCheck.id, question: { id: `dialogue-${dialogue.turn}-unknown-${n + 1}`, text, answer: null, origin: null } }, '整理し直した検証内容へ未確認事項を残した');
+    } else {
+      await change({ op: 'add_check', check: { id: `${statementId}-check`, version: 1, text: expectation, origin: `repository-concern:${statementId}`, source, observation: null, rule: 'manual_only', dependencies: [], questions: record.unknowns.map((text, n) => ({ id: `unknown-${n + 1}`, text, answer: null, origin: null })) } }, '会話で整理した期待を利用者が確認し、未確認事項とともに検証内容として記録した');
+    }
+    check = checkFor(statement);
+  }
+  if (!check) throw Error('検証内容を確認できませんでした。');
+  location.assign(workbenchLink('検証の設定へ進む', check, origin, 'trial').href);
+}
 $('ask-concern-ai').addEventListener('click', () => {
   const question = $('concern-text').value.trim();
   if (!question) { status('不安や疑問を入力してください。'); $('concern-text').focus(); return; }
   const submit = $('ask-concern-ai'); if (submit.disabled || !state.source) return; submit.disabled = true;
-  const source = state.source, selected = state.selected;
-  $('concern-ai-answer').textContent = '選んだ部分のコードを読み、疑問を整理しています。';
+  const seq = ++state.dialogueSequence, binding = dialogueBinding(), turn = state.dialogue?.turn || 0;
+  status('図とコード、これまでの会話から疑問を整理しています。');
   run(async () => {
-    const answer = await api('system-diagram/question', { repository: source.repository, commit: source.commit, revision: state.graph.model_revision, object_id: selected?.id || null, question });
-    if (source !== state.source || selected?.id !== state.selected?.id) return;
-    const result = $('concern-ai-answer'); result.replaceChildren();
-    if (answer.status !== 'ok') { result.append(el('p', { className: 'input-error' }, answer.message || 'AIの説明を取得できませんでした。')); return; }
-    result.append(el('h3', {}, 'AIによる整理'), el('p', {}, answer.answer), el('p', { className: 'note' }, 'AIの説明は未検証です。疑問や期待する動作として残す内容は、自分で確認して記入してください。'));
-    for (const claim of answer.claims || []) {
-      result.append(el('p', {}, claim.text));
-      for (const r of claim.refs || []) if (r.verified) result.append(el('a', { href: r.url, target: '_blank', rel: 'noopener noreferrer' }, `${r.path} ${r.line}行目`));
-    }
-    if (answer.unknowns?.length) result.append(el('h3', {}, 'まだ分からないこと'), el('ul', {}, answer.unknowns.map(s => el('li', {}, s))));
-  }).finally(() => { submit.disabled = false; });
+    const answer = await api('system-diagram/dialogue', { binding, audience: state.audience, expected_turn: turn, question });
+    if (seq !== state.dialogueSequence) return;
+    state.dialogue = answer;
+    if ($('concern-text').value.trim() === question) { $('concern-text').value = ''; saveDraft(); }
+    renderDialogue(); status('会話と整理案を保存しました。続けて返答するか、検証したい動作を確認できます。');
+  }, () => seq === state.dialogueSequence).finally(() => { if (seq === state.dialogueSequence) submit.disabled = false; });
 });
 run(loadAvailability);
