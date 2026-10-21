@@ -113,6 +113,16 @@ try{
   await page.getByRole('link',{name:'構成図と疑問に戻る',exact:true}).click();await page.locator('.dialogue-history summary',{hasText:'2往復'}).waitFor();
   await ask('この結果から何が分かる？',3);const last=calls.at(-1);assert.equal(last.query.results.checks[0].result.verdict,'unknown');assert.equal(last.query.results.checks[0].result.evidence[0].run_id,'dialogue-reported-missing');
   assert.match(await page.locator('.dialogue-reply').last().innerText(),/失敗と断定できません/);
+  // 同じ期待は複製せず、同じ会話の往復で編集し直した期待も版へ反映する。
+  await page.getByRole('button',{name:'この内容で再検証する',exact:true}).click();await page.locator('#trial:not([hidden])').waitFor();
+  v=await view();assert.equal(v.workspace.checks.length,1);assert.equal(v.workspace.checks[0].version,check.version);
+  for(const expectation of ['開き直した後の本文が保存前の本文と一致する','二度開き直した後も保存前の本文と一致する']){
+    await page.getByRole('link',{name:'構成図と疑問に戻る',exact:true}).click();await page.locator('.dialogue-history summary',{hasText:'3往復'}).waitFor();
+    await page.getByLabel('検証したい動作を確認する',{exact:true}).fill(expectation);
+    await page.getByRole('button',{name:'この内容で再検証する',exact:true}).click();await page.locator('#trial:not([hidden])').waitFor();
+    v=await view();assert.equal(v.workspace.checks.length,1);assert.equal(v.workspace.checks[0].text,expectation);assert.equal(v.workspace.checks[0].version,++check.version);
+  }
+  await page.getByRole('link',{name:'構成図と疑問に戻る',exact:true}).click();await page.locator('.dialogue-history summary',{hasText:'3往復'}).waitFor();
   assert.equal((await post('system-diagram/dialogue/read',{...binding,object_id:null})).body.turn,0);
   assert.equal((await post('system-diagram/dialogue/read',{...binding,revision:'f'.repeat(64)})).status,400);
   await mkdir(join(root,'test-results'),{recursive:true});await page.screenshot({path:join(root,'test-results/dialogue-handoff.png'),fullPage:true});

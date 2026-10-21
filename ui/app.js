@@ -351,11 +351,11 @@ async function handoffDialogue(dialogue, expectation) {
     statement = state.view.workspace.statements.find(s => s.id === statementId);
   }
   let check = checkFor(statement);
-  if (!check) {
+  if (!check || check.text !== expectation) {
     if (previousCheck) {
       await change({ op: 'revise_check', check_id: previousCheck.id, text: expectation, origin: `repository-concern:${statementId}`, rule: 'manual_only', dependencies: previousCheck.dependencies }, '会話で整理し直した期待を利用者が確認し、検証内容の版を更新した');
       const updated = state.view.workspace.checks.find(c => c.id === previousCheck.id);
-      for (const [n, text] of record.unknowns.entries()) if (!updated.questions.some(q => q.text === text)) await change({ op: 'add_question', check_id: previousCheck.id, question: { id: `dialogue-${dialogue.turn}-unknown-${n + 1}`, text, answer: null, origin: null } }, '整理し直した検証内容へ未確認事項を残した');
+      for (const text of record.unknowns) if (!updated.questions.some(q => q.text === text)) await change({ op: 'add_question', check_id: previousCheck.id, question: { id: id('dialogue-unknown'), text, answer: null, origin: null } }, '整理し直した検証内容へ未確認事項を残した');
     } else {
       await change({ op: 'add_check', check: { id: `${statementId}-check`, version: 1, text: expectation, origin: `repository-concern:${statementId}`, source, observation: null, rule: 'manual_only', dependencies: [], questions: record.unknowns.map((text, n) => ({ id: `unknown-${n + 1}`, text, answer: null, origin: null })) } }, '会話で整理した期待を利用者が確認し、未確認事項とともに検証内容として記録した');
     }
