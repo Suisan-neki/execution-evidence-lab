@@ -750,6 +750,7 @@ fn result_response<T: serde::Serialize>(
             let status = match error.kind() {
                 io::ErrorKind::AlreadyExists | io::ErrorKind::WouldBlock => 409,
                 io::ErrorKind::PermissionDenied => 403,
+                io::ErrorKind::TimedOut => 504,
                 _ => 400,
             };
             json(
