@@ -94,6 +94,14 @@ pub struct App {
     pub ai: Option<crate::ai::Config>,
     pub demo_directory: PathBuf,
 }
+impl App {
+    fn ai_config(&self) -> io::Result<Option<crate::ai::Config>> {
+        match &self.ai {
+            Some(config) => Ok(Some(config.clone())),
+            None => self.store.ai_connection(),
+        }
+    }
+}
 
 struct Request {
     method: String,
@@ -368,7 +376,7 @@ fn handle_connection_mode(
         return json(
             stream,
             200,
-            &serde_json::json!({"schema_version":1,"api_version":"v1","scope":"localhost","routes":if app.is_some() {serde_json::json!(["case","change","compare","backup","profiles","report","report-html","execution","execute","browser-screenshot","architecture","repository","understand","prepare","ai"])} else {serde_json::json!(["case","change","compare","backup","profiles","report","report-html","execution","execute","browser-screenshot","architecture","repository"])},"reported_observations":true,"limits":{"request_bytes":MAX_BODY,"backup_bytes":crate::backup::MAX_BACKUP,"reader_request_bytes":8*1024*1024,"reader_seconds":30,"reader_output_bytes":8*1024*1024},"understanding":"作者の説明と静的解析。実行経路・業務上の意味は未確認"}),
+            &serde_json::json!({"schema_version":1,"api_version":"v1","scope":"localhost","routes":if app.is_some() {serde_json::json!(["case","change","compare","backup","profiles","report","report-html","execution","execute","browser-screenshot","architecture","repository","understand","prepare","ai","system-diagram"])} else {serde_json::json!(["case","change","compare","backup","profiles","report","report-html","execution","execute","browser-screenshot","architecture","repository"])},"reported_observations":true,"limits":{"request_bytes":MAX_BODY,"backup_bytes":crate::backup::MAX_BACKUP,"reader_request_bytes":8*1024*1024,"reader_seconds":30,"reader_output_bytes":8*1024*1024},"understanding":"作者の説明と静的解析。実行経路・業務上の意味は未確認"}),
         );
     }
     if let Some(app) = app {
@@ -430,12 +438,58 @@ fn handle_connection_mode(
                 return result_response(stream, result);
             }
             ("GET", "/api/v1/ai") => {
-                return json(stream, 200, &crate::ai::status(app.ai.as_ref()));
+                let result = app.ai_config().map(|config| {
+                    let mut status = crate::ai::status(config.as_ref());
+                    status["server_managed"] = serde_json::json!(app.ai.is_some());
+                    status
+                });
+                return result_response(stream, result);
+            }
+            ("POST", "/api/v1/ai/connection") => {
+                let result = if app.ai.is_some() {
+                    Err(io::Error::other(
+                        "起動時に指定されたAI接続を使っています。変更する場合は起動時の設定を変更してください",
+                    ))
+                } else {
+                    serde_json::from_slice::<crate::ai::ConnectionSettings>(&request.body)
+                        .map_err(|_| io::Error::other("AI接続設定の形式を確認してください"))
+                        .and_then(|settings| app.store.configure_ai(settings))
+                };
+                return result_response(stream, result);
+            }
+            ("POST", "/api/v1/ai/test") => {
+                let result = app.ai_config().and_then(|config| {
+                    config
+                        .ok_or_else(|| io::Error::other("AI接続を設定してください"))?
+                        .test_connection()
+                });
+                return result_response(stream, result);
+            }
+            ("POST", "/api/v1/system-diagram") => {
+                let result = app.ai_config().and_then(|config| {
+                    serde_json::from_slice::<crate::system_diagram::Request>(&request.body)
+                        .map_err(io::Error::other)
+                        .and_then(|r| {
+                            crate::system_diagram::generate(config.as_ref(), &app.store, r)
+                        })
+                });
+                return result_response(stream, result);
+            }
+            ("POST", "/api/v1/system-diagram/question") => {
+                let result = app.ai_config().and_then(|config| {
+                    serde_json::from_slice::<crate::system_diagram::Question>(&request.body)
+                        .map_err(io::Error::other)
+                        .and_then(|r| crate::system_diagram::answer(config.as_ref(), &app.store, r))
+                });
+                return result_response(stream, result);
             }
             ("POST", "/api/v1/ai") => {
                 let result = serde_json::from_slice::<crate::ai::AiRequest>(&request.body)
                     .map_err(io::Error::other)
-                    .and_then(|r| crate::ai::explain(app.ai.as_ref(), &app.store, r));
+                    .and_then(|r| {
+                        app.ai_config()
+                            .and_then(|config| crate::ai::explain(config.as_ref(), &app.store, r))
+                    });
                 return result_response(stream, result);
             }
             ("POST", "/api/v1/prepare") => {

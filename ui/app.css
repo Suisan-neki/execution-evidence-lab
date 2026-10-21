@@ -183,8 +183,8 @@ a:focus-visible, button:focus-visible, select:focus-visible, summary:focus-visib
 .system-workspace { display:block; margin-top:1.5rem; }
 .system-map-panel, .concern-panel { min-width:0; }
 .system-map-panel h2, .concern-panel h2 { margin-top:0; }
-.repository-diagram { background:white; border:1px solid var(--color-neutral-solid-gray-200); border-radius:.75rem; padding:.5rem; overflow:auto; max-height:46rem; margin:1rem 0; }
-.repository-diagram svg { display:block; width:100%; min-width:42rem; height:auto; max-width:none; }
+.repository-diagram { background:white; border:1px solid var(--color-neutral-solid-gray-200); border-radius:.75rem; padding:.5rem; overflow:auto; height: min(70vh, 46rem); min-height:24rem; margin:1rem 0; }
+.repository-diagram svg { display:block; width:100%; min-width:0; height:auto; max-width:none; margin:0 auto; }
 .diagram-controls { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
 .diagram-controls button { font:inherit; background:white; color:var(--color-key-900); border:1px solid var(--color-neutral-solid-gray-420); border-radius:.3rem; padding:.35rem .65rem; cursor:pointer; }
 .diagram-controls button:focus-visible { outline:3px solid var(--color-key-900); }
@@ -229,3 +229,12 @@ a:focus-visible, button:focus-visible, select:focus-visible, summary:focus-visib
 .concern-card form { margin-top:1rem; max-width:44rem; }
 @media(max-width:60rem) { .concern-panel { grid-template-columns:minmax(0,1fr); gap:1rem; } }
 @media(max-width:40rem) { .audience-options { grid-template-columns:1fr; } .system-heading-row, .system-header { align-items:flex-start; flex-direction:column; } .system-journey h1 { font-size:1.5rem; } .system-progress { gap:.5rem; } .system-progress li { padding-right:.25rem; } }
+
+.system-overview { max-width:65rem; padding:1.25rem; border-left:4px solid var(--color-key-900); background:var(--color-key-50); margin:1.5rem 0; }
+.system-overview h2 { margin-top:0; }
+.system-overview p { white-space:pre-wrap; }
+#ai-settings { max-width:48rem; margin-top:1.5rem; }
+#ai-connection-form button { margin-top:1.25rem; }
+#concern-ai-answer p { white-space:pre-wrap; }
+#concern-ai-answer a { display:block; overflow-wrap:anywhere; margin:.3rem 0; }
+.map-role-actor > rect { fill:#edf3fc; }

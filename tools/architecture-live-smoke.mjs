@@ -24,7 +24,7 @@ try {
   await page.goto(base); await page.getByRole('button', { name: /^非技術者/ }).click();
   await page.locator('#repository-url').fill(repositoryUrl);
   if (reference) { await page.getByText('ブランチ・コミットを指定する', { exact: true }).click(); await page.locator('#repository-ref').fill(reference); }
-  const response = page.waitForResponse(r => r.url().endsWith('/api/v1/understand') && r.request().postDataJSON()?.operation === 'architecture', { timeout: 90000 });
+  const response = page.waitForResponse(r => r.url().endsWith('/api/v1/system-diagram'), { timeout: 90000 });
   await page.getByRole('button', { name: '構成図を作成する', exact: true }).click();
   const result = await (await response).json();
   if (!result.result) throw Error(JSON.stringify(result));

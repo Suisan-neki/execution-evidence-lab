@@ -53,6 +53,7 @@ pub enum UnderstandRequest {
 pub struct Store {
     base: PathBuf,
     lock: Arc<Mutex<()>>,
+    diagram_lock: Arc<Mutex<()>>,
 }
 
 fn invalid(text: impl Into<String>) -> io::Error {
@@ -70,11 +71,44 @@ fn validate(repository: &str, commit: &str) -> io::Result<()> {
 }
 
 impl Store {
+    pub(crate) fn diagram_guard(&self) -> io::Result<std::sync::MutexGuard<'_, ()>> {
+        self.diagram_lock
+            .lock()
+            .map_err(|_| io::Error::other("図の生成状態を読み取れません"))
+    }
+    pub fn ai_connection(&self) -> io::Result<Option<crate::ai::Config>> {
+        crate::ai::Config::load_connection(&self.base.join(".ai-connection.json"))
+    }
+    pub fn configure_ai(&self, settings: crate::ai::ConnectionSettings) -> io::Result<Value> {
+        let _guard = self
+            .lock
+            .lock()
+            .map_err(|_| io::Error::other("接続設定を更新できません"))?;
+        let config =
+            crate::ai::Config::save_connection(&self.base.join(".ai-connection.json"), settings)?;
+        Ok(crate::ai::status(Some(&config)))
+    }
+    pub fn architecture_source(&self, repository: &str, commit: &str) -> io::Result<Value> {
+        let output = reader::read(ReaderRequest::ArchitectureSource {
+            snapshot: self.load(repository, commit)?,
+        })?;
+        self.save(&output["snapshot"])?;
+        self.load(repository, commit)
+    }
+    pub(crate) fn diagram_directory(&self, repository: &str, commit: &str) -> io::Result<PathBuf> {
+        validate(repository, commit)?;
+        Ok(self
+            .base
+            .join(".system-diagrams")
+            .join(repository)
+            .join(commit))
+    }
     pub fn new(base: PathBuf) -> io::Result<Self> {
         fs::create_dir_all(&base)?;
         Ok(Self {
             base: fs::canonicalize(base)?,
             lock: Arc::new(Mutex::new(())),
+            diagram_lock: Arc::new(Mutex::new(())),
         })
     }
     fn path(&self, repository: &str, commit: &str) -> io::Result<PathBuf> {

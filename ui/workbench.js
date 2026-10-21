@@ -1167,6 +1167,7 @@ if (params.get('from') === 'system' && params.get('url')) {
   const back = new URL('/', location.origin);
   back.searchParams.set('url', params.get('url')); back.searchParams.set('ref', params.get('ref') || '');
   if (params.get('focus')) back.searchParams.set('focus', params.get('focus'));
+  if (params.get('diagram')) back.searchParams.set('diagram', params.get('diagram'));
   $('back-to-system').href = back.pathname + back.search;
 }
 restoreLocation();

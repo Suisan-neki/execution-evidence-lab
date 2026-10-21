@@ -1,0 +1,262 @@
+{
+  "summary": {
+    "title": "架空の記録共有システム",
+    "purpose": "利用者がブラウザから記録やファイルを保存し、後から取り出すシステムです。",
+    "workflow": "利用者が記録の画面を開くと、画面が記録管理APIへ一覧を要求します。APIは保存先に接続する設定を持ちます。ファイル保存と本人確認には別のサービスのクライアントがあります。",
+    "refs": [
+      {
+        "path": "README.md",
+        "line": 1,
+        "end_line": 2
+      }
+    ]
+  },
+  "groups": [
+    {
+      "id": "records",
+      "label": "記録とファイルの管理",
+      "description": "記録の表示、要求の受付、保存先との接続を扱います。"
+    },
+    {
+      "id": "identity_group",
+      "label": "利用者の確認",
+      "description": "認証サービスとの接続を扱います。"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "user",
+      "label": "記録を扱う利用者",
+      "role": "actor",
+      "group_id": null,
+      "path": null,
+      "operator_description": "記録やファイルを保存し、後から確認します。",
+      "technical_description": "READMEにブラウザから記録やファイルを保存・取得する利用が記載されています。",
+      "technology": [],
+      "evidence": "documentation",
+      "refs": [
+        {
+          "path": "README.md",
+          "line": 2,
+          "end_line": 2
+        }
+      ]
+    },
+    {
+      "id": "records_screen",
+      "label": "記録の閲覧画面",
+      "role": "ui",
+      "group_id": "records",
+      "path": "ui/main.tsx",
+      "operator_description": "保存した記録を画面に表示するため、記録管理APIへ一覧を要求します。",
+      "technical_description": "ReactのcreateRootで起動し、fetchで /api/records へ要求します。",
+      "technology": [
+        "React"
+      ],
+      "evidence": "code",
+      "refs": [
+        {
+          "path": "ui/main.tsx",
+          "line": 2,
+          "end_line": 2
+        }
+      ]
+    },
+    {
+      "id": "records_api",
+      "label": "記録管理API",
+      "role": "api",
+      "group_id": "records",
+      "path": "server/main.py",
+      "operator_description": "画面からの要求を受け、保存した記録の一覧を返します。",
+      "technical_description": "FastAPIの /api/records がstorage.read_recordsを呼びます。提示された実装は空の配列を返すため、保存済み記録を取得できるかは未確認です。",
+      "technology": [
+        "FastAPI"
+      ],
+      "evidence": "code",
+      "refs": [
+        {
+          "path": "server/main.py",
+          "line": 3,
+          "end_line": 3
+        }
+      ]
+    },
+    {
+      "id": "records_db",
+      "label": "記録データの保存先",
+      "role": "database",
+      "group_id": "records",
+      "path": "compose.yaml",
+      "operator_description": "記録管理APIの接続先として指定されたデータベースです。",
+      "technical_description": "ComposeのDATABASE_URLがdbを参照します。PostgreSQLの接続成功は未検証です。",
+      "technology": [
+        "PostgreSQL"
+      ],
+      "evidence": "code",
+      "refs": [
+        {
+          "path": "compose.yaml",
+          "line": 9,
+          "end_line": 9
+        }
+      ]
+    },
+    {
+      "id": "attachments",
+      "label": "添付ファイルの保存先",
+      "role": "storage",
+      "group_id": "records",
+      "path": "server/files.py",
+      "operator_description": "ファイルを扱うための接続先です。保存や読出しの成功は未確認です。",
+      "technical_description": "boto3.clientのs3クライアントを作ります。bucketや実際のput/getは抜粋では未特定です。",
+      "technology": [
+        "S3"
+      ],
+      "evidence": "code",
+      "refs": [
+        {
+          "path": "server/files.py",
+          "line": 2,
+          "end_line": 2
+        }
+      ]
+    },
+    {
+      "id": "identity",
+      "label": "利用者の本人確認",
+      "role": "auth",
+      "group_id": "identity_group",
+      "path": "server/auth.py",
+      "operator_description": "利用者の本人確認に使う接続先です。認証が成立するかは未確認です。",
+      "technical_description": "Cognito Identity ProviderのSDKクライアントを作成しています。",
+      "technology": [
+        "Cognito"
+      ],
+      "evidence": "code",
+      "refs": [
+        {
+          "path": "server/auth.py",
+          "line": 2,
+          "end_line": 2
+        }
+      ]
+    },
+    {
+      "id": "cache",
+      "label": "起動時に待つRedis",
+      "role": "cache",
+      "group_id": "records",
+      "path": "compose.yaml",
+      "operator_description": "APIの起動時に待つサービスです。保存する情報の用途は未特定です。",
+      "technical_description": "depends_onにcacheが指定されています。データの送受信は示されていません。",
+      "technology": [
+        "Redis"
+      ],
+      "evidence": "code",
+      "refs": [
+        {
+          "path": "compose.yaml",
+          "line": 11,
+          "end_line": 11
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "user",
+      "to": "records_screen",
+      "label": "記録を保存・確認する",
+      "operator_description": "記録を保存・確認するための関係を示します。実際の動作は未確認です。",
+      "technical_description": "固定したREADMEまたはコード・設定の記述を根拠にした構成です。",
+      "protocol": "HTTP",
+      "relation_type": "request",
+      "evidence": "documentation",
+      "refs": [
+        {
+          "path": "README.md",
+          "line": 2,
+          "end_line": 2
+        }
+      ]
+    },
+    {
+      "from": "records_screen",
+      "to": "records_api",
+      "label": "保存した記録の一覧を要求",
+      "operator_description": "保存した記録の一覧を要求ための関係を示します。実際の動作は未確認です。",
+      "technical_description": "固定したREADMEまたはコード・設定の記述を根拠にした構成です。",
+      "protocol": "HTTP",
+      "relation_type": "request",
+      "evidence": "code",
+      "refs": [
+        {
+          "path": "ui/main.tsx",
+          "line": 3,
+          "end_line": 3
+        }
+      ]
+    },
+    {
+      "from": "records_api",
+      "to": "records_db",
+      "label": "記録データの接続先",
+      "operator_description": "記録データの接続先ための関係を示します。実際の動作は未確認です。",
+      "technical_description": "固定したREADMEまたはコード・設定の記述を根拠にした構成です。",
+      "protocol": "接続先の設定",
+      "relation_type": "data",
+      "evidence": "code",
+      "refs": [
+        {
+          "path": "compose.yaml",
+          "line": 6,
+          "end_line": 6
+        }
+      ]
+    },
+    {
+      "from": "records_api",
+      "to": "attachments",
+      "label": "ファイルの保存先を使う",
+      "operator_description": "ファイルの保存先を使うための関係を示します。実際の動作は未確認です。",
+      "technical_description": "固定したREADMEまたはコード・設定の記述を根拠にした構成です。",
+      "protocol": "接続先の設定",
+      "relation_type": "data",
+      "evidence": "inference",
+      "refs": []
+    },
+    {
+      "from": "records_api",
+      "to": "identity",
+      "label": "本人確認の接続を使う",
+      "operator_description": "本人確認の接続を使うための関係を示します。実際の動作は未確認です。",
+      "technical_description": "固定したREADMEまたはコード・設定の記述を根拠にした構成です。",
+      "protocol": "接続先の設定",
+      "relation_type": "call",
+      "evidence": "inference",
+      "refs": []
+    },
+    {
+      "from": "records_api",
+      "to": "cache",
+      "label": "起動を待つ",
+      "operator_description": "起動を待つための関係を示します。実際の動作は未確認です。",
+      "technical_description": "固定したREADMEまたはコード・設定の記述を根拠にした構成です。",
+      "protocol": "接続先の設定",
+      "relation_type": "startup",
+      "evidence": "code",
+      "refs": [
+        {
+          "path": "compose.yaml",
+          "line": 7,
+          "end_line": 7
+        }
+      ]
+    }
+  ],
+  "unknowns": [
+    "この応答は自動試験用の合成データで、実モデルの出力ではありません。",
+    "記録一覧の実装は空配列です。実際の保存・読出し・認証の成立は未検証です。"
+  ]
+}

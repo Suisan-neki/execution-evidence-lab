@@ -614,3 +614,107 @@ fn ai_candidates_use_the_real_transport_and_do_not_write_or_confirm_the_case() {
     assert!(failed.get("test_candidates").is_none());
     assert_eq!(serde_json::to_value(load(&case).unwrap()).unwrap(), before);
 }
+
+#[test]
+fn native_system_diagram_generation_persists_auditable_models_and_reopens_without_ai() {
+    use execution_evidence_lab::system_diagram::{self, Request};
+    let sandbox = Sandbox::new();
+    let base = sandbox.0.join("diagrams");
+    fs::create_dir_all(base.join("example/record-system")).unwrap();
+    let snapshot: Value =
+        serde_json::from_str(include_str!("fixtures/reader/system.json")).unwrap();
+    let commit = snapshot["commit"].as_str().unwrap();
+    fs::write(
+        base.join(format!("example/record-system/{commit}.json")),
+        serde_json::to_vec(&snapshot).unwrap(),
+    )
+    .unwrap();
+    let store = Store::new(base.clone()).unwrap();
+    let case = sandbox.case();
+    let before = serde_json::to_value(load(&case).unwrap()).unwrap();
+    let response: Value =
+        serde_json::from_str(include_str!("fixtures/reader/system-ai.json")).unwrap();
+    let (url, server) = synthetic_ai(response);
+    let status = store
+        .configure_ai(ai::ConnectionSettings {
+            base_url: url,
+            model: "synthetic-architecture".into(),
+            api_key: "synthetic-private-key".into(),
+        })
+        .unwrap();
+    assert!(!status.to_string().contains("synthetic-private-key"));
+    use std::os::unix::fs::PermissionsExt;
+    assert_eq!(
+        fs::metadata(base.join(".ai-connection.json"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600
+    );
+    let config = store.ai_connection().unwrap().unwrap();
+    let request = || Request {
+        repository: "example/record-system".into(),
+        commit: commit.into(),
+        refresh: false,
+        revision: None,
+    };
+    let generated = system_diagram::generate(Some(&config), &store, request()).unwrap();
+    let sent = server.join().unwrap();
+    assert!(
+        sent["messages"][1]["content"]
+            .as_str()
+            .unwrap()
+            .contains("SOURCE EXCERPTS")
+    );
+    assert!(!sent.to_string().contains("synthetic-private-key"));
+    assert_eq!(generated["result"]["generator"], "gitdiagram-inspired-ai");
+    assert_eq!(generated["references"]["unverified"], json!([]));
+    assert_eq!(generated["cached"], false);
+    let reopened = system_diagram::generate(None, &Store::new(base).unwrap(), request()).unwrap();
+    assert_eq!(reopened["cached"], true);
+    assert_eq!(reopened["result"], generated["result"]);
+    assert_eq!(
+        serde_json::to_value(load(&case).unwrap()).unwrap(),
+        before,
+        "生成は期待や実行結果を保存しない"
+    );
+    let failed = system_diagram::generate(
+        None,
+        &store,
+        Request {
+            refresh: true,
+            ..request()
+        },
+    );
+    assert!(failed.is_err());
+    assert_eq!(
+        system_diagram::generate(None, &store, request()).unwrap()["result"],
+        generated["result"]
+    );
+}
+
+#[test]
+fn saved_connection_rejects_unencrypted_remote_hosts_and_keeps_previous_settings() {
+    let sandbox = Sandbox::new();
+    let store = Store::new(sandbox.0.join("settings")).unwrap();
+    let settings = |url: &str| ai::ConnectionSettings {
+        base_url: url.into(),
+        model: "synthetic".into(),
+        api_key: "synthetic-private-key".into(),
+    };
+    store
+        .configure_ai(settings("https://api.example.invalid/v1"))
+        .unwrap();
+    for url in [
+        "http://remote.example.invalid/v1",
+        "https://key:secret@api.example.invalid/v1",
+        "https://api.example.invalid/v1?key=secret",
+    ] {
+        assert!(store.configure_ai(settings(url)).is_err());
+        assert_eq!(
+            ai::status(store.ai_connection().unwrap().as_ref())["host"],
+            "api.example.invalid"
+        );
+    }
+}

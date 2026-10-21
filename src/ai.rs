@@ -3,13 +3,16 @@
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::{io, path::PathBuf, time::Duration};
+use std::{io, path::PathBuf};
+mod connection;
+pub use connection::ConnectionSettings;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Config {
     base_url: String,
     model: String,
     key_file: PathBuf,
+    inline_key: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -21,22 +24,6 @@ pub struct AiRequest {
     pub path: Option<String>,
     pub line: Option<u32>,
 }
-
-const SCRIPT: &str = r#"
-import fs from 'node:fs';
-try {
-const r=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
-let response;
-try { response=await fetch(r.url,{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+r.key},body:JSON.stringify({model:r.model,messages:r.messages,response_format:{type:'json_object'},temperature:0}),signal:AbortSignal.timeout(r.timeout_ms)}); }
-catch(e) { throw Error('AIの接続先に接続できませんでした: '+e.message); }
-const text=await response.text();
-if(!response.ok) throw Error(`AIの接続先がHTTP ${response.status}を返しました: ${text.slice(0,300)}`);
-let data; try { data=JSON.parse(text); } catch { throw Error('AIの接続先の応答をJSONとして読めませんでした'); }
-const content=data.choices?.[0]?.message?.content;
-if(typeof content!=='string') throw Error('AIの応答に本文がありません');
-process.stdout.write(JSON.stringify({model:typeof data.model==='string'?data.model:r.model,content}));
-} catch(error) { process.stderr.write(String(error.message)); process.exitCode=1; }
-"#;
 
 const INSTRUCTIONS: &str = "あなたは、固定したコミットのコード抜粋だけを根拠に、ソフトウェアの動作を日本語で説明します。\
 抜粋にない処理・設定・外部サービスを補ってはいけません。抜粋から分からないことは unknowns に書きます。\
@@ -53,6 +40,7 @@ impl Config {
             base_url: base_url.trim_end_matches('/').to_owned(),
             model: model.to_owned(),
             key_file,
+            inline_key: None,
         }
     }
     pub fn from_env() -> Option<Self> {
@@ -63,6 +51,7 @@ impl Config {
             base_url: base_url.trim_end_matches('/').to_owned(),
             model,
             key_file,
+            inline_key: None,
         })
     }
 }
@@ -71,7 +60,7 @@ pub fn status(config: Option<&Config>) -> Value {
     match config {
         None => json!({
             "status": "not_configured",
-            "message": "AIによる説明は未設定です。静的解析の結果だけを表示しています。使う場合は、サーバーの起動時に EEL_AI_BASE_URL・EEL_AI_MODEL・EEL_AI_API_KEY_FILE を指定してください",
+            "message": "AI接続は未設定です。ブラウザで接続を設定するか、起動時に EEL_AI_BASE_URL・EEL_AI_MODEL・EEL_AI_API_KEY_FILE を指定してください",
         }),
         Some(c) => {
             let host = c
@@ -81,12 +70,12 @@ pub fn status(config: Option<&Config>) -> Value {
                 .and_then(|rest| rest.split('/').next())
                 .unwrap_or_default()
                 .to_owned();
-            let key = c.key_file.is_file();
+            let key = c.inline_key.is_some() || c.key_file.is_file();
             json!({
                 "status": if key { "configured" } else { "failed" },
                 "model": c.model,
                 "host": host,
-                "message": if key { "AIの接続先が設定されています。説明の根拠となる行は、基盤が固定コミットの読取記録と照合します" } else { "AIの認証情報のファイルを読めません。静的解析の結果だけを表示しています" },
+                "message": if key { "AIの接続先が設定されています。説明の根拠となる行は、基盤が固定コミットの読取記録と照合します" } else { "AIの認証情報のファイルを読めません。接続設定を確認してください" },
             })
         }
     }
@@ -170,50 +159,31 @@ pub fn explain(
         line: request.line,
     })?;
     let snapshot = store.load(&request.repository, &request.commit)?;
-    let (context, provided) = excerpts(&snapshot, &inquiry["result"], 48 * 1024);
+    explain_references(config, &snapshot, &inquiry["result"], request)
+}
+
+pub(crate) fn explain_references(
+    config: &Config,
+    snapshot: &Value,
+    inquiry: &Value,
+    request: AiRequest,
+) -> io::Result<Value> {
+    let (context, provided) = excerpts(snapshot, inquiry, 48 * 1024);
     if context.is_empty() {
         return Ok(json!({
             "status": "failed",
             "message": "質問に関係するコードの行を見つけられなかったため、AIへは問い合わせていません",
         }));
     }
-    let key = match std::fs::read_to_string(&config.key_file) {
-        Ok(key) if !key.trim().is_empty() => key.trim().to_owned(),
-        _ => {
-            return Ok(
-                json!({"status": "failed", "message": "AIの認証情報のファイルを読めません"}),
-            );
-        }
-    };
-    let body = json!({
-        "url": format!("{}/chat/completions", config.base_url),
-        "key": key,
-        "model": config.model,
-        "timeout_ms": 60000,
-        "messages": [
-            {"role": "system", "content": INSTRUCTIONS},
-            {"role": "user", "content": format!(
-                "リポジトリ: {}\nコミット: {}\n質問: {}\n\nコード抜粋（行番号: 内容）:\n{context}",
-                request.repository, request.commit, request.question
-            )},
-        ],
-    });
-    let bytes = serde_json::to_vec(&body).map_err(io::Error::other)?;
-    let response = match crate::ai_transport::run_script(
-        SCRIPT,
-        &bytes,
-        Duration::from_secs(75),
-        2 * 1024 * 1024,
-    ) {
+    let response = match config.complete(json!([
+        {"role": "system", "content": INSTRUCTIONS},
+        {"role": "user", "content": format!("リポジトリ: {}\nコミット: {}\n質問: {}\n\nコード抜粋（行番号: 内容）:\n{context}", request.repository, request.commit, request.question)},
+    ])) {
         Ok(value) => value,
-        Err(error) => {
-            return Ok(
-                json!({"status": "failed", "message": format!("AIによる説明を取得できませんでした: {error}")}),
-            );
-        }
+        Err(error) => return Ok(json!({"status":"failed", "message":format!("AIによる説明を取得できませんでした: {error}")})),
     };
     let content = response["content"].as_str().unwrap_or_default();
-    let mut parsed = match crate::ai_response::assess(content, &snapshot, &provided) {
+    let mut parsed = match crate::ai_response::assess(content, snapshot, &provided) {
         Ok(value) => value,
         Err(_) => {
             return Ok(
@@ -260,7 +230,7 @@ pub fn explain(
         "response_sha256": response_sha256,
         "kind": "ai",
         "meaning": "AIによる説明。示した行が固定コミットに存在することは基盤が確かめたが、説明の正しさは確かめていない。行を開いて確認してください",
-        "source": inquiry["source"],
+        "source": crate::understanding::source_summary(snapshot),
     }))
 }
 

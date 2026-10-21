@@ -1,7 +1,6 @@
 pub mod adapters;
 pub mod ai;
 mod ai_response;
-mod ai_transport;
 pub mod architecture;
 pub mod assessment;
 pub mod backup;
@@ -27,6 +26,7 @@ pub mod review;
 pub mod review_execution;
 pub mod review_report;
 pub mod server;
+pub mod system_diagram;
 pub mod trial;
 pub mod understanding;
 pub mod workspace;

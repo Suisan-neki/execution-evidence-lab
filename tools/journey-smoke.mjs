@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium } from 'playwright';
 import { verifyConnections } from './diagram-geometry.mjs';
+import { startSyntheticArchitectureAI } from './system-diagram-fixture.mjs';
 const root = resolve(import.meta.dirname, '..'), temp = await mkdtemp(join(tmpdir(), 'eel-system-'));
 const data = join(temp, 'app'), output = join(root, 'test-results');
 const snapshot = JSON.parse(await readFile(join(root, 'tests/fixtures/reader/system.json'), 'utf8'));
@@ -16,7 +17,8 @@ for (const s of [snapshot, other]) {
   await writeFile(join(data, 'snapshots', s.fullName, s.commit + '.json'), JSON.stringify(s));
 }
 await mkdir(output, { recursive: true });
-const child = spawn(process.env.REVIEW_BINARY || join(root, 'target/debug/execution-evidence-lab'), ['app', data, '--port', '0'], { stdio: ['ignore', 'pipe', 'pipe'] });
+const ai = await startSyntheticArchitectureAI();
+const child = spawn(process.env.REVIEW_BINARY || join(root, 'target/debug/execution-evidence-lab'), ['app', data, '--port', '0'], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, PATH: '/no-node-for-server' } });
 let stderr = ''; child.stderr.on('data', d => { stderr += d; });
 let browser, page;
 try {
@@ -45,17 +47,37 @@ try {
   await page.getByRole('button', { name: '構成図を作成する', exact: true }).click();
   assert.equal(await page.locator('#repository-url').getAttribute('aria-invalid'), 'true');
   await shot('repository');
+  const unconfigured = await context.request.post(url + '/api/v1/system-diagram', { headers, data: { repository: snapshot.fullName, commit: snapshot.commit } });
+  assert.equal(unconfigured.status(), 400);
+  assert.match((await unconfigured.json()).error, /AI接続の設定が必要/);
+  assert.equal(ai.state.calls, 0); assert.equal(await page.locator('[data-node]').count(), 0);
+  ai.state.mode = 'repair';
+  await page.getByText('AI接続を設定する', { exact: true }).click().catch(() => {});
+  await page.locator('#ai-settings').evaluate(n => n.open = true);
+  await page.locator('#ai-model').fill('synthetic-architecture');
+  await page.locator('#ai-base-url').fill(ai.url);
+  await page.locator('#ai-key').fill('synthetic-secret-key');
+  await page.getByRole('button', { name: '接続設定を保存する', exact: true }).click();
+  await page.locator('#ai-connection-status', { hasText: 'synthetic-architecture' }).waitFor();
+  assert.equal(await page.locator('#ai-key').inputValue(), '');
+  await page.getByRole('button', { name: '接続を確認する', exact: true }).click();
+  await page.locator('#ai-connection-test', { hasText: '指定したモデルから応答' }).waitFor();
   await page.locator('#repository-url').fill('https://github.com/' + snapshot.fullName);
   await setReference(snapshot.commit);
   await page.getByRole('button', { name: '構成図を作成する', exact: true }).click();
   await page.locator('#system-screen:not([hidden])').waitFor();
   assert.equal(await page.locator('#system-heading').innerText(), snapshot.fullName);
   await page.locator('#repository-diagram[aria-busy="false"] [data-node]').first().waitFor();
-  const graphResponse = await context.request.post(url + '/api/v1/understand', { headers, data: { operation: 'architecture', repository: snapshot.fullName, commit: snapshot.commit } });
+  const graphResponse = await context.request.post(url + '/api/v1/system-diagram', { headers, data: { repository: snapshot.fullName, commit: snapshot.commit } });
   const { result: graph, references } = await graphResponse.json();
   assert.equal(references.unverified.length, 0);
-  assert.equal(graph.nodes.length, 6, '画面・API・DB・キャッシュ・認証・ファイル保存の6要素にまとめる');
-  assert.equal(await page.locator('[data-node]').count(), 6);
+  assert.equal(graph.generation_attempts, 2); assert.equal(ai.state.calls, 2, '渡していない参照は修正を求め、検査後に表示する');
+  assert.match(await page.locator('#system-purpose').innerText(), /利用者.*記録/);
+  assert.match(await page.locator('#system-workflow').innerText(), /記録管理API/);
+  const canvas = await page.locator('#repository-diagram').evaluate(n => { const svg = n.querySelector('svg').getBoundingClientRect(); const box = n.getBoundingClientRect(); return { fits: svg.width <= box.width && svg.height <= box.height }; });
+  assert.equal(canvas.fits, true, '全体を表示したときに図の下半分を切り取らない');
+  assert.equal(graph.nodes.length, 7, '利用者、画面、API、保存先、認証などを同じ構成に保つ');
+  assert.equal(await page.locator('[data-node]').count(), 7);
   await verifyConnections(page, graph);
   const db = graph.nodes.find(n => n.role === 'database'), app = graph.nodes.find(n => n.role === 'api');
   const dataEdge = graph.edges.find(e => e.from === app.id && e.to === db.id);
@@ -70,6 +92,9 @@ try {
   await node.focus(); await page.keyboard.press('Enter');
   assert.equal(await node.getAttribute('aria-pressed'), 'true');
   await page.locator('#concern-text').fill('保存できないとき、利用者にどう伝わる？');
+  await page.getByRole('button', { name: 'AIと疑問を整理する', exact: true }).click();
+  await page.locator('#concern-ai-answer', { hasText: 'AIによる整理' }).waitFor();
+  assert.equal(ai.state.questions, 1); assert.equal((await view()).workspace.statements.length, 0, 'AI回答だけでは疑問や期待を保存しない');
   await page.locator(`[data-edge="${dataEdge.id}"]`).focus(); await page.keyboard.press('Enter');
   await page.locator('#concern-text').fill('通信が途切れたときの疑問');
   await page.locator(`[data-node="${app.id}"]`).click();
@@ -96,6 +121,15 @@ try {
   assert.equal(withCheck.workspace.checks.length, 1); assert.equal(withCheck.workspace.checks[0].rule, 'manual_only');
   assert.equal(withCheck.workspace.checks[0].source.path, 'compose.yaml');
   await shot('concern');
+  const savedDiagram = graph.model_revision;
+  ai.state.mode = 'unavailable';
+  await page.getByRole('button', { name: '構成図を作り直す', exact: true }).click();
+  await page.locator('#alert', { hasText: 'HTTP 503' }).waitFor();
+  assert.equal(await page.locator('[data-node]').count(), 7, '再生成の失敗で以前の図を失わない');
+  ai.state.mode = 'valid'; ai.state.revision = 2;
+  await page.getByRole('button', { name: '構成図を作り直す', exact: true }).click();
+  await page.locator('#system-workflow', { hasText: '再生成した説明' }).waitFor();
+  assert.notEqual(new URL(page.url()).searchParams.get('diagram'), savedDiagram);
   const beforeAudience = JSON.stringify(withCheck.workspace);
   const positions = await page.locator('[data-node]').evaluateAll(ns => ns.map(n => [n.dataset.node, n.getAttribute('transform')]));
   await page.getByRole('button', { name: /立場：非技術者/ }).click();
@@ -104,8 +138,8 @@ try {
   assert.match(await node.getAttribute('aria-label'), /PostgreSQL/);
   assert.deepEqual(await page.locator('[data-node]').evaluateAll(ns => ns.map(n => [n.dataset.node, n.getAttribute('transform')])), positions, '立場を変えても同じ図の配置を保つ');
   await page.locator(`[data-node="${app.id}"]`).click();
-  assert.match(await page.locator('#selected-details').innerText(), /内部の処理と起動設定/);
-  assert.match(await page.locator('#selected-details').innerText(), /\/api\/records/);
+  assert.match(await page.locator('#selected-description').innerText(), /FastAPI|記録/);
+  assert.match(await page.locator('#selected-description').innerText(), /\/api\/records/);
   await shot('technical');
   await page.locator('#repository-diagram').screenshot({ path: join(output, 'system-overview-technical.png') });
   assert.equal(JSON.stringify((await view()).workspace), beforeAudience, '立場の選択で記録や判定を変更しない');
@@ -117,6 +151,8 @@ try {
   await page.locator('[data-concern]').waitFor();
   await page.locator('#repository-diagram[aria-busy="false"]').waitFor();
   assert.equal(await node.getAttribute('aria-pressed'), 'true', '検証から元の構成要素へ戻る');
+  assert.equal(new URL(page.url()).searchParams.get('diagram'), savedDiagram, '疑問を残した時点の図の版へ戻る');
+  assert.doesNotMatch(await page.locator('#system-workflow').innerText(), /再生成した説明/);
   await page.reload(); await page.locator('[data-concern]').waitFor();
   assert.equal((await view()).workspace.checks.length, 1);
   await page.locator('#repository-diagram[aria-busy="false"] [data-edge]').first().waitFor();
@@ -128,7 +164,7 @@ try {
   assert.equal(JSON.parse(relationQuestion.origin).object_type, 'relation');
   assert.equal(JSON.parse(relationQuestion.origin).node, dataEdge.id);
   await page.getByRole('button', { name: '拡大', exact: true }).click();
-  assert.equal(await page.locator('#repository-diagram svg').evaluate(n => n.style.width), '130%');
+  assert.equal(await page.locator('#repository-diagram svg').getAttribute('data-zoom'), '1.3');
   await page.getByRole('button', { name: '全体を表示', exact: true }).click();
   for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 }); await shot('map-' + width);
@@ -143,25 +179,14 @@ try {
   await page.getByRole('button', { name: '構成図を作成する', exact: true }).click();
   await page.locator('#system-heading', { hasText: other.fullName }).waitFor();
   await page.locator('#repository-diagram[aria-busy="false"] [data-node]').first().waitFor();
-  const otherGraph = (await (await context.request.post(url + '/api/v1/understand', { headers, data: { operation: 'architecture', repository: other.fullName, commit: other.commit } })).json()).result;
+  const otherGraph = (await (await context.request.post(url + '/api/v1/system-diagram', { headers, data: { repository: other.fullName, commit: other.commit } })).json()).result;
   await verifyConnections(page, otherGraph);
   assert.equal(await page.locator('[data-concern]').count(), 0, '別リポジトリの疑問を混ぜない');
   assert.equal((await view()).workspace.evidence.length, 0);
   assert.equal((await context.request.post(url + '/api/v1/understand', { headers: { 'Content-Type': 'application/json' }, data: { operation: 'architecture', repository: snapshot.fullName, commit: snapshot.commit } })).status(), 403);
-  if (process.argv.includes('--live')) {
-    await page.getByRole('button', { name: '別のリポジトリを読む', exact: true }).click();
-    await page.locator('#repository-url').fill('https://github.com/sjl/t');
-  await setReference('815ccaf');
-    await page.getByRole('button', { name: '構成図を作成する', exact: true }).click();
-    await page.locator('#system-heading', { hasText: 'sjl/t' }).waitFor({ timeout: 60000 });
-    await page.locator('#repository-diagram[aria-busy="false"]').waitFor();
-    assert.equal(await page.locator('[data-concern]').count(), 0);
-    assert.equal((await view()).workspace.evidence.length, 0);
-    await page.setViewportSize({ width: 1440, height: 1000 }); await shot('live-sjl-t');
-  }
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ checks: ['audience first', 'six meaningful architecture components', 'data and startup relations distinguished', 'all references verified', 'keyboard node and edge selection', 'per-object drafts', 'conflict preserves question', 'question is not expectation or test', 'fixed source', 'verification setup and return', 'audience switch preserves layout and records', 'technical internal details', 'relation-linked concern', 'zoom and fit', 'repository separation', 'reload', '1440/390/320px and text 200%', 'token required'], human_evaluation: 'not_conducted' }));
+  console.log(JSON.stringify({ checks: ['audience first', 'source-grounded synthetic architecture', 'data and startup relations distinguished', 'all references verified', 'keyboard node and edge selection', 'per-object drafts', 'conflict preserves question', 'question is not expectation or test', 'fixed source', 'verification setup and return', 'audience switch preserves layout and records', 'technical internal details', 'relation-linked concern', 'zoom and fit', 'repository separation', 'reload', '1440/390/320px and text 200%', 'token required', 'AI setup without key disclosure', 'native AI without Node.js', 'invalid output repair', 'cached diagram and historical revision', 'failed regeneration preserves diagram', 'AI concern without automatic saving', 'whole diagram fits viewport'], human_evaluation: 'not_conducted' }));
 } catch (e) {
   if (page && !page.isClosed()) { console.error(await page.locator('body').innerText()); await page.screenshot({ path: join(output, 'system-failure.png'), fullPage: true }); }
   throw e;
-} finally { child.kill('SIGTERM'); await browser?.close(); await rm(temp, { recursive: true, force: true }); }
+} finally { child.kill('SIGTERM'); await browser?.close(); await ai.close(); await rm(temp, { recursive: true, force: true }); }

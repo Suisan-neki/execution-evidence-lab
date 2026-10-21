@@ -41,17 +41,17 @@ function concernLabel(object) {
   return object.object_type === 'relation' ? `${state.graph.nodes.find(n => n.id === object.from)?.title} → ${state.graph.nodes.find(n => n.id === object.to)?.title}：${object.title}` : object.title;
 }
 function selectNode(node) {
-  saveDraft(); state.selected = node; state.draftKey = draftKey();
+  saveDraft(); state.selected = node; state.draftKey = draftKey(); $('concern-ai-answer').replaceChildren();
   $('concern-text').value = remembered(state.draftKey) || '';
   $('selected-heading').textContent = node?.object_type === 'relation' ? `${state.graph.nodes.find(n => n.id === node.from)?.title} → ${state.graph.nodes.find(n => n.id === node.to)?.title}` : objectTitle(node, false);
-  $('selected-description').textContent = node?.description || '全体への不安や疑問も、そのまま書けます。';
+  $('selected-description').textContent = (state.audience === 'developer' && node?.technical_description ? node.technical_description : node?.description) || state.graph?.overview?.workflow || '全体への不安や疑問も、そのまま書けます。';
   $('select-whole').hidden = !node;
   selectDiagramObject($('repository-diagram'), node?.id);
   const details = $('selected-details'); details.replaceChildren();
   const technical = state.audience === 'developer';
   if (node) {
     if (node.scope_note) details.append(el('p', { className: 'note' }, node.scope_note));
-    details.append(el('p', { className: 'note' }, node.basis?.kind === 'configuration' ? '設定に定義された構成です。動作はまだ検証していません。' : 'コードの記述から整理した推定です。動作はまだ検証していません。'));
+    details.append(el('p', { className: 'note' }, node.basis?.note || 'コードの記述から整理した推定です。動作はまだ検証していません。'));
     if (node.object_type === 'relation') details.append(el('p', {}, `やり取り：${node.title}`));
     if (technical && (node.technology?.length || node.protocol)) details.append(el('p', { className: 'component-technology' }, `技術・接続：${node.protocol || node.technology.join(' / ')}`));
     if (technical && node.details?.length) {
@@ -104,7 +104,7 @@ $('change-audience').addEventListener('click', () => { saveDraft(); screen('audi
 $('change-repository').addEventListener('click', () => { saveDraft(); state.sequence++; state.loading = false; $('load-repository').disabled = false; status(''); state.source = null; state.overview = null; state.graph = null; state.selected = null; state.draftKey = null; state.preparation = null; $('repository-url').value = ''; $('repository-ref').value = ''; document.querySelector('.repository-options').open = false; screen('repository'); history.pushState(null, '', '/'); });
 $('select-whole').addEventListener('click', () => selectNode(null));
 let diagramZoom = 1;
-function zoomDiagram(value) { diagramZoom = Math.min(3, Math.max(.5, value)); const chart = $('repository-diagram').querySelector('svg'); if (chart) chart.style.width = diagramZoom === 1 ? '100%' : `${diagramZoom * 100}%`; }
+function zoomDiagram(value) { diagramZoom = Math.min(6, Math.max(.5, value)); const chart = $('repository-diagram').querySelector('svg'); if (chart) { chart.style.width = `${Number(chart.dataset.fitWidth) * diagramZoom}px`; chart.dataset.zoom = diagramZoom; } if (diagramZoom === 1) { $('repository-diagram').scrollTop = 0; $('repository-diagram').scrollLeft = 0; } }
 $('diagram-fit').addEventListener('click', () => zoomDiagram(1));
 $('diagram-zoom-in').addEventListener('click', () => zoomDiagram(diagramZoom * 1.3));
 $('diagram-zoom-out').addEventListener('click', () => zoomDiagram(diagramZoom / 1.3));
@@ -118,22 +118,27 @@ async function openRepository(url, reference, record = true) {
   status('リポジトリを読み込み、構成図を作成しています。');
   await run(async () => {
     const read = await api('understand', { operation: 'open', url, reference });
+    status('READMEとコードの抜粋から、役割と情報の流れを整理しています。');
+    const params = new URLSearchParams(location.search);
+    const revision = params.get('url') === url && params.get('ref') === read.source.commit ? params.get('diagram') : null;
     const [map, view] = await Promise.all([
-      api('understand', { operation: 'architecture', repository: read.source.repository, commit: read.source.commit }), api('case')
+      api('system-diagram', { repository: read.source.repository, commit: read.source.commit, ...(revision ? { revision } : {}) }), api('case')
     ]);
     if (seq !== state.sequence) return;
     state.source = read.source; state.overview = read.result; state.graph = map.result; state.view = view; state.selected = null; state.draftKey = null; state.preparation = null;
     $('system-heading').textContent = read.source.repository;
+    $('overview-heading').textContent = map.result.overview.title;
+    $('system-purpose').textContent = map.result.overview.purpose;
+    $('system-workflow').textContent = map.result.overview.workflow;
     $('repository-version').textContent = `読み込んだ版：${read.source.commit.slice(0, 12)}`;
     $('map-scope').textContent = `${map.result.scope}。実際の配置や動作は未確認です。`;
     $('diagram-summary').textContent = map.result.summary;
     $('map-basis').replaceChildren(el('p', {}, map.result.basis), el('p', {}, map.result.unknown), ...(map.result.notices || []).map(n => el('p', {}, n)), el('p', {}, `本文を読んだファイル：${map.result.read_files}件。構成に関係する候補の未読：${map.result.unread_files}件。${map.result.inventory_truncated ? 'ファイル一覧自体も途中で切れています。' : ''}`));
-    const params = new URLSearchParams(location.search);
     const focus = params.get('url') === url ? findObject(params.get('focus')) : null;
     selectNode(focus); renderConcerns(); screen('system'); diagramZoom = 1;
     await renderGraph();
     if (seq !== state.sequence) return;
-    if (record) history.pushState(null, '', `/?url=${encodeURIComponent(url)}&ref=${encodeURIComponent(read.source.commit)}${focus ? `&focus=${encodeURIComponent(focus.id)}` : ''}`);
+    if (record) history.pushState(null, '', `/?url=${encodeURIComponent(url)}&ref=${encodeURIComponent(read.source.commit)}&diagram=${encodeURIComponent(map.result.model_revision)}${focus ? `&focus=${encodeURIComponent(focus.id)}` : ''}`);
     status('構成図を表示しました。気になる部分を選んでください。');
   }, () => seq === state.sequence);
   if (seq === state.sequence) { state.loading = false; $('load-repository').disabled = false; }
@@ -179,7 +184,13 @@ function renderConcerns() {
     const m = meta(statement), check = checkFor(statement);
     const card = el('article', { className: 'concern-card', 'data-concern': statement.id }, el('p', { className: 'concern-location' }, `${m.label}${m.commit === state.source.commit ? '' : '（以前の版への疑問）'}`), el('h3', {}, statement.text));
     const target = m.commit === state.source.commit ? findObject(m.node) : null;
-    if (target) card.append(button('図のこの部分を見る', () => { selectNode(target); $('repository-diagram').scrollIntoView({ block: 'center' }); }));
+    if (target && (!m.model_revision || m.model_revision === state.graph.model_revision)) card.append(button('図のこの部分を見る', () => { selectNode(target); $('repository-diagram').scrollIntoView({ block: 'center' }); }));
+    else if (m.model_revision) card.append(button('疑問を残した図を見る', () => run(async () => {
+      await api('system-diagram', { repository: m.repository, commit: m.commit, revision: m.model_revision });
+      const url = new URL('/', location.origin); url.searchParams.set('url', 'https://github.com/' + m.repository); url.searchParams.set('ref', m.commit); url.searchParams.set('diagram', m.model_revision); if (m.node) url.searchParams.set('focus', m.node);
+      history.pushState(null, '', url.pathname + url.search); await openRepository('https://github.com/' + m.repository, m.commit, false);
+    })));
+
     if (m.commit === state.source.commit && m.model_revision && m.model_revision !== state.graph.model_revision) card.append(el('p', { className: 'note' }, '疑問を残した後に、図の読み取り範囲や説明が変わっています。'));
     if (m.commit === state.source.commit && m.node && !target) card.append(el('p', { className: 'note' }, '疑問を残した部分は、現在の図では特定できていません。元の出所を保持しています。'));
     if (check) {
@@ -223,7 +234,7 @@ function prepareConcern(card, statement) {
   card.append(form); text.focus();
 }
 function workbenchLink(label, check, m, step) {
-  const href = `/workbench?url=${encodeURIComponent('https://github.com/' + m.repository)}&ref=${encodeURIComponent(check.source?.commit || m.commit)}&check=${encodeURIComponent(check.id)}${m.node ? `&focus=${encodeURIComponent(m.node)}` : ''}&from=system#${step}`;
+  const href = `/workbench?url=${encodeURIComponent('https://github.com/' + m.repository)}&ref=${encodeURIComponent(check.source?.commit || m.commit)}&check=${encodeURIComponent(check.id)}${m.node ? `&focus=${encodeURIComponent(m.node)}` : ''}${m.model_revision ? `&diagram=${encodeURIComponent(m.model_revision)}` : ''}&from=system#${step}`;
   return el('a', { href, className: 'dads-button', 'data-type': 'outline', 'data-size': 'sm' }, label);
 }
 async function restore() {
@@ -235,3 +246,55 @@ async function restore() {
 }
 window.addEventListener('popstate', () => { saveDraft(); state.sequence++; state.loading = false; $('load-repository').disabled = false; restore(); });
 restore();
+
+async function loadConnection() {
+  const info = await api('ai');
+  $('ai-connection-status').textContent = info.status === 'configured' ? `AI接続：${info.host} / ${info.model}` : '構成図の生成にはAI接続の設定が必要です。保存済みの図は設定なしでも開けます。';
+  $('ai-settings').hidden = info.server_managed === true;
+  $('test-ai-connection').disabled = info.status !== 'configured';
+  if (info.status !== 'configured') $('ai-settings').open = true;
+}
+$('ai-connection-form').addEventListener('submit', e => {
+  e.preventDefault(); const submit = $('save-ai-connection'); if (submit.disabled) return; submit.disabled = true;
+  const settings = { model: $('ai-model').value.trim(), base_url: $('ai-base-url').value.trim(), api_key: $('ai-key').value };
+  $('ai-key').value = '';
+  run(async () => { await api('ai/connection', settings); await loadConnection(); $('ai-settings').open = false; status('接続設定を保存しました。リポジトリから構成図を作成できます。'); }).finally(() => { submit.disabled = false; });
+});
+$('regenerate-diagram').addEventListener('click', () => {
+  if (state.loading || !state.source) return;
+  const source = state.source, seq = state.sequence, submit = $('regenerate-diagram'); submit.disabled = true;
+  status('同じコミットを読み直し、構成図を作り直しています。');
+  run(async () => {
+    const map = await api('system-diagram', { repository: source.repository, commit: source.commit, refresh: true });
+    if (seq !== state.sequence) return;
+    const url = new URL(location.href); url.searchParams.set('diagram', map.result.model_revision); url.searchParams.delete('focus');
+    history.replaceState(null, '', url.pathname + url.search);
+    await openRepository('https://github.com/' + source.repository, source.commit, false);
+  }, () => seq === state.sequence).finally(() => { submit.disabled = false; });
+});
+$('ask-concern-ai').addEventListener('click', () => {
+  const question = $('concern-text').value.trim();
+  if (!question) { status('不安や疑問を入力してください。'); $('concern-text').focus(); return; }
+  const submit = $('ask-concern-ai'); if (submit.disabled || !state.source) return; submit.disabled = true;
+  const source = state.source, selected = state.selected;
+  $('concern-ai-answer').textContent = '選んだ部分のコードを読み、疑問を整理しています。';
+  run(async () => {
+    const answer = await api('system-diagram/question', { repository: source.repository, commit: source.commit, revision: state.graph.model_revision, object_id: selected?.id || null, question });
+    if (source !== state.source || selected?.id !== state.selected?.id) return;
+    const result = $('concern-ai-answer'); result.replaceChildren();
+    if (answer.status !== 'ok') { result.append(el('p', { className: 'input-error' }, answer.message || 'AIの説明を取得できませんでした。')); return; }
+    result.append(el('h3', {}, 'AIによる整理'), el('p', {}, answer.answer), el('p', { className: 'note' }, 'AIの説明は未検証です。疑問や期待する動作として残す内容は、自分で確認して記入してください。'));
+    for (const claim of answer.claims || []) {
+      result.append(el('p', {}, claim.text));
+      for (const r of claim.refs || []) if (r.verified) result.append(el('a', { href: r.url, target: '_blank', rel: 'noopener noreferrer' }, `${r.path} ${r.line}行目`));
+    }
+    if (answer.unknowns?.length) result.append(el('h3', {}, 'まだ分からないこと'), el('ul', {}, answer.unknowns.map(s => el('li', {}, s))));
+  }).finally(() => { submit.disabled = false; });
+});
+run(loadConnection);
+
+$('test-ai-connection').addEventListener('click', () => {
+  const submit = $('test-ai-connection'); submit.disabled = true;
+  $('ai-connection-test').textContent = '指定したモデルへの接続を確認しています。';
+  run(async () => { try { const result = await api('ai/test', {}); $('ai-connection-test').textContent = result.message; } catch (e) { $('ai-connection-test').textContent = '接続を確認できませんでした。'; throw e; } }).finally(() => { submit.disabled = false; });
+});
