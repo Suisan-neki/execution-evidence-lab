@@ -61,7 +61,7 @@ pub fn generate(
         cached["cached"] = json!(true);
         return Ok(cached);
     }
-    let config=config.ok_or_else(|| invalid("構成図の生成にはAI接続の設定が必要です。リポジトリ入力画面の「AI接続を設定する」を開いてください"))?;
+    let config=config.ok_or_else(|| invalid("構成図の生成には運営者によるAI接続の設定が必要です。しばらくしてから再度お試しください"))?;
     let snapshot = store.architecture_source(&request.repository, &request.commit)?;
     let context = context::build(&snapshot)?;
     let mut messages =
@@ -132,7 +132,8 @@ pub fn answer(
     store: &crate::understanding::Store,
     request: Question,
 ) -> io::Result<Value> {
-    let config = config.ok_or_else(|| invalid("AI接続を設定してください"))?;
+    let config = config
+        .ok_or_else(|| invalid("AIはまだ利用できません。運営者によるサーバー設定が必要です。"))?;
     if request.question.trim().is_empty() || request.question.len() > 6000 {
         return Err(invalid("疑問は空でない6000バイト以内で入力してください"));
     }

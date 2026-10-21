@@ -1,6 +1,7 @@
 // 実Rust APIと保存済みの固定版を使い、立場→GitHub→図→疑問→検証設定を通す。
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -18,22 +19,30 @@ for (const s of [snapshot, other]) {
 }
 await mkdir(output, { recursive: true });
 const ai = await startSyntheticArchitectureAI();
-const child = spawn(process.env.REVIEW_BINARY || join(root, 'target/debug/execution-evidence-lab'), ['app', data, '--port', '0'], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, PATH: '/no-node-for-server' } });
-let stderr = ''; child.stderr.on('data', d => { stderr += d; });
-let browser, page;
-try {
+const binary = process.env.REVIEW_BINARY || join(root, 'target/debug/execution-evidence-lab');
+const operatorEnv = { ...process.env, PATH: '/no-node-for-server' };
+for (const name of ['EEL_AI_BASE_URL', 'EEL_AI_MODEL', 'EEL_AI_API_KEY_FILE']) delete operatorEnv[name];
+async function startApp() {
+  const child = spawn(binary, ['app', data, '--port', '0'], { stdio: ['ignore', 'pipe', 'pipe'], env: operatorEnv });
+  let stderr = ''; child.stderr.on('data', d => { stderr += d; });
   const url = await new Promise((accept, reject) => {
     let stdout = ''; const timer = setTimeout(() => reject(Error(stderr || 'startup timeout')), 15000);
     child.stdout.on('data', d => { stdout += d; const m = /http:\/\/127\.0\.0\.1:\d+/.exec(stdout); if (m) { clearTimeout(timer); accept(m[0]); } });
+    child.once('error', e => { clearTimeout(timer); reject(e); });
     child.once('exit', () => { clearTimeout(timer); reject(Error(stderr || 'server exited')); });
   });
+  return { child, url };
+}
+let child, url, browser, page;
+try {
+  ({ child, url } = await startApp());
   browser = await chromium.launch({ headless: true, executablePath: process.env.REVIEW_BROWSER_EXECUTABLE || undefined, args: ['--no-sandbox'] });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   page = await context.newPage(); page.setDefaultTimeout(10000);
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.goto(url);
-  const token = await page.locator('meta[name=review-token]').getAttribute('content');
-  const headers = { 'X-Review-Token': token, 'Content-Type': 'application/json' };
+  let token = await page.locator('meta[name=review-token]').getAttribute('content');
+  let headers = { 'X-Review-Token': token, 'Content-Type': 'application/json' };
   const view = async () => (await context.request.get(url + '/api/v1/case', { headers })).json();
   const shot = name => page.screenshot({ path: join(output, 'system-' + name + '.png'), fullPage: true });
   const setReference = async value => { if (!await page.locator('.repository-options').evaluate(n => n.open)) await page.getByText('ブランチ・コミットを指定する', { exact: true }).click(); await page.locator('#repository-ref').fill(value); };
@@ -49,19 +58,36 @@ try {
   await shot('repository');
   const unconfigured = await context.request.post(url + '/api/v1/system-diagram', { headers, data: { repository: snapshot.fullName, commit: snapshot.commit } });
   assert.equal(unconfigured.status(), 400);
-  assert.match((await unconfigured.json()).error, /AI接続の設定が必要/);
+  assert.match((await unconfigured.json()).error, /運営者によるAI接続の設定が必要/);
   assert.equal(ai.state.calls, 0); assert.equal(await page.locator('[data-node]').count(), 0);
+  assert.equal(await page.locator('input[type=password], #ai-settings, #ai-model, #ai-key, #ai-base-url').count(), 0, '利用者に運営者のキー・モデル・接続先を入力させない');
+  for (const route of ['ai/connection', 'ai/test']) {
+    assert.equal((await context.request.post(url + '/api/v1/' + route, { headers, data: {} })).status(), 404);
+  }
+  const cli = promisify(execFile);
+  await cli(binary, ['ai', 'init', '--data-dir', data], { env: operatorEnv });
+  const configPath = join(data, 'ai.json');
+  assert.equal(JSON.parse(await readFile(configPath, 'utf8')).api_key, '');
+  const operatorSettings = JSON.stringify({ base_url: ai.url, model: 'synthetic-architecture', api_key: 'synthetic-secret-key' });
+  await writeFile(configPath, operatorSettings);
+  assert.equal((await (await context.request.get(url + '/api/v1/ai', { headers })).json()).status, 'not_configured', '運営者設定はサーバー起動時に読む');
+  const tested = await cli(binary, ['ai', 'test', '--data-dir', data], { env: operatorEnv });
+  assert.match(tested.stdout, /指定したモデルから応答/);
+  assert.ok(!tested.stdout.includes('synthetic-secret-key') && !tested.stderr.includes('synthetic-secret-key'));
+  const exited = new Promise(accept => child.once('exit', accept)); child.kill('SIGTERM'); await exited;
+  ({ child, url } = await startApp());
+  await page.goto(url);
+  token = await page.locator('meta[name=review-token]').getAttribute('content');
+  headers = { 'X-Review-Token': token, 'Content-Type': 'application/json' };
+  await page.getByRole('button', { name: /非技術者/ }).click();
+  const publicStatus = await (await context.request.get(url + '/api/v1/ai', { headers })).json();
+  assert.equal(publicStatus.status, 'configured');
+  assert.ok(!JSON.stringify(publicStatus).includes('synthetic-secret-key'));
+  assert.equal((await context.request.get(url + '/ai.json', { headers })).status(), 404);
+  assert.equal((await context.request.post(url + '/api/v1/ai/connection', { headers, data: { base_url: ai.url, model: 'overwritten', api_key: 'untrusted-key' } })).status(), 404);
+  assert.equal(await readFile(configPath, 'utf8'), operatorSettings, 'ブラウザから運営者設定を変更できない');
+  assert.ok(!await page.locator('body').innerText().then(t => /APIキー|モデル名|AI接続を設定する/.test(t)));
   ai.state.mode = 'repair';
-  await page.getByText('AI接続を設定する', { exact: true }).click().catch(() => {});
-  await page.locator('#ai-settings').evaluate(n => n.open = true);
-  await page.locator('#ai-model').fill('synthetic-architecture');
-  await page.locator('#ai-base-url').fill(ai.url);
-  await page.locator('#ai-key').fill('synthetic-secret-key');
-  await page.getByRole('button', { name: '接続設定を保存する', exact: true }).click();
-  await page.locator('#ai-connection-status', { hasText: 'synthetic-architecture' }).waitFor();
-  assert.equal(await page.locator('#ai-key').inputValue(), '');
-  await page.getByRole('button', { name: '接続を確認する', exact: true }).click();
-  await page.locator('#ai-connection-test', { hasText: '指定したモデルから応答' }).waitFor();
   await page.locator('#repository-url').fill('https://github.com/' + snapshot.fullName);
   await setReference(snapshot.commit);
   await page.getByRole('button', { name: '構成図を作成する', exact: true }).click();
@@ -185,8 +211,8 @@ try {
   assert.equal((await view()).workspace.evidence.length, 0);
   assert.equal((await context.request.post(url + '/api/v1/understand', { headers: { 'Content-Type': 'application/json' }, data: { operation: 'architecture', repository: snapshot.fullName, commit: snapshot.commit } })).status(), 403);
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ checks: ['audience first', 'source-grounded synthetic architecture', 'data and startup relations distinguished', 'all references verified', 'keyboard node and edge selection', 'per-object drafts', 'conflict preserves question', 'question is not expectation or test', 'fixed source', 'verification setup and return', 'audience switch preserves layout and records', 'technical internal details', 'relation-linked concern', 'zoom and fit', 'repository separation', 'reload', '1440/390/320px and text 200%', 'token required', 'AI setup without key disclosure', 'native AI without Node.js', 'invalid output repair', 'cached diagram and historical revision', 'failed regeneration preserves diagram', 'AI concern without automatic saving', 'whole diagram fits viewport'], human_evaluation: 'not_conducted' }));
+  console.log(JSON.stringify({ checks: ['audience first', 'source-grounded synthetic architecture', 'data and startup relations distinguished', 'all references verified', 'keyboard node and edge selection', 'per-object drafts', 'conflict preserves question', 'question is not expectation or test', 'fixed source', 'verification setup and return', 'audience switch preserves layout and records', 'technical internal details', 'relation-linked concern', 'zoom and fit', 'repository separation', 'reload', '1440/390/320px and text 200%', 'token required', 'operator CLI setup and connection test', 'no end-user credentials UI or configuration API', 'server settings load only at startup', 'native AI without Node.js', 'invalid output repair', 'cached diagram and historical revision', 'failed regeneration preserves diagram', 'AI concern without automatic saving', 'whole diagram fits viewport'], human_evaluation: 'not_conducted' }));
 } catch (e) {
   if (page && !page.isClosed()) { console.error(await page.locator('body').innerText()); await page.screenshot({ path: join(output, 'system-failure.png'), fullPage: true }); }
   throw e;
-} finally { child.kill('SIGTERM'); await browser?.close(); await ai.close(); await rm(temp, { recursive: true, force: true }); }
+} finally { child?.kill('SIGTERM'); await browser?.close(); await ai.close(); await rm(temp, { recursive: true, force: true }); }

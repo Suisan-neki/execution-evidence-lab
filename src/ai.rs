@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{io, path::PathBuf};
 mod connection;
-pub use connection::ConnectionSettings;
+pub use connection::initialize_connection;
 
 #[derive(Clone)]
 pub struct Config {
@@ -43,16 +43,31 @@ impl Config {
             inline_key: None,
         }
     }
-    pub fn from_env() -> Option<Self> {
-        let base_url = std::env::var("EEL_AI_BASE_URL").ok()?;
-        let model = std::env::var("EEL_AI_MODEL").ok()?;
-        let key_file = std::env::var_os("EEL_AI_API_KEY_FILE").map(PathBuf::from)?;
-        Some(Self {
-            base_url: base_url.trim_end_matches('/').to_owned(),
-            model,
-            key_file,
-            inline_key: None,
-        })
+    /// 環境変数は運営者が起動時に指定する。部分的な設定を無視しない。
+    pub fn from_env() -> io::Result<Option<Self>> {
+        let base_url = std::env::var("EEL_AI_BASE_URL").ok();
+        let model = std::env::var("EEL_AI_MODEL").ok();
+        let key_file = std::env::var_os("EEL_AI_API_KEY_FILE");
+        if base_url.is_none() && model.is_none() && key_file.is_none() {
+            return Ok(None);
+        }
+        let (Some(base_url), Some(model), Some(key_file)) = (base_url, model, key_file) else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "運営者設定の EEL_AI_BASE_URL・EEL_AI_MODEL・EEL_AI_API_KEY_FILE をすべて指定してください",
+            ));
+        };
+        let config = Self::new(&base_url, &model, PathBuf::from(key_file));
+        config.validate_connection()?;
+        config.key()?;
+        Ok(Some(config))
+    }
+    /// サーバー起動時だけ読む。HTTP経由では作成・変更しない。
+    pub fn for_app(data: &std::path::Path) -> io::Result<Option<Self>> {
+        match Self::from_env()? {
+            Some(config) => Ok(Some(config)),
+            None => Self::load_connection(&data.join("ai.json")),
+        }
     }
 }
 
@@ -60,7 +75,7 @@ pub fn status(config: Option<&Config>) -> Value {
     match config {
         None => json!({
             "status": "not_configured",
-            "message": "AI接続は未設定です。ブラウザで接続を設定するか、起動時に EEL_AI_BASE_URL・EEL_AI_MODEL・EEL_AI_API_KEY_FILE を指定してください",
+            "message": "AIはまだ利用できません。運営者によるサーバー設定が必要です。",
         }),
         Some(c) => {
             let host = c

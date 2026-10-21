@@ -76,18 +76,6 @@ impl Store {
             .lock()
             .map_err(|_| io::Error::other("図の生成状態を読み取れません"))
     }
-    pub fn ai_connection(&self) -> io::Result<Option<crate::ai::Config>> {
-        crate::ai::Config::load_connection(&self.base.join(".ai-connection.json"))
-    }
-    pub fn configure_ai(&self, settings: crate::ai::ConnectionSettings) -> io::Result<Value> {
-        let _guard = self
-            .lock
-            .lock()
-            .map_err(|_| io::Error::other("接続設定を更新できません"))?;
-        let config =
-            crate::ai::Config::save_connection(&self.base.join(".ai-connection.json"), settings)?;
-        Ok(crate::ai::status(Some(&config)))
-    }
     pub fn architecture_source(&self, repository: &str, commit: &str) -> io::Result<Value> {
         let output = reader::read(ReaderRequest::ArchitectureSource {
             snapshot: self.load(repository, commit)?,

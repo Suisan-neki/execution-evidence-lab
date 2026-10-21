@@ -37,6 +37,8 @@ const HELP: &str = "execution-evidence-lab
   case compare CASE_DIR --before EVIDENCE_ID --after EVIDENCE_ID --condition CHECK_ID
   api CASE_DIR --token-file NEW_FILE [--port 8765] [--repository-root DIR --execution-mode local|bubblewrap]
   app DATA_DIR [--port 8765] [--execution-mode local|bubblewrap]
+  ai init [--data-dir data/app]
+  ai test [--data-dir data/app]
   explore [--port 8765]
   review CASE_DIR [--port 8765] [--repository-root DIR --execution-mode local|bubblewrap]
 
@@ -96,6 +98,27 @@ fn run(args: &[String]) -> io::Result<()> {
     };
     match command.as_str() {
         "help" | "--help" | "-h" if args.len() == 1 => println!("{HELP}"),
+        "ai" if args.len() >= 2 && matches!(args[1].as_str(), "init" | "test") => {
+            let opts = options(&args[2..], &["--data-dir"])?;
+            let data = opts
+                .get("--data-dir")
+                .map_or_else(|| PathBuf::from("data/app"), PathBuf::from);
+            let path = data.join("ai.json");
+            if args[1] == "init" {
+                execution_evidence_lab::ai::initialize_connection(&path)?;
+                println!(
+                    "運営者用の設定ファイルを作成しました: {}\nモデル名とAPIキーをこのファイルへ記入し、ai testで接続を確認してください。",
+                    path.display()
+                );
+            } else {
+                let config =
+                    execution_evidence_lab::ai::Config::for_app(&data)?.ok_or_else(|| {
+                        invalid("AI未設定です。ai initで運営者用の設定ファイルを作成してください")
+                    })?;
+                let result = config.test_connection()?;
+                println!("{}", result["message"].as_str().unwrap_or_default());
+            }
+        }
         "case" => case_command(&args[1..])?,
         "environment" => environment_command(&args[1..])?,
         "api" if args.len() >= 2 => {

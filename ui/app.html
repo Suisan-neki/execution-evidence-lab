@@ -29,13 +29,12 @@
     <form id="repository-form" novalidate>
       <label class="system-label" for="repository-url">GitHubのリポジトリURL</label>
       <input id="repository-url" class="system-input" type="url" autocomplete="url" placeholder="https://github.com/所有者/リポジトリ" aria-describedby="repository-help repository-error" required>
-      <p id="repository-help" class="note">公開リポジトリに対応しています。構成図の生成時に、READMEとコードの抜粋を設定したAI接続先へ送ります。対象コードは実行しません。</p>
+      <p id="repository-help" class="note">公開リポジトリに対応しています。構成図の生成時に、READMEとコードの抜粋を本サービスが利用するAIへ送ります。対象コードは実行しません。</p>
       <p id="repository-error" class="input-error" hidden></p>
       <details class="repository-options"><summary>ブランチ・コミットを指定する</summary><label class="system-label" for="repository-ref">ブランチ、タグ、またはコミット</label><input id="repository-ref" class="system-input" type="text"><p class="note">空欄なら既定のブランチを読みます。</p></details>
       <button id="load-repository" class="dads-button" data-type="solid-fill" data-size="lg" type="submit">構成図を作成する</button>
     </form>
-    <p id="ai-connection-status" role="status"></p><button id="test-ai-connection" class="dads-button" data-type="text" data-size="sm" type="button" disabled>接続を確認する</button><p id="ai-connection-test" role="status"></p>
-    <details id="ai-settings"><summary>AI接続を設定する</summary><p>OpenAI互換APIの接続先とモデルを指定します。APIキーはこのアプリの保存先に保存し、画面には返しません。「接続を確認する」では、指定したモデルへ短い問い合わせを送ります。</p><form id="ai-connection-form"><label class="system-label" for="ai-model">モデル名</label><input id="ai-model" class="system-input" type="text" required maxlength="160" autocomplete="off"><label class="system-label" for="ai-key">APIキー</label><input id="ai-key" class="system-input" type="password" required maxlength="4096" autocomplete="off"><label class="system-label" for="ai-base-url">API接続先</label><input id="ai-base-url" class="system-input" type="url" value="https://api.openai.com/v1" required><button id="save-ai-connection" class="dads-button" data-type="outline" data-size="sm" type="submit">接続設定を保存する</button></form></details>
+    <p id="ai-availability" role="status" hidden></p>
   </section>
   <section id="system-screen" aria-labelledby="system-heading" hidden>
     <div class="system-heading-row"><div><p class="eyebrow">読み込んだシステム</p><h1 id="system-heading"></h1><p id="repository-version" class="note"></p></div><button id="change-repository" class="dads-button" data-type="text" data-size="sm" type="button">別のリポジトリを読む</button></div>

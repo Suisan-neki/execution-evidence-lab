@@ -94,14 +94,6 @@ pub struct App {
     pub ai: Option<crate::ai::Config>,
     pub demo_directory: PathBuf,
 }
-impl App {
-    fn ai_config(&self) -> io::Result<Option<crate::ai::Config>> {
-        match &self.ai {
-            Some(config) => Ok(Some(config.clone())),
-            None => self.store.ai_connection(),
-        }
-    }
-}
 
 struct Request {
     method: String,
@@ -438,58 +430,30 @@ fn handle_connection_mode(
                 return result_response(stream, result);
             }
             ("GET", "/api/v1/ai") => {
-                let result = app.ai_config().map(|config| {
-                    let mut status = crate::ai::status(config.as_ref());
-                    status["server_managed"] = serde_json::json!(app.ai.is_some());
-                    status
-                });
-                return result_response(stream, result);
-            }
-            ("POST", "/api/v1/ai/connection") => {
-                let result = if app.ai.is_some() {
-                    Err(io::Error::other(
-                        "起動時に指定されたAI接続を使っています。変更する場合は起動時の設定を変更してください",
-                    ))
-                } else {
-                    serde_json::from_slice::<crate::ai::ConnectionSettings>(&request.body)
-                        .map_err(|_| io::Error::other("AI接続設定の形式を確認してください"))
-                        .and_then(|settings| app.store.configure_ai(settings))
-                };
-                return result_response(stream, result);
-            }
-            ("POST", "/api/v1/ai/test") => {
-                let result = app.ai_config().and_then(|config| {
-                    config
-                        .ok_or_else(|| io::Error::other("AI接続を設定してください"))?
-                        .test_connection()
-                });
-                return result_response(stream, result);
+                return result_response(stream, Ok(crate::ai::status(app.ai.as_ref())));
             }
             ("POST", "/api/v1/system-diagram") => {
-                let result = app.ai_config().and_then(|config| {
+                let result =
                     serde_json::from_slice::<crate::system_diagram::Request>(&request.body)
                         .map_err(io::Error::other)
                         .and_then(|r| {
-                            crate::system_diagram::generate(config.as_ref(), &app.store, r)
-                        })
-                });
+                            crate::system_diagram::generate(app.ai.as_ref(), &app.store, r)
+                        });
                 return result_response(stream, result);
             }
             ("POST", "/api/v1/system-diagram/question") => {
-                let result = app.ai_config().and_then(|config| {
+                let result =
                     serde_json::from_slice::<crate::system_diagram::Question>(&request.body)
                         .map_err(io::Error::other)
-                        .and_then(|r| crate::system_diagram::answer(config.as_ref(), &app.store, r))
-                });
+                        .and_then(|r| {
+                            crate::system_diagram::answer(app.ai.as_ref(), &app.store, r)
+                        });
                 return result_response(stream, result);
             }
             ("POST", "/api/v1/ai") => {
                 let result = serde_json::from_slice::<crate::ai::AiRequest>(&request.body)
                     .map_err(io::Error::other)
-                    .and_then(|r| {
-                        app.ai_config()
-                            .and_then(|config| crate::ai::explain(config.as_ref(), &app.store, r))
-                    });
+                    .and_then(|r| crate::ai::explain(app.ai.as_ref(), &app.store, r));
                 return result_response(stream, result);
             }
             ("POST", "/api/v1/prepare") => {
@@ -835,7 +799,7 @@ pub fn serve_app(
     let controller = Controller::managed(case.clone(), data.join("repositories"), mode)?;
     let app = App {
         store: crate::understanding::Store::new(data.join("snapshots"))?,
-        ai: crate::ai::Config::from_env(),
+        ai: crate::ai::Config::for_app(&data)?,
         demo_directory,
     };
     println!(

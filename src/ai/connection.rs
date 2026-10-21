@@ -1,15 +1,14 @@
-//! 接続先をブラウザから設定し、秘密をレスポンスや通信エラーへ含めない。
+//! 運営者の設定を起動時に読み、秘密をレスポンスや通信エラーへ含めない。
 use super::*;
-use serde::Serialize;
 use std::time::Duration;
 use std::{fs, io::Write, path::Path};
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ConnectionSettings {
-    pub base_url: String,
-    pub model: String,
-    pub api_key: String,
+struct ConnectionSettings {
+    base_url: String,
+    model: String,
+    api_key: String,
 }
 fn invalid(message: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, message)
@@ -29,7 +28,7 @@ impl Config {
             json!({"status":"ok", "model":response["model"], "message":"指定したモデルから応答を受け取りました。構成図を生成できます。"}),
         )
     }
-    fn validate_connection(&self) -> io::Result<()> {
+    pub(super) fn validate_connection(&self) -> io::Result<()> {
         let url = url::Url::parse(&self.base_url)
             .map_err(|_| invalid("AI接続先のURLを確認してください"))?;
         if url.host_str().is_none()
@@ -70,48 +69,18 @@ impl Config {
         if fs::metadata(path)?.len() > 16384 {
             return Err(invalid("AI接続設定のサイズを確認してください"));
         }
-        let settings: ConnectionSettings = crate::recording::read_json(path)?;
+        let bytes = fs::read(path).map_err(|_| invalid("運営者のAI設定ファイルを読めません"))?;
+        let settings: ConnectionSettings = serde_json::from_slice(&bytes)
+            .map_err(|_| invalid("運営者のAI設定ファイルのJSON形式を確認してください"))?;
         let config = Self {
-            base_url: settings.base_url,
-            model: settings.model,
+            base_url: settings.base_url.trim_end_matches('/').into(),
+            model: settings.model.trim().into(),
             key_file: PathBuf::new(),
             inline_key: Some(settings.api_key),
         };
         config.validate_connection()?;
         config.key()?;
         Ok(Some(config))
-    }
-    pub fn save_connection(path: &Path, settings: ConnectionSettings) -> io::Result<Self> {
-        let config = Self {
-            base_url: settings.base_url.trim_end_matches('/').into(),
-            model: settings.model.trim().into(),
-            key_file: PathBuf::new(),
-            inline_key: Some(settings.api_key.trim().into()),
-        };
-        config.validate_connection()?;
-        config.key()?;
-        let saved = ConnectionSettings {
-            base_url: config.base_url.clone(),
-            model: config.model.clone(),
-            api_key: config.key()?,
-        };
-        let bytes = serde_json::to_vec(&saved).map_err(io::Error::other)?;
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-        let temp = path.with_extension(format!("{}.pending", std::process::id()));
-        let mut file = fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .mode(0o600)
-            .open(&temp)?;
-        file.set_permissions(fs::Permissions::from_mode(0o600))?;
-        file.write_all(&bytes)?;
-        file.sync_all()?;
-        fs::rename(&temp, path)?;
-        Ok(config)
     }
     /// 生成ではNode.jsを必要としない。JSONの構造と参照の検査は呼び出し側が行う。
     pub(crate) fn complete(&self, messages: Value) -> io::Result<Value> {
@@ -153,4 +122,19 @@ impl Config {
         }
         Ok(json!({"content":content,"model":data["model"].as_str().unwrap_or(&self.model)}))
     }
+}
+
+/// 開発者が編集するひな形を作る。既存のキーは上書きしない。
+pub fn initialize_connection(path: &Path) -> io::Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)?;
+    file.write_all(include_bytes!("../../ai.example.json"))?;
+    file.sync_all()
 }

@@ -247,19 +247,11 @@ async function restore() {
 window.addEventListener('popstate', () => { saveDraft(); state.sequence++; state.loading = false; $('load-repository').disabled = false; restore(); });
 restore();
 
-async function loadConnection() {
+async function loadAvailability() {
   const info = await api('ai');
-  $('ai-connection-status').textContent = info.status === 'configured' ? `AI接続：${info.host} / ${info.model}` : '構成図の生成にはAI接続の設定が必要です。保存済みの図は設定なしでも開けます。';
-  $('ai-settings').hidden = info.server_managed === true;
-  $('test-ai-connection').disabled = info.status !== 'configured';
-  if (info.status !== 'configured') $('ai-settings').open = true;
+  $('ai-availability').hidden = info.status === 'configured';
+  $('ai-availability').textContent = info.status === 'configured' ? '' : '現在、構成図の生成を利用できません。運営者の設定が完了するまでお待ちください。保存済みの図は開けます。';
 }
-$('ai-connection-form').addEventListener('submit', e => {
-  e.preventDefault(); const submit = $('save-ai-connection'); if (submit.disabled) return; submit.disabled = true;
-  const settings = { model: $('ai-model').value.trim(), base_url: $('ai-base-url').value.trim(), api_key: $('ai-key').value };
-  $('ai-key').value = '';
-  run(async () => { await api('ai/connection', settings); await loadConnection(); $('ai-settings').open = false; status('接続設定を保存しました。リポジトリから構成図を作成できます。'); }).finally(() => { submit.disabled = false; });
-});
 $('regenerate-diagram').addEventListener('click', () => {
   if (state.loading || !state.source) return;
   const source = state.source, seq = state.sequence, submit = $('regenerate-diagram'); submit.disabled = true;
@@ -291,10 +283,4 @@ $('ask-concern-ai').addEventListener('click', () => {
     if (answer.unknowns?.length) result.append(el('h3', {}, 'まだ分からないこと'), el('ul', {}, answer.unknowns.map(s => el('li', {}, s))));
   }).finally(() => { submit.disabled = false; });
 });
-run(loadConnection);
-
-$('test-ai-connection').addEventListener('click', () => {
-  const submit = $('test-ai-connection'); submit.disabled = true;
-  $('ai-connection-test').textContent = '指定したモデルへの接続を確認しています。';
-  run(async () => { try { const result = await api('ai/test', {}); $('ai-connection-test').textContent = result.message; } catch (e) { $('ai-connection-test').textContent = '接続を確認できませんでした。'; throw e; } }).finally(() => { submit.disabled = false; });
-});
+run(loadAvailability);
