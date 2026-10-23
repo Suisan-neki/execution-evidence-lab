@@ -22,7 +22,7 @@ AIの返した整理案は `ai_draft`。記録には `concern`、`actor`、`oper
 
 運営者は `dify.example.json` を保存先の `dify.json` へコピーし、権限を0600にしてDifyアプリ用のAPIキーを記入する。これはモデル提供元のOpenAI APIキーとは別。設定は起動時に読み、変更後は再起動する。利用者の画面やHTTP APIから接続設定を作成・変更する処理は設けない。
 
-作成したDifyアプリは[システムの疑問を整理する](https://cloud.dify.ai/app/0a067e0e-fcf8-411e-9deb-084a54f9209e/workflow)。下書きであり、公開と実アプリAPIキーの設定は未完了。
+作成したDifyアプリは[システムの疑問を整理する](https://cloud.dify.ai/app/0a067e0e-fcf8-411e-9deb-084a54f9209e/workflow)。2026年10月23日に本人の許可で初版を公開し、アプリ接続用APIキーを1本発行した。Webアプリは無効、バックエンドAPIは有効、MCPは無効。キーはこのリポジトリや文書に保存しない。実行するMacの `data/app/dify.json` への設定と再起動、Rustから公開APIへの実接続は未確認。Dify側の公開完了をアプリとの接続完了とは扱わない。
 
 Chatflowは次の順序で処理する。
 
