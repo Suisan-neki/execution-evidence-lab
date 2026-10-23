@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, fs, io, path::Path};
-const PROMPT_VERSION: &str = "gitdiagram-adapted-ja-v1";
+const PROMPT_VERSION: &str = "gitdiagram-adapted-ja-v2-yomiyasu";
 const PROMPT: &str = include_str!("system_diagram/prompt.txt");
 fn invalid(message: impl Into<String>) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, message.into())

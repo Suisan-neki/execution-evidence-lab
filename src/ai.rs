@@ -206,6 +206,7 @@ pub(crate) fn explain_references(
             );
         }
     };
+    parsed["writing_policy"] = crate::writing::metadata();
     let context_sha256 = format!("{:x}", Sha256::digest(context.as_bytes()));
     let response_sha256 = format!("{:x}", Sha256::digest(content.as_bytes()));
     let unknowns = parsed["unknowns"].clone();

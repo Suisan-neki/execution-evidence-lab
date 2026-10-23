@@ -86,7 +86,8 @@ impl Config {
         )
     }
     /// 生成ではNode.jsを必要としない。JSONの構造と参照の検査は呼び出し側が行う。
-    pub(crate) fn complete(&self, messages: Value) -> io::Result<Value> {
+    pub(crate) fn complete(&self, mut messages: Value) -> io::Result<Value> {
+        crate::writing::apply(&mut messages)?;
         self.complete_in(messages, Duration::from_secs(300))
     }
     fn complete_in(&self, messages: Value, timeout: Duration) -> io::Result<Value> {

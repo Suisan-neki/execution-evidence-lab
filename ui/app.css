@@ -185,6 +185,16 @@ a:focus-visible, button:focus-visible, select:focus-visible, summary:focus-visib
 .system-map-panel h2, .concern-panel h2 { margin-top:0; }
 .repository-diagram { background:white; border:1px solid var(--color-neutral-solid-gray-200); border-radius:.75rem; padding:.5rem; overflow:auto; height: min(70vh, 46rem); min-height:24rem; margin:1rem 0; }
 .repository-diagram svg { display:block; width:100%; min-width:0; height:auto; max-width:none; margin:0 auto; }
+.repository-diagram:focus-visible { outline:3px solid var(--color-key-900); outline-offset:2px; }
+.diagram-controls output { font-variant-numeric:tabular-nums; min-width:3.5rem; text-align:center; }
+.diagram-dialog { width:calc(100vw - 2rem); max-width:none; height:calc(100dvh - 2rem); max-height:none; margin:auto; padding:1.25rem; border:1px solid var(--color-neutral-solid-gray-420); border-radius:.75rem; }
+.diagram-dialog::backdrop { background:rgb(0 0 0 / .45); }
+.diagram-dialog > header { display:flex; justify-content:space-between; align-items:center; gap:1rem; }
+.diagram-dialog > header h2 { margin:0; font-size:1.25rem; }
+.diagram-dialog .repository-diagram { height:calc(100dvh - 24rem); min-height:14rem; }
+.diagram-dialog #diagram-expand { display:none; }
+body:has(.diagram-dialog[open]) { overflow:hidden; }
+@media(max-width:40rem) { .diagram-dialog { width:calc(100vw - 1rem); height:calc(100dvh - 1rem); padding:.75rem; } .diagram-dialog > header { align-items:flex-start; } }
 .diagram-controls { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
 .diagram-controls button { font:inherit; background:white; color:var(--color-key-900); border:1px solid var(--color-neutral-solid-gray-420); border-radius:.3rem; padding:.35rem .65rem; cursor:pointer; }
 .diagram-controls button:focus-visible { outline:3px solid var(--color-key-900); }

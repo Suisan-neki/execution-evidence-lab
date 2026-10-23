@@ -70,6 +70,8 @@ struct Turn {
     record: Record,
     claims: Value,
     results: Value,
+    #[serde(default)]
+    writing_policy: Option<Value>,
 }
 #[derive(Serialize, Deserialize)]
 struct Thread {
@@ -328,7 +330,7 @@ pub fn send(
         .rev()
         .map(|t| json!({"question":t.question,"answer":t.answer}))
         .collect();
-    let query = json!({"request_id":request_id,"audience":if message.audience=="developer" {"技術者"}else{"非技術者"},"message":message.question,"previous_record":thread.turns.last().map(|t| &t.record),"history":history,"results":results});
+    let query = json!({"request_id":request_id,"audience":if message.audience=="developer" {"技術者"}else{"非技術者"},"message":message.question,"previous_record":thread.turns.last().map(|t| &t.record),"history":history,"results":results,"writing_policy":crate::writing::policy(),"writing_policy_source":crate::writing::metadata()});
     let (answer, envelope, remote_id, backend) = if let Some(config) = dify {
         let remote = if thread.backend == config.identity() {
             thread.remote_id.as_deref()
@@ -374,6 +376,7 @@ pub fn send(
         record,
         claims,
         results,
+        writing_policy: Some(crate::writing::metadata()),
     });
     save(&path, &thread)?;
     Ok(public(&thread))

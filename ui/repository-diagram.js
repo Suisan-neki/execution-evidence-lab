@@ -1,5 +1,5 @@
 // 同じ要素・接続・配置を保ち、説明の詳しさだけを変える。外部へ図を送信しない。
-const NS = 'http://www.w3.org/2000/svg', layouts = new WeakMap(), generations = new WeakMap();
+const NS = 'http://www.w3.org/2000/svg', layouts = new WeakMap(), generations = new WeakMap(), displayed = new WeakMap();
 const WIDTH = 272, HEIGHT = 144;
 function svg(tag, attrs = {}, text) {
   const e = document.createElementNS(NS, tag);
@@ -28,7 +28,7 @@ function structure(graph) {
   const children = graph.boundaries.map(g => ({ id: g.id, layoutOptions: { 'elk.padding': '[top=48,left=20,bottom=20,right=20]', 'elk.spacing.nodeNode': '32' }, children: graph.nodes.filter(n => n.parent === g.id).map(n => ({ id: n.id, width: WIDTH, height: HEIGHT })) }));
   children.push(...graph.nodes.filter(n => !n.parent).map(n => ({ id: n.id, width: WIDTH, height: HEIGHT })));
   return {
-    id: 'system', layoutOptions: { 'elk.algorithm': 'layered', 'elk.direction': 'RIGHT', 'elk.edgeRouting': 'ORTHOGONAL', 'elk.hierarchyHandling': 'INCLUDE_CHILDREN', 'elk.layered.spacing.nodeNodeBetweenLayers': '40', 'elk.spacing.edgeNode': '16', 'elk.spacing.nodeNode': '24', 'elk.spacing.edgeEdge': '24', 'elk.padding': '[top=20,left=20,bottom=20,right=20]' }, children,
+    id: 'system', layoutOptions: { 'elk.algorithm': 'layered', 'elk.direction': 'DOWN', 'elk.edgeRouting': 'ORTHOGONAL', 'elk.hierarchyHandling': 'INCLUDE_CHILDREN', 'elk.layered.spacing.nodeNodeBetweenLayers': '56', 'elk.spacing.edgeNode': '16', 'elk.spacing.nodeNode': '32', 'elk.spacing.edgeEdge': '24', 'elk.padding': '[top=24,left=24,bottom=24,right=24]' }, children,
     edges: graph.edges.map(e => { const lines = wrap(e.title, 170, 14); return { id: e.id, sources: [e.from], targets: [e.to], labels: [{ text: e.title, width: Math.min(180, Math.max(...lines.map(l => Array.from(l).length * 14), 70)), height: lines.length * 20 + 10 }] }; })
   };
 }
@@ -47,6 +47,20 @@ function icon(group, role) {
   }
   group.append(i);
 }
+export function resizeDiagram(root, mode) {
+  const chart = root.querySelector('svg'); if (!chart) return;
+  const width = Number(chart.dataset.layoutWidth), height = Number(chart.dataset.layoutHeight);
+  const fit = Math.min((root.clientWidth - 20) / width, (root.clientHeight - 20) / height);
+  const scale = mode === 'fit' ? Math.min(1, fit) : mode === 'readable' ? 1 : Math.min(3, Math.max(.005, mode));
+  chart.style.width = `${width * scale}px`; chart.style.height = `${height * scale}px`;
+  chart.dataset.zoom = String(scale);
+  root.dispatchEvent(new CustomEvent('diagram-scale', { detail: Math.round(scale * 100) }));
+  if (mode === 'fit' || mode === 'readable') {
+    root.scrollTop = 0;
+    root.scrollLeft = mode === 'readable' ? Math.max(0, Number(chart.dataset.startX) - root.clientWidth / 2) : 0;
+  }
+}
+export function zoomDiagram(root, factor) { resizeDiagram(root, Math.max(.1, Number(root.querySelector('svg')?.dataset.zoom || 1) * factor)); }
 export async function mountDiagram(root, graph, { technical, onSelect, selected = null }) {
   const generation = (generations.get(root) || 0) + 1; generations.set(root, generation);
   root.setAttribute('aria-busy', 'true');
@@ -59,7 +73,9 @@ export async function mountDiagram(root, graph, { technical, onSelect, selected 
     if (!layouts.has(graph)) layouts.set(graph, new globalThis.ELK().layout(structure(graph)));
     const layout = await layouts.get(graph);
     if (generations.get(root) !== generation) return;
-    const chart = svg('svg', { viewBox: `0 0 ${layout.width} ${layout.height}`, role: 'group', 'aria-label': `${graph.repository}のシステム構成図`, 'data-layout-width': layout.width });
+    const sameGraph = displayed.get(root) === graph;
+    const previous = sameGraph ? { scale: Number(root.querySelector('svg')?.dataset.zoom || 1), top: root.scrollTop, left: root.scrollLeft } : null;
+    const chart = svg('svg', { viewBox: `0 0 ${layout.width} ${layout.height}`, role: 'group', 'aria-label': `${graph.repository}のシステム構成図`, 'data-layout-width': layout.width, 'data-layout-height': layout.height });
     const defs = svg('defs'), marker = svg('marker', { id: 'repository-arrow', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' });
     marker.append(svg('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: '#455e75' })); defs.append(marker); chart.append(defs);
     const positions = new Map([['system', { x: 0, y: 0 }]]);
@@ -75,6 +91,8 @@ export async function mountDiagram(root, graph, { technical, onSelect, selected 
       }
     }
     groups(layout);
+    const first = graph.nodes.map(n => positions.get(n.id)).filter(Boolean).sort((a, b) => a.y - b.y)[0];
+    chart.dataset.startX = String((first?.x || 0) + WIDTH / 2);
     const activate = (g, object, objectType) => {
       const select = () => { selectDiagramObject(root, object.id); onSelect({ ...object, object_type: objectType }); };
       g.addEventListener('click', select);
@@ -116,8 +134,9 @@ export async function mountDiagram(root, graph, { technical, onSelect, selected 
       g.append(svg('title', {}, `${objectTitle(node, technical)}。${node.description}`)); activate(g, node, 'element'); chart.append(g);
     }
     root.replaceChildren(chart);
-    const fitWidth = Math.min(root.clientWidth - 20, (root.clientHeight - 20) * layout.width / layout.height);
-    chart.dataset.fitWidth = String(fitWidth); chart.dataset.zoom = '1'; chart.style.width = `${fitWidth}px`;
+    displayed.set(root, graph);
+    resizeDiagram(root, previous?.scale || 'readable');
+    if (previous) { root.scrollTop = previous.top; root.scrollLeft = previous.left; }
   } catch (e) {
     if (generations.get(root) === generation) root.replaceChildren(Object.assign(document.createElement('p'), { className: 'input-error', textContent: e.message || '構成図を配置できませんでした。' }));
     throw e;

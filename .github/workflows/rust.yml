@@ -18,6 +18,8 @@ jobs:
       - run: cargo test --locked
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo build --locked
+      - name: Verify the pinned yomiyasu rules and upstream checker
+        run: python3 tools/check-yomiyasu.py
       - run: node tools/queue-demo.mjs evaluations/ci-queue
       - run: node tools/pinned-demo.mjs evaluations/ci-external
       - run: node tools/reproduce-methods.mjs evaluations/ci-methods

@@ -16,3 +16,6 @@
 /data/
 /node_modules/
 /test-results/
+/.yomiyasu/
+__pycache__/
+*.pyc

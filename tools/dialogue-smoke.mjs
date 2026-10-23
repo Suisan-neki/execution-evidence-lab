@@ -20,6 +20,8 @@ const dify=createServer(async(req,res)=>{
       let text='';for await(const chunk of req)text+=chunk;
       const body=JSON.parse(text), query=JSON.parse(body.query), context=JSON.parse(body.inputs.system_context); calls.push({body,query,context});
       assert.equal(query.audience,body.inputs.audience);
+      assert.match(query.writing_policy,/主述・修飾・条件の点検/);
+      assert.equal(query.writing_policy_source.commit,'488dd37c0baa67ec65bf155aced9fa1a01d261e2');
       assert.ok(context.architecture.nodes.some(n=>n.id===context.selected_element));
       const ready=Boolean(query.previous_record?.expectation)||query.message.includes('開き直して');
       const record={concern:query.previous_record?.concern||query.message,actor:ready?'私':'',operation:ready?'保存して画面を開き直す':'',expectation:ready?'保存後に画面を開き直しても同じ内容を読める':'',related_object_ids:context.architecture.nodes.filter(n=>['api','database'].includes(n.role)).map(n=>n.id),claims:[{text:'APIが定義されている',refs:[{path:'server/main.py',line:3,end_line:3}]}],unknowns:['保存後の再読込は未検証です。'],test_plan:ready?[{operation:'架空のメモを保存して画面を開き直す',expected:'同じ内容を読める',observe:'保存時の表示と開き直した後の本文'}]:[],reported_observations:[],improvement_ideas:[]};

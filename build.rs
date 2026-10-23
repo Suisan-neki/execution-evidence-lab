@@ -23,6 +23,8 @@ fn main() {
         root.join("Cargo.toml"),
         root.join("Cargo.lock"),
         root.join("build.rs"),
+        root.join("third_party/yomiyasu/runtime-rules.md"),
+        root.join("third_party/yomiyasu/UPSTREAM.json"),
     ];
     println!("cargo:rerun-if-changed=src");
     println!("cargo:rerun-if-changed=.git/index");

@@ -11,6 +11,7 @@ export async function startSyntheticArchitectureAI() {
     if (body.messages[0].content.includes('EEL_CONNECTION_TEST')) {
       res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ model: 'synthetic-architecture', choices: [{ message: { content: '{"connected":true}' } }] })); return;
     }
+    if (!body.messages[0].content.includes('主述・修飾・条件の点検')) throw Error('本家yomiyasuの規則が生成要求にありません');
     if (body.messages[0].content.includes('JSONは {"answer"')) {
       const input = JSON.parse(body.messages[1].content);
       const record = JSON.parse(input.record).record;
@@ -30,7 +31,13 @@ export async function startSyntheticArchitectureAI() {
     const question = body.messages[0].content.includes('test_candidates');
     if (question) state.questions++; else state.calls++;
     const result = structuredClone(graph);
-    if (state.revision > 1) result.summary.workflow += ' これは再生成した説明です。';
+    if (state.revision > 1) { result.summary.workflow += ' これは再生成した説明です。'; result.summary.operator_workflow += ' これは再生成した説明です。'; }
+    if (state.dense) {
+      for (let i = result.nodes.length; i < 19; i++) {
+        result.nodes.push({ ...result.nodes[2], id: `detail_${i}`, label: `記録の確認処理${i}` });
+        result.edges.push({ ...result.edges[0], from: i === 7 ? 'records_api' : `detail_${i - 1}`, to: `detail_${i}`, label: '確認した記録を渡す' });
+      }
+    }
     if (body.messages[1].content.includes('repository: example/other')) {
       result.nodes.push({ ...result.nodes[2], id: 'worker', label: '添付ファイルの変換処理', role: 'application', path: 'compose.yaml', refs: [{ path: 'compose.yaml', line: 1, end_line: 1 }] });
       result.edges.push({ ...result.edges[0], from: 'worker', to: 'records_api', label: 'APIの起動を待つ', relation_type: 'startup', evidence: 'code', refs: [{ path: 'compose.yaml', line: 1, end_line: 1 }] });

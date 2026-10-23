@@ -1,4 +1,4 @@
-import { mountDiagram, objectTitle, selectDiagramObject } from '/ui/repository-diagram.js';
+import { mountDiagram, objectTitle, selectDiagramObject, resizeDiagram, zoomDiagram } from '/ui/repository-diagram.js';
 const $ = id => document.getElementById(id);
 const token = document.querySelector('meta[name="review-token"]').content;
 const state = { audience: null, source: null, overview: null, graph: null, selected: null, view: null, sequence: 0, loading: false, saving: false, draftKey: null, preparation: null, dialogue: null, dialogueSequence: 0 };
@@ -44,7 +44,7 @@ function selectNode(node) {
   saveDraft(); state.selected = node; state.draftKey = draftKey(); state.dialogue = null; $('concern-ai-answer').replaceChildren();
   $('concern-text').value = remembered(state.draftKey) || '';
   $('selected-heading').textContent = node?.object_type === 'relation' ? `${state.graph.nodes.find(n => n.id === node.from)?.title} → ${state.graph.nodes.find(n => n.id === node.to)?.title}` : objectTitle(node, false);
-  $('selected-description').textContent = (state.audience === 'developer' && node?.technical_description ? node.technical_description : node?.description) || state.graph?.overview?.workflow || '全体への不安や疑問も、そのまま書けます。';
+  $('selected-description').textContent = (state.audience === 'developer' && node?.technical_description ? node.technical_description : node?.description) || (state.audience === 'operator' && state.graph?.overview?.operator_workflow) || state.graph?.overview?.workflow || '全体への不安や疑問も、そのまま書けます。';
   $('select-whole').hidden = !node;
   selectDiagramObject($('repository-diagram'), node?.id);
   const details = $('selected-details'); details.replaceChildren();
@@ -94,14 +94,25 @@ function selectNode(node) {
 }
 $('concern-text').addEventListener('input', saveDraft);
 async function renderGraph() {
-  await mountDiagram($('repository-diagram'), state.graph, { technical: state.audience === 'developer', selected: state.selected?.id, onSelect: selectNode });
+  await mountDiagram($('repository-diagram'), state.graph, { technical: state.audience === 'developer', selected: state.selected?.id, onSelect: node => {
+    selectNode(node);
+    if ($('diagram-dialog').open) { diagramClosedBySelection = true; $('diagram-dialog').close(); }
+  } });
   highlightRelated();
+}
+function renderOverview() {
+  if (!state.graph) return;
+  const overview = state.graph.overview;
+  $('overview-heading').textContent = overview.title;
+  $('system-purpose').textContent = state.audience === 'developer' ? overview.purpose : overview.operator_purpose || overview.purpose;
+  $('system-workflow').textContent = state.audience === 'developer' ? overview.workflow : overview.operator_workflow || overview.workflow;
+  $('writing-update-note').hidden = Boolean(overview.operator_workflow && state.graph.writing_policy);
 }
 function setAudience(audience) {
   state.audience = audience; remember('eel-audience', audience);
   // 名前や権限を推測しない。詳細な検証画面にも自己申告の立場だけを引き継ぐ。
   remember('eel-person', JSON.stringify({ name: 'ブラウザ利用者（本人確認なし）', role: audience }));
-  if (state.source) { screen('system'); run(renderGraph); selectNode(state.selected); renderConcerns(); }
+  if (state.source) { screen('system'); renderOverview(); run(renderGraph); selectNode(state.selected); renderConcerns(); }
   else {
     screen('repository');
     const params = new URLSearchParams(location.search);
@@ -112,11 +123,22 @@ for (const b of document.querySelectorAll('[data-audience]')) b.addEventListener
 $('change-audience').addEventListener('click', () => { saveDraft(); screen('audience'); });
 $('change-repository').addEventListener('click', () => { saveDraft(); state.sequence++; state.dialogueSequence++; state.dialogue = null; state.loading = false; $('load-repository').disabled = false; status(''); state.source = null; state.overview = null; state.graph = null; state.selected = null; state.draftKey = null; state.preparation = null; $('repository-url').value = ''; $('repository-ref').value = ''; document.querySelector('.repository-options').open = false; screen('repository'); history.pushState(null, '', '/'); });
 $('select-whole').addEventListener('click', () => selectNode(null));
-let diagramZoom = 1;
-function zoomDiagram(value) { diagramZoom = Math.min(6, Math.max(.5, value)); const chart = $('repository-diagram').querySelector('svg'); if (chart) { chart.style.width = `${Number(chart.dataset.fitWidth) * diagramZoom}px`; chart.dataset.zoom = diagramZoom; } if (diagramZoom === 1) { $('repository-diagram').scrollTop = 0; $('repository-diagram').scrollLeft = 0; } }
-$('diagram-fit').addEventListener('click', () => zoomDiagram(1));
-$('diagram-zoom-in').addEventListener('click', () => zoomDiagram(diagramZoom * 1.3));
-$('diagram-zoom-out').addEventListener('click', () => zoomDiagram(diagramZoom / 1.3));
+$('diagram-fit').addEventListener('click', () => resizeDiagram($('repository-diagram'), 'fit'));
+$('diagram-readable').addEventListener('click', () => resizeDiagram($('repository-diagram'), 'readable'));
+$('diagram-zoom-in').addEventListener('click', () => zoomDiagram($('repository-diagram'), 1.3));
+$('diagram-zoom-out').addEventListener('click', () => zoomDiagram($('repository-diagram'), 1 / 1.3));
+$('repository-diagram').addEventListener('diagram-scale', e => { $('diagram-scale').textContent = `${e.detail}%`; });
+const mapPanel = document.querySelector('.system-map-panel');
+const mapPlace = document.createComment('構成図の元の位置'); mapPanel.before(mapPlace);
+let diagramClosedBySelection = false;
+$('diagram-expand').addEventListener('click', () => { $('diagram-dialog-body').append(mapPanel); $('diagram-dialog').showModal(); });
+$('diagram-close').addEventListener('click', () => $('diagram-dialog').close());
+$('diagram-dialog').addEventListener('close', () => {
+  mapPlace.after(mapPanel);
+  if (diagramClosedBySelection) { $('selected-heading').focus({ preventScroll: true }); $('selected-heading').scrollIntoView({ block: 'start' }); }
+  else $('diagram-expand').focus();
+  diagramClosedBySelection = false;
+});
 $('repository-form').addEventListener('submit', e => { e.preventDefault(); openRepository($('repository-url').value.trim(), $('repository-ref').value.trim()); });
 async function openRepository(url, reference, record = true) {
   if (!/^https:\/\/github\.com\/[A-Za-z0-9-]+\/[A-Za-z0-9_.-]+\/?$/.test(url)) {
@@ -136,15 +158,13 @@ async function openRepository(url, reference, record = true) {
     if (seq !== state.sequence) return;
     state.source = read.source; state.overview = read.result; state.graph = map.result; state.view = view; state.selected = null; state.draftKey = null; state.preparation = null;
     $('system-heading').textContent = read.source.repository;
-    $('overview-heading').textContent = map.result.overview.title;
-    $('system-purpose').textContent = map.result.overview.purpose;
-    $('system-workflow').textContent = map.result.overview.workflow;
+    renderOverview();
     $('repository-version').textContent = `読み込んだ版：${read.source.commit.slice(0, 12)}`;
     $('map-scope').textContent = `${map.result.scope}。実際の配置や動作は未確認です。`;
     $('diagram-summary').textContent = map.result.summary;
     $('map-basis').replaceChildren(el('p', {}, map.result.basis), el('p', {}, map.result.unknown), ...(map.result.notices || []).map(n => el('p', {}, n)), el('p', {}, `本文を読んだファイル：${map.result.read_files}件。構成に関係する候補の未読：${map.result.unread_files}件。${map.result.inventory_truncated ? 'ファイル一覧自体も途中で切れています。' : ''}`));
     const focus = params.get('url') === url ? findObject(params.get('focus')) : null;
-    selectNode(focus); renderConcerns(); screen('system'); diagramZoom = 1;
+    selectNode(focus); renderConcerns(); screen('system');
     await renderGraph();
     if (seq !== state.sequence) return;
     if (record) history.pushState(null, '', `/?url=${encodeURIComponent(url)}&ref=${encodeURIComponent(read.source.commit)}&diagram=${encodeURIComponent(map.result.model_revision)}${focus ? `&focus=${encodeURIComponent(focus.id)}` : ''}`);

@@ -18,9 +18,14 @@ GitDiagramの構成把握の方針を踏襲します。
 - 内部要素は正確なpathを指定し、そのファイルか配下の本文をrefsで示します。READMEだけから分かる未読の要素はdocumentationとして、そのREADMEを引用します。利用者と外部サービスのpathはnullです。
 - operator_descriptionは誰が何を扱うかを、専門用語を必要最小限にして説明します。technical_descriptionは同じ部分の実装、接続方法、責務の分担、未確認事項を詳しく説明します。立場ごとに別の構成を作ってはいけません。
 
+非技術者向けの書き方
+- labelは業務上の役割を表す短い日本語にします。Flask、React、SQLAlchemy、API、ポート番号、ファイルパスなどはtechnologyやtechnical_descriptionへ置きます。技術名を別の曖昧な語に替えるだけにせず、誰が何の情報をどう扱う部分かを説明します。正式名称を根拠から削除したり、異なる別構成を同じ構成として扱ったりしません。
+- summary.operator_purposeは利用者と利用目的、operator_workflowは誰が何を入力し、誰のどの画面に結果が返り、何をどこに残すかを、短い文で説明します。実装名・ファイル名・URL・ポート番号を先に列挙しません。同じ構成の詳しい処理と技術名はpurpose/workflowに残します。
+- 未確認の通信、暗号化、権限、保存の成立を、説明を分かりやすくするために追加してはいけません。元の否定・条件・推定・未確認事項を保ちます。
+
 出力は次のJSONだけです。最大34nodes、48edges、10groups。summaryのtitleは120文字以内、purpose/workflowは各1500文字以内。descriptionは各1000文字以内。labelは40文字以内。idは英小文字から始まる英数字と下線の64文字以内。refsは各最大8件、行範囲は80行以内。unknownsは最大16件。主要な関係は同じfrom/toの組を重複させず、一つにまとめます。
 {
- "summary":{"title":"システム固有の名前","purpose":"誰が何のために使うか","workflow":"利用者の操作から処理・保存・結果までの流れ","refs":[{"path":"README.md","line":1,"end_line":3}]},
+ "summary":{"title":"システム固有の名前","purpose":"誰が何のために使うか","workflow":"同じ構成の技術者向けの処理・接続・実装の説明","operator_purpose":"利用者と利用目的を平易に説明","operator_workflow":"誰が何を入力し、どこで扱い、誰が結果を見るかを平易に説明","refs":[{"path":"README.md","line":1,"end_line":3}]},
  "groups":[{"id":"subsystem","label":"製品のサブシステム名","description":"このまとまりの責務"}],
  "nodes":[{"id":"component","label":"固有の役割名","role":"actor|ui|api|application|database|storage|cache|queue|auth|external|component","group_id":"subsystemまたはnull","path":"実在するファイル/ディレクトリまたはnull","operator_description":"平易な説明","technical_description":"実装を含む詳しい説明","technology":["技術名"],"evidence":"code|documentation|inference","refs":[{"path":"実際に渡したファイル","line":1,"end_line":1}]}],
  "edges":[{"from":"component","to":"other_component","label":"何の情報をどう渡すか","operator_description":"情報のやり取りの説明","technical_description":"呼び出し・通信と不足の詳しい説明","protocol":"接続方法。不明なら未特定","relation_type":"request|data|call|event|startup|configuration","evidence":"code|documentation|inference","refs":[]}],

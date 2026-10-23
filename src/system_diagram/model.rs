@@ -16,6 +16,8 @@ struct Summary {
     title: String,
     purpose: String,
     workflow: String,
+    operator_purpose: String,
+    operator_workflow: String,
     refs: Vec<Reference>,
 }
 #[derive(Deserialize, Serialize)]
@@ -150,6 +152,8 @@ pub(super) fn compile(
     check_text(&graph.summary.title, 120)?;
     check_text(&graph.summary.purpose, 1500)?;
     check_text(&graph.summary.workflow, 1500)?;
+    check_text(&graph.summary.operator_purpose, 1500)?;
+    check_text(&graph.summary.operator_workflow, 1500)?;
     refs(&graph.summary.refs, context, "documentation")?;
     for unknown in &graph.unknowns {
         check_text(unknown, 1000)?;
@@ -325,9 +329,14 @@ pub(super) fn compile(
     }
     .validate()?;
     let revision = digest(
-        serde_json::to_vec(&(PROMPT_VERSION, &context.hash, &graph))
-            .map_err(io::Error::other)?
-            .as_slice(),
+        serde_json::to_vec(&(
+            PROMPT_VERSION,
+            crate::writing::metadata(),
+            &context.hash,
+            &graph,
+        ))
+        .map_err(io::Error::other)?
+        .as_slice(),
     );
     let boundaries: Vec<_> = graph
         .groups
@@ -335,6 +344,6 @@ pub(super) fn compile(
         .map(|g| json!({"id":groups[&g.id],"title":g.label,"description":g.description}))
         .collect();
     Ok(
-        json!({"schema_version":3,"generator":"gitdiagram-inspired-ai","model_id":model_id,"model_revision":revision,"repository":snapshot["fullName"],"commit":snapshot["commit"],"nodes":nodes,"edges":edges,"boundaries":boundaries,"overview":graph.summary,"scope":"READMEとコードの抜粋からAIが整理した構成","summary":format!("{}個の構成要素と{}本の接続",graph.nodes.len(),graph.edges.len()),"basis":"参照したファイルと行は照合済みです。説明と接続の内容はAIの解釈であり、コードに記述された動作が実際に成立するかは未検証です。","unknown":"READMEの説明、コードの記述、根拠が不足する推定を区別しています。実際の配備・通信・保存の成立は検証して確認します。","notices":graph.unknowns,"read_files":context.read_files,"excerpted_files":context.excerpted_files,"inventory_files":context.inventory_files,"unread_files":context.inventory_files.saturating_sub(context.read_files),"inventory_truncated":context.truncated,"context_sha256":context.hash,"prompt_version":PROMPT_VERSION}),
+        json!({"schema_version":3,"generator":"gitdiagram-inspired-ai","model_id":model_id,"model_revision":revision,"repository":snapshot["fullName"],"commit":snapshot["commit"],"nodes":nodes,"edges":edges,"boundaries":boundaries,"overview":graph.summary,"scope":"READMEとコードの抜粋からAIが整理した構成","summary":format!("{}個の構成要素と{}本の接続",graph.nodes.len(),graph.edges.len()),"basis":"参照したファイルと行は照合済みです。説明と接続の内容はAIの解釈であり、コードに記述された動作が実際に成立するかは未検証です。","unknown":"READMEの説明、コードの記述、根拠が不足する推定を区別しています。実際の配備・通信・保存の成立は検証して確認します。","notices":graph.unknowns,"read_files":context.read_files,"excerpted_files":context.excerpted_files,"inventory_files":context.inventory_files,"unread_files":context.inventory_files.saturating_sub(context.read_files),"inventory_truncated":context.truncated,"context_sha256":context.hash,"prompt_version":PROMPT_VERSION,"writing_policy":crate::writing::metadata()}),
     )
 }

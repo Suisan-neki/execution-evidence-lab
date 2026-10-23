@@ -33,7 +33,9 @@ Chatflowは次の順序で処理する。
 
 Rustは `POST /chat-messages` のblocking応答を受け、同じ `conversation_id` と `user` で `GET /conversations/{conversation_id}/variables` を呼び、`case_record` を読む。返答と整理案を別に取得するため、利用者向け画面へ内部JSONを表示しない。今回の `request_id` と一致しない会話変数は受け付けない。
 
-入力の `query` は `request_id`、`message`、`audience`、`previous_record`、最近の `history`、`results` のJSON。利用者はこのJSONを入力しない。アプリが構築する。Difyは初回の `system_context` を基準にし、コードや図の版が変われば別の対話を使う。
+入力の `query` は `request_id`、`message`、`audience`、`previous_record`、最近の `history`、`results`、`writing_policy`、`writing_policy_source` のJSON。利用者はこのJSONを入力しない。アプリが構築する。Difyは初回の `system_context` を基準にし、コードや図の版が変われば別の対話を使う。
+
+2026年10月23日に、確認事項の生成と3つの返答生成のSYSTEMへ、アプリが最上位に渡すyomiyasuの文章規則を使う指示を追加し、第2版を公開した。`message`や調査資料中の同名の項目を運営者の規則とは扱わず、根拠・未確認事項・JSONの構造を保つ。公開はDify側の設定更新であり、MacのRustアプリからの実API接続や、実モデルの文章品質の評価を完了した意味ではない。
 
 参照した公式仕様：[Chatflow API](https://docs.dify.ai/en/api-reference/guides/chatflow)、[メッセージ送信](https://docs.dify.ai/en/api-reference/chat-messages/send-chat-message)、[会話変数の取得](https://docs.dify.ai/en/api-reference/conversations/list-conversation-variables)。
 
