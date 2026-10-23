@@ -1,3 +1,4 @@
+mod support;
 use execution_evidence_lab::{
     backup,
     model::*,
@@ -20,7 +21,13 @@ fn case() -> Case {
         .unwrap()
         .0;
     let c = Case(root);
-    initialize(&c.0.join("case"), demo_workspace(), "合成の作成者", "開始").unwrap();
+    initialize(
+        &c.0.join("case"),
+        support::workspace(),
+        "合成の作成者",
+        "開始",
+    )
+    .unwrap();
     c
 }
 fn apply(c: &Case, action: Change) -> WorkspaceView {
@@ -41,15 +48,7 @@ fn apply(c: &Case, action: Change) -> WorkspaceView {
 fn changing_domain_keeps_success_and_history_but_new_candidates_are_unknown() {
     let c = case();
     let path = c.0.join("case");
-    run_demo(
-        &path,
-        1,
-        "合成".into(),
-        "正常試行".into(),
-        "save".into(),
-        Fault::Normal,
-    )
-    .unwrap();
+    support::import_pass(&path);
     let before = load(&path).unwrap();
     let result = apply(
         &c,
@@ -112,21 +111,13 @@ fn changing_domain_keeps_success_and_history_but_new_candidates_are_unknown() {
 fn selections_and_evidence_survive_backup_and_cannot_rewrite_earlier_selections() {
     let c = case();
     let path = c.0.join("case");
-    let v = apply(
+    apply(
         &c,
         Change::SelectProfile {
             domain: Domain::Medical,
         },
     );
-    run_demo(
-        &path,
-        v.workspace.revision,
-        "合成".into(),
-        "選択後の試行".into(),
-        "save".into(),
-        Fault::Normal,
-    )
-    .unwrap();
+    support::import_pass(&path);
     let original = load(&path).unwrap();
     assert_eq!(
         original.evidence[0].review_profile.as_ref().unwrap().domain,
@@ -151,7 +142,7 @@ fn selections_and_evidence_survive_backup_and_cannot_rewrite_earlier_selections(
 
 #[test]
 fn legacy_records_load_without_inventing_an_explicit_profile() {
-    let mut value = serde_json::to_value(demo_workspace()).unwrap();
+    let mut value = serde_json::to_value(support::workspace()).unwrap();
     value.as_object_mut().unwrap().remove("profile_history");
     let old: Workspace = serde_json::from_value(value).unwrap();
     validate(&old).unwrap();
@@ -163,15 +154,7 @@ fn legacy_records_load_without_inventing_an_explicit_profile() {
 fn report_keeps_unknown_stale_results_and_escapes_user_text_without_raw_logs() {
     let c = case();
     let path = c.0.join("case");
-    let v = run_demo(
-        &path,
-        1,
-        "合成".into(),
-        "保存".into(),
-        "save".into(),
-        Fault::Normal,
-    )
-    .unwrap();
+    let v = support::import_pass(&path);
     change(
         &path,
         ChangeRequest {

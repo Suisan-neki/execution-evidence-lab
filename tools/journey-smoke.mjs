@@ -103,6 +103,9 @@ try {
   assert.equal(graph.writing_policy.commit, '488dd37c0baa67ec65bf155aced9fa1a01d261e2');
   assert.equal(await page.locator('#repository-diagram svg').getAttribute('data-zoom'), '1', '初期表示で文字を縮小しない');
   await page.getByRole('button', { name: '全体を表示', exact: true }).click();
+  for (const path of ['/demo', '/demo/api/v1/case', '/review', '/explore', '/ui/demo.js', '/ui/scanner.js', '/ui/architecture-likec4.js']) {
+    assert.equal((await context.request.get(url + path, { headers })).status(), 404, path);
+  }
   const canvas = await page.locator('#repository-diagram').evaluate(n => { const svg = n.querySelector('svg').getBoundingClientRect(); const box = n.getBoundingClientRect(); return { fits: svg.width <= box.width && svg.height <= box.height }; });
   assert.equal(canvas.fits, true, '全体を表示したときに図の下半分を切り取らない');
   await page.getByRole('button', { name: '文字を読める大きさ', exact: true }).click();

@@ -1,0 +1,137 @@
+mod case;
+mod environment;
+use execution_evidence_lab::review;
+use std::{collections::BTreeMap, io, path::PathBuf};
+
+const HELP: &str = "execution-evidence-lab
+  app DATA_DIR [--port 8765] [--execution-mode local|bubblewrap]
+  ai init|test [--data-dir data/app]
+  api CASE_DIR --token-file NEW_FILE [--port 8765] [--repository-root DIR --execution-mode local|bubblewrap]
+  case init CASE_DIR [--file SPEC_JSON | --id CASE_ID --title TEXT] [--actor TEXT] [--reason TEXT]
+  case show CASE_DIR
+  case apply CASE_DIR CHANGE_JSON
+  case import CASE_DIR RUN_DIR --condition CHECK_ID --actor TEXT --reason TEXT [--use-run-context true|false]
+  case execute CASE_DIR RECIPE_JSON --repository-root DIR --mode local|bubblewrap --actor TEXT --reason TEXT
+  case report CASE_DIR --output NEW_FILE [--format json|html]
+  case backup CASE_DIR --output NEW_JSON
+  case restore NEW_CASE_DIR BACKUP_JSON
+  case compare CASE_DIR --before EVIDENCE_ID --after EVIDENCE_ID --condition CHECK_ID
+  repo prepare NEW_DIR RECIPE_JSON
+  environment inspect|run|show|compare ...
+
+引数なしで現在のアプリを起動します。local方式はOSによる隔離を行いません。";
+
+fn invalid(message: impl Into<String>) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidInput, message.into())
+}
+fn options(args: &[String], allowed: &[&str]) -> io::Result<BTreeMap<String, String>> {
+    let mut parsed = BTreeMap::new();
+    let (pairs, remainder) = args.as_chunks::<2>();
+    for pair in pairs {
+        if !allowed.contains(&pair[0].as_str()) {
+            return Err(invalid(format!("不明なオプション: {}", pair[0])));
+        }
+        if parsed.insert(pair[0].clone(), pair[1].clone()).is_some() {
+            return Err(invalid(format!("重複した指定: {}", pair[0])));
+        }
+    }
+    if !remainder.is_empty() {
+        return Err(invalid("オプションには値が必要です"));
+    }
+    Ok(parsed)
+}
+fn output(options: &BTreeMap<String, String>) -> PathBuf {
+    options
+        .get("--output")
+        .map_or_else(|| PathBuf::from("runs"), PathBuf::from)
+}
+pub fn run(args: &[String]) -> io::Result<()> {
+    let Some(command) = args.first() else {
+        return review::serve_app(
+            PathBuf::from("data/app"),
+            8765,
+            execution_evidence_lab::execution::ExecutionMode::Local,
+        );
+    };
+    match command.as_str() {
+        "help" | "--help" | "-h" if args.len() == 1 => println!("{HELP}"),
+        "ai" if args.len() >= 2 && matches!(args[1].as_str(), "init" | "test") => {
+            let opts = options(&args[2..], &["--data-dir"])?;
+            let data = opts
+                .get("--data-dir")
+                .map_or_else(|| PathBuf::from("data/app"), PathBuf::from);
+            let path = data.join("ai.json");
+            if args[1] == "init" {
+                execution_evidence_lab::ai::initialize_connection(&path)?;
+                println!(
+                    "運営者用の設定ファイルを作成しました: {}\nモデル名とAPIキーをこのファイルへ記入し、ai testで接続を確認してください。",
+                    path.display()
+                );
+            } else {
+                let config =
+                    execution_evidence_lab::ai::Config::for_app(&data)?.ok_or_else(|| {
+                        invalid("AI未設定です。ai initで運営者用の設定ファイルを作成してください")
+                    })?;
+                let result = config.test_connection()?;
+                println!("{}", result["message"].as_str().unwrap_or_default());
+            }
+        }
+        "case" => case::run(&args[1..])?,
+        "environment" => environment::run(&args[1..])?,
+        "api" if args.len() >= 2 => {
+            let opts = options(
+                &args[2..],
+                &[
+                    "--port",
+                    "--token-file",
+                    "--repository-root",
+                    "--execution-mode",
+                ],
+            )?;
+            let port = opts.get("--port").map_or(Ok(8765), |v| {
+                v.parse::<u16>()
+                    .map_err(|_| invalid("ポートは0〜65535です"))
+            })?;
+            let token_file = opts
+                .get("--token-file")
+                .ok_or_else(|| invalid("新規の--token-fileが必要です"))?;
+            let execution = match (opts.get("--repository-root"), opts.get("--execution-mode")) {
+                (None, None) => None,
+                (Some(root), Some(mode)) => Some((PathBuf::from(root), mode.parse()?)),
+                _ => return Err(invalid("実行にはリポジトリと方式の両方が必要です")),
+            };
+            review::serve_api(
+                PathBuf::from(&args[1]),
+                port,
+                PathBuf::from(token_file),
+                execution,
+            )?;
+        }
+        "repo" if args.len() == 4 && args[1] == "prepare" => {
+            let recipe = execution_evidence_lab::recording::read_json(&PathBuf::from(&args[3]))?;
+            execution_evidence_lab::execution::prepare_repository(
+                &PathBuf::from(&args[2]),
+                &recipe,
+            )?;
+            println!(
+                "固定コミットを取得しました: {}。checkoutと対象コードの実行は行っていません。",
+                args[2]
+            );
+        }
+        "app" if args.len() >= 2 => {
+            let opts = options(&args[2..], &["--port", "--execution-mode"])?;
+            let port = opts.get("--port").map_or(Ok(8765), |value| {
+                value
+                    .parse::<u16>()
+                    .map_err(|_| invalid("ポートは0〜65535です"))
+            })?;
+            let mode = opts.get("--execution-mode").map_or(
+                Ok(execution_evidence_lab::execution::ExecutionMode::Local),
+                |m| m.parse(),
+            )?;
+            review::serve_app(PathBuf::from(&args[1]), port, mode)?;
+        }
+        _ => return Err(invalid(format!("引数を確認してください\n{HELP}"))),
+    }
+    Ok(())
+}

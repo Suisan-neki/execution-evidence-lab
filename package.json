@@ -4,27 +4,19 @@
   "type": "module",
   "scripts": {
     "build:repository-layout": "node tools/build-repository-layout.mjs",
-    "test:ui": "node tools/review-smoke.mjs && node tools/explorer-smoke.mjs && node tools/external-smoke.mjs && node tools/execution-ui-smoke.mjs && node tools/browser-evidence-smoke.mjs && npm run test:architecture",
-    "test:reader": "node tools/scanner-tests.mjs && node tools/comprehension-tests.mjs && node tools/call-navigation-tests.mjs && node tools/understanding-tests.mjs && node tools/trial-comparison-tests.mjs",
-    "test:methods": "node tools/reproduce-methods.mjs",
     "test:external": "node tools/pinned-demo.mjs",
     "test:backend": "node tools/backend-demo.mjs",
     "test:app": "node tools/app-smoke.mjs",
     "test:dicom": "node tools/dicom-smoke.mjs",
     "test:browser": "node tools/browser-smoke.mjs",
     "test:reader-native": "node tools/reader-native-smoke.mjs",
-    "build:architecture": "node tools/build-architecture.mjs",
-    "test:architecture": "node tools/architecture-smoke.mjs",
-    "test:architecture-targets": "node tools/target-architecture-smoke.mjs",
     "demo:queue": "node tools/queue-demo.mjs",
-    "test:modes": "node tools/modes-smoke.mjs",
-    "test:queue-architecture": "node tools/queue-architecture-smoke.mjs",
     "test:journey": "node tools/journey-smoke.mjs",
-    "test:dialogue": "node tools/dialogue-smoke.mjs"
+    "test:dialogue": "node tools/dialogue-smoke.mjs",
+    "test:ui": "npm run test:journey && npm run test:dialogue"
   },
   "devDependencies": {
     "elkjs": "0.12.0",
-    "likec4": "1.60.0",
     "playwright": "1.62.1",
     "pngjs": "7.0.0"
   }

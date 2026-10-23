@@ -1,9 +1,11 @@
+mod support;
 use execution_evidence_lab::{execution::*, model::*, recording::*, workspace::*};
 use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
 };
+use support::{execute, run_external};
 struct Fixture {
     directory: PathBuf,
     root: PathBuf,

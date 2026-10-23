@@ -1,10 +1,10 @@
 //! 固定したGitのコードをコピーし、明示されたローカル試験を実行する。
 //! 計測対象は構造化された自己申告の観測。OSの隔離や実行経路の証明ではない。
 use crate::{
-    experiment::{finish_run, make_manifest},
     model::*,
     python_env::{ImportRoot, Launch, Program},
     recording::*,
+    run_record::{finish_run, make_manifest},
     workspace::CodeReference,
 };
 use serde::{Deserialize, Serialize};
@@ -1477,7 +1477,7 @@ pub fn execute_with_dependencies(
         out.write_all(b"\n")?;
     }
     out.sync_all()?;
-    finish_run(directory, manifest, Truth::NotInspected)
+    finish_run(directory, manifest)
 }
 
 fn excerpt(path: &Path, limit: usize) -> io::Result<String> {
@@ -1991,23 +1991,6 @@ impl Launcher<'_> {
     }
 }
 
-pub fn execute(
-    repository_root: &Path,
-    output: &Path,
-    recipe: Recipe,
-    condition: Condition,
-    previous_run: Option<String>,
-) -> io::Result<RunResult> {
-    execute_with_mode(
-        repository_root,
-        output,
-        recipe,
-        condition,
-        previous_run,
-        ExecutionMode::Local,
-    )
-}
-
 pub fn assess_run(
     directory: &Path,
     manifest: &Manifest,
@@ -2017,7 +2000,19 @@ pub fn assess_run(
         let trace: ExecutionTrace = read_json(&directory.join("execution.json"))?;
         Ok(assess_trace(manifest, &trace, &trace.recipe.criterion))
     } else {
-        Ok(crate::assessment::assess(manifest, events))
+        Ok(Assessment {
+            condition_id: manifest.condition.id.clone(),
+            condition_version: manifest.condition.version,
+            verdict: Verdict::Unknown,
+            evidence: events
+                .iter()
+                .filter(|e| e.correlation == manifest.correlation)
+                .map(|e| format!("events.jsonl#{}", e.sequence))
+                .collect(),
+            reason: "この実行方式に対応する判定規則はありません".into(),
+            unconfirmed: vec!["プロセスの終了だけでは業務条件の成立は確認できない".into()],
+            next_action: "現在の固定版実行または報告観測へ対応づけて再検証する".into(),
+        })
     }
 }
 

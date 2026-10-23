@@ -173,9 +173,7 @@ function goto(step, focus = true, record = true) {
   const atStart = ['open', 'repository'].includes(step);
   const panelStep = step === 'repository' ? 'open' : step === 'expect-edit' ? 'expect' : step.startsWith('trial') ? 'trial' : step;
   $('open').hidden = !atStart;
-  $('target-choice').hidden = step !== 'open';
-  $('repository-input').hidden = step !== 'repository';
-  $('open').setAttribute('aria-labelledby', step === 'repository' ? 'repository-heading' : 'open-heading');
+  $('open').setAttribute('aria-labelledby', 'repository-heading');
   if (atStart) $('code').hidden = true;
   $('steps').hidden = atStart;
   $('current').hidden = atStart;
@@ -202,9 +200,6 @@ function goto(step, focus = true, record = true) {
   }
 }
 for (const a of document.querySelectorAll('.step-link')) a.addEventListener('click', e => { e.preventDefault(); goto(a.getAttribute('href').slice(1)); });
-$('secondary-tools').addEventListener('toggle', () => { if ($('secondary-tools').open) window.dispatchEvent(new CustomEvent('eel-case-updated', { detail: { prefix: '' } })); });
-$('open-repository').addEventListener('click', e => { e.preventDefault(); goto('repository'); });
-$('back-to-choice').addEventListener('click', e => { e.preventDefault(); goto('open'); });
 $('change-target').addEventListener('click', e => { e.preventDefault(); goto('open'); });
 async function restoreLocation() {
   const params = new URLSearchParams(location.search), step = location.hash.slice(1);

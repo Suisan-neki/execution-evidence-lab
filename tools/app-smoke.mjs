@@ -57,7 +57,6 @@ try {
   await shot('initial');
 
   // URLの形が違うときは、送信せずに入力欄の下へ理由を出す。
-  await page.getByRole('link', { name: 'GitHubのURLを入力する', exact: true }).click();
   await page.locator('#repo-url').fill('github.com/sjl');
   await page.getByRole('button', { name: '読み込む', exact: true }).click();
   assert.match(await page.locator('#repo-url-error').innerText(), /https:\/\/github\.com\/所有者\/リポジトリ/);
@@ -399,7 +398,6 @@ try {
   await page.route('**/api/v1/case', holdCase);
   // 実行が未対応の言語。
   await page.getByRole('link', { name: '対象を選び直す', exact: true }).click();
-  await page.getByRole('link', { name: 'GitHubのURLを入力する', exact: true }).click();
   await page.locator('#repo-url').fill('https://github.com/spf13/cobra');
   await page.locator('#repo-ref').fill('');
   await page.getByRole('button', { name: '読み込む', exact: true }).click();
@@ -436,7 +434,6 @@ try {
   const aiUrl = await start(join(temp, 'ai-data'), { EEL_AI_BASE_URL: 'http://127.0.0.1:9/v1', EEL_AI_MODEL: 'synthetic-model', EEL_AI_API_KEY_FILE: keyFile });
   const aiPage = await context.newPage();
   await aiPage.goto(aiUrl + '/workbench');
-  await aiPage.getByRole('link', { name: 'GitHubのURLを入力する', exact: true }).click();
   await aiPage.locator('#repo-url').fill(REPO);
   await aiPage.locator('#repo-ref').fill(AFTER);
   await aiPage.getByRole('button', { name: '読み込む', exact: true }).click();
@@ -466,7 +463,6 @@ try {
   const bareUrl = await start(join(temp, 'data'), { PATH: nodeOnly });
   const barePage = await context.newPage();
   await barePage.goto(bareUrl + '/workbench');
-  await barePage.getByRole('link', { name: 'GitHubのURLを入力する', exact: true }).click();
   await barePage.locator('#repo-url').fill(REPO);
   await barePage.locator('#repo-ref').fill(fullCommit);
   await barePage.getByRole('button', { name: '読み込む', exact: true }).click();

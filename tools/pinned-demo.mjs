@@ -34,9 +34,9 @@ const corrected=await trial('normal');assert.equal(corrected.checks[0].verdict,'
 const verdicts={normal:'satisfied',failure:'not_satisfied',missing:'unknown',conflict:'unknown'};
 for(const [scenario,expected] of Object.entries(verdicts))assert.equal((await trial(scenario)).checks[0].verdict,expected);
 const first=state.workspace.evidence[0], second=state.workspace.evidence[1];
-const comparison=JSON.parse(execFileSync(binary,['compare',join(casePath,'runs',first.manifest.correlation.run_id),join(casePath,'runs',second.manifest.correlation.run_id)],{encoding:'utf8'}));
-assert.equal(comparison.before,'not_satisfied');assert.equal(comparison.after,'satisfied');assert.equal(comparison.prior_evidence_matches_current_configuration,false);
-run('case','show',casePath);execFileSync(binary,['case','export',casePath,'--output',join(output,'comparison-inputs')]);
+const comparison=run('case','compare',casePath,'--before',first.id,'--after',second.id,'--condition',check.id);
+assert.equal(comparison.before.evidence.observed.verdict,'not_satisfied');assert.equal(comparison.after.evidence.observed.verdict,'satisfied');
+run('case','show',casePath);execFileSync(binary,['case','report',casePath,'--output',join(output,'review.json')]);
 const result={schema_version:1,case_path:casePath,repository_root:repository,before_commit:before,after_commit:after,verdicts,comparison,human_evaluation:'not_conducted',data:'synthetic'};
 await writeFile(join(output,'result.json'),JSON.stringify(result,null,2));
-console.log(JSON.stringify({output,checks:['code change','stale evidence','decision basis','retest','four observation outcomes','before-after comparison','shared export'],result:'passed',human_evaluation:'not_conducted'}));
+console.log(JSON.stringify({output,checks:['code change','stale evidence','decision basis','retest','four observation outcomes','before-after comparison','review report'],result:'passed',human_evaluation:'not_conducted'}));

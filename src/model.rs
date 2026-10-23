@@ -2,72 +2,11 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Data {
-    pub name: String,
-    pub age: u16,
-}
-pub fn is_valid(data: &Data) -> bool {
-    !data.name.is_empty() && data.age <= 150
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Fault {
-    Normal,
-    DisconnectBeforeReceive,
-    FailBeforeSave,
-    OmitSaveObservation,
-}
-impl Fault {
-    pub const ALL: [Self; 4] = [
-        Self::Normal,
-        Self::DisconnectBeforeReceive,
-        Self::FailBeforeSave,
-        Self::OmitSaveObservation,
-    ];
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Normal => "normal",
-            Self::DisconnectBeforeReceive => "disconnect",
-            Self::FailBeforeSave => "save-failure",
-            Self::OmitSaveObservation => "missing-observation",
-        }
-    }
-}
-impl std::str::FromStr for Fault {
-    type Err = String;
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        Self::ALL
-            .into_iter()
-            .find(|fault| fault.label() == value)
-            .ok_or_else(|| format!("不明な条件: {value}"))
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Correlation {
     pub run_id: String,
     pub record_id: String,
     pub attempt_id: String,
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Request {
-    pub correlation: Correlation,
-    pub data: Data,
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ReplyStatus {
-    Saved,
-    SaveFailed,
-    InvalidInput,
-}
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Reply {
-    pub correlation: Correlation,
-    pub status: ReplyStatus,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Source {
@@ -119,17 +58,6 @@ pub struct Condition {
     pub origin: String,
     pub kind: ConditionKind,
 }
-impl Condition {
-    pub fn demo() -> Self {
-        Self {
-            id: "demo-save".into(),
-            version: 1,
-            text: "この試行のデータについて、サーバーのファイル書き込みと同期処理が成功した".into(),
-            origin: "実験用にCodexが選んだ条件。医療機関の採用済み要件ではない".into(),
-            kind: ConditionKind::SaveCompleted,
-        }
-    }
-}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Manifest {
     pub schema_version: u32,
@@ -142,8 +70,10 @@ pub struct Manifest {
     pub architecture: String,
     pub started_unix_ms: u64,
     pub mode: String,
-    pub fault: Option<Fault>,
-    pub input: Option<Data>,
+    /// 既存の保存内容を保持するための情報。現在の故障条件はRecipeに記録する。
+    pub fault: Option<serde_json::Value>,
+    /// 既存の保存内容を保持するための情報。現在の入力はRecipeに記録する。
+    pub input: Option<serde_json::Value>,
     pub condition: Condition,
     pub timeout_ms: u64,
     pub initial_storage: String,
@@ -176,34 +106,9 @@ pub struct Assessment {
     pub unconfirmed: Vec<String>,
     pub next_action: String,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "status", rename_all = "snake_case")]
-pub enum Truth {
-    Saved { data: Data, matches_input: bool },
-    NotSaved,
-    Unreadable { reason: String },
-    NotInspected,
-}
 #[derive(Debug)]
 pub struct RunResult {
     pub directory: PathBuf,
     pub manifest: Manifest,
     pub assessment: Assessment,
-    pub truth: Truth,
-}
-pub struct TrialConfig {
-    pub output: PathBuf,
-    pub data: Data,
-    pub fault: Fault,
-    pub previous_run: Option<String>,
-}
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Comparison {
-    pub before_run: String,
-    pub after_run: String,
-    pub same_question: bool,
-    pub prior_evidence_matches_current_configuration: bool,
-    pub changed: Vec<String>,
-    pub before: Verdict,
-    pub after: Verdict,
 }

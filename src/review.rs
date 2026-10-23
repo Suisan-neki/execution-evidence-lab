@@ -1,6 +1,5 @@
 //! localhostだけで動く共同レビュー。任意のコマンドやファイルはHTTPで受け付けない。
 use crate::{
-    model::*,
     review_execution::{Controller, ExecuteRequest, ExecutionStatus, Job},
     workspace::{self, *},
 };
@@ -22,18 +21,6 @@ use std::{
 const MAX_HEADER: usize = 16 * 1024;
 const MAX_BODY: usize = 1024 * 1024;
 
-pub fn html(token: &str) -> String {
-    include_str!("../ui/review.html")
-        .replace("__REVIEW_STYLE__", include_str!("../ui/review.css"))
-        .replace("__REVIEW_SCRIPT__", include_str!("../ui/review.js"))
-        .replace("__REVIEW_TOKEN__", token)
-}
-
-pub fn explorer_html() -> String {
-    include_str!("../ui/explorer.html")
-        .replace("__EXPLORER_STYLE__", include_str!("../ui/explorer.css"))
-}
-
 /// 理解と試験の画面。デジタル庁デザインシステムのCSSを同じ応答に含める。
 pub fn app_html(token: &str) -> String {
     styled_app(include_str!("../ui/app.html"), token)
@@ -50,41 +37,10 @@ fn styled_app(html: &str, token: &str) -> String {
             include_str!("../ui/dads/tokens.css"),
             include_str!("../ui/dads/components.css"),
             include_str!("../ui/app.css"),
-            include_str!("../ui/review-tools.css"),
         ]
         .concat(),
     )
     .replace("__REVIEW_TOKEN__", token)
-}
-
-pub fn demo_html(token: &str) -> String {
-    include_str!("../ui/demo.html")
-        .replace(
-            "__APP_STYLE__",
-            &[
-                include_str!("../ui/dads/tokens.css"),
-                include_str!("../ui/dads/components.css"),
-                include_str!("../ui/app.css"),
-                include_str!("../ui/review-tools.css"),
-            ]
-            .concat(),
-        )
-        .replace("__REVIEW_TOKEN__", token)
-}
-
-pub fn architecture_html(token: &str) -> String {
-    include_str!("../ui/architecture.html")
-        .replace(
-            "__ARCHITECTURE_STYLE__",
-            &[
-                include_str!("../ui/dads/tokens.css"),
-                include_str!("../ui/dads/components.css"),
-                include_str!("../ui/architecture.css"),
-                include_str!("../ui/review-tools.css"),
-            ]
-            .concat(),
-        )
-        .replace("__REVIEW_TOKEN__", token)
 }
 
 /// 画面版で使う、読取記録の保存先とAIの設定。
@@ -93,7 +49,6 @@ pub struct App {
     pub store: crate::understanding::Store,
     pub ai: Option<crate::ai::Config>,
     pub dify: Option<crate::system_diagram::dialogue::DifyConfig>,
-    pub demo_directory: PathBuf,
 }
 
 struct Request {
@@ -240,19 +195,9 @@ fn json(stream: &mut TcpStream, status: u16, value: &impl serde::Serialize) -> i
     )
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct DemoRequest {
-    expected_revision: u64,
-    actor: String,
-    reason: String,
-    check_id: String,
-    fault: Fault,
-}
-
 /// 任意ファイルへのアクセスや任意コマンド実行は公開しない。変更JSONのimportはCLI専用。
 pub fn handle_connection(mut stream: TcpStream, directory: &Path, token: &str) -> io::Result<()> {
-    handle_connection_mode(&mut stream, Some(directory), token, None, None)
+    handle_connection_mode(&mut stream, directory, token, None, None)
 }
 
 pub fn handle_connection_with_execution(
@@ -261,7 +206,7 @@ pub fn handle_connection_with_execution(
     token: &str,
     controller: &Controller,
 ) -> io::Result<()> {
-    handle_connection_mode(&mut stream, Some(directory), token, Some(controller), None)
+    handle_connection_mode(&mut stream, directory, token, Some(controller), None)
 }
 
 pub fn handle_connection_app(
@@ -271,18 +216,12 @@ pub fn handle_connection_app(
     controller: &Controller,
     app: &App,
 ) -> io::Result<()> {
-    handle_connection_mode(
-        &mut stream,
-        Some(directory),
-        token,
-        Some(controller),
-        Some(app),
-    )
+    handle_connection_mode(&mut stream, directory, token, Some(controller), Some(app))
 }
 
 fn handle_connection_mode(
     stream: &mut TcpStream,
-    directory: Option<&Path>,
+    directory: &Path,
     token: &str,
     controller: Option<&Controller>,
     app: Option<&App>,
@@ -300,25 +239,10 @@ fn handle_connection_mode(
     // 画面の復元用クエリはブラウザが読む。APIの経路は曖昧にしない。
     if request.method == "GET"
         && let Some((path, _)) = request.path.split_once('?')
-        && matches!(
-            path,
-            "/" | "/demo" | "/review" | "/architecture" | "/explore" | "/workbench"
-        )
+        && matches!(path, "/" | "/architecture" | "/workbench")
     {
         request.path = path.to_owned();
     }
-    // ブラウザのデモは独立した事例へ送る。トークン・Originの検証は通常のAPIと共用する。
-    let demo_app = app.filter(|_| request.path == "/demo" || request.path.starts_with("/demo/"));
-    let (directory, controller, app) = if let Some(app) = demo_app {
-        request.path = if request.path == "/demo" || request.path == "/demo/" {
-            "/demo-page".into()
-        } else {
-            request.path.trim_start_matches("/demo").to_owned()
-        };
-        (Some(app.demo_directory.as_path()), None, None)
-    } else {
-        (directory, controller, app)
-    };
     let port = stream.local_addr()?.port();
     let host = request
         .headers
@@ -406,14 +330,6 @@ fn handle_connection_mode(
                     include_str!("../ui/repository-diagram.js").as_bytes(),
                 );
             }
-            ("GET", "/review") => {
-                return respond(
-                    stream,
-                    200,
-                    "text/html; charset=utf-8",
-                    demo_html(token).as_bytes(),
-                );
-            }
             ("GET", "/ui/app.js") => {
                 return respond(
                     stream,
@@ -465,8 +381,6 @@ fn handle_connection_mode(
                 )
                 .map_err(io::Error::other)
                 .and_then(|message| {
-                    let directory =
-                        directory.ok_or_else(|| io::Error::other("事例の保存先がありません"))?;
                     crate::system_diagram::dialogue::send(
                         app.ai.as_ref(),
                         app.dify.as_ref(),
@@ -513,87 +427,9 @@ fn handle_connection_mode(
             "Content-Encoding: gzip\r\n",
         );
     }
-    if request.method == "GET" && request.path == "/ui/architecture-likec4.js" {
-        return respond_encoded(
-            stream,
-            200,
-            "text/javascript; charset=utf-8",
-            include_bytes!("../ui/architecture-generated/likec4.js.gz"),
-            "Content-Encoding: gzip\r\n",
-        );
-    }
-    if request.method == "GET" {
-        let resource = match request.path.as_str() {
-            "/demo-page" if demo_app.is_some() => {
-                Some(("text/html; charset=utf-8", demo_html(token)))
-            }
-            "/ui/demo.js" => Some((
-                "text/javascript; charset=utf-8",
-                include_str!("../ui/demo.js").to_owned(),
-            )),
-            "/ui/mode-switch.js" => Some((
-                "text/javascript; charset=utf-8",
-                include_str!("../ui/mode-switch.js").to_owned(),
-            )),
-            "/architecture" => Some(("text/html; charset=utf-8", architecture_html(token))),
-            "/ui/architecture.js" => Some((
-                "text/javascript; charset=utf-8",
-                include_str!("../ui/architecture.js").to_owned(),
-            )),
-            "/ui/architecture-ids.json" => Some((
-                "application/json; charset=utf-8",
-                include_str!("../ui/architecture-generated/ids.json").to_owned(),
-            )),
-            "/" | "/explore" => Some((
-                "text/html; charset=utf-8",
-                explorer_html().replace("__REVIEW_TOKEN__", token),
-            )),
-            "/ui/review-tools.js" => Some((
-                "text/javascript; charset=utf-8",
-                include_str!("../ui/review-tools.js").to_owned(),
-            )),
-            "/ui/browser-evidence.js" => Some((
-                "text/javascript; charset=utf-8",
-                include_str!("../ui/browser-evidence.js").to_owned(),
-            )),
-            "/ui/explorer.js" => Some((
-                "text/javascript; charset=utf-8",
-                include_str!("../ui/explorer.js").to_owned(),
-            )),
-            "/ui/comprehension.js" => Some((
-                "text/javascript; charset=utf-8",
-                include_str!("../ui/comprehension.js").to_owned(),
-            )),
-            "/ui/call-navigation.js" => Some((
-                "text/javascript; charset=utf-8",
-                include_str!("../ui/call-navigation.js").to_owned(),
-            )),
-            "/ui/trial-comparison.js" => Some((
-                "text/javascript; charset=utf-8",
-                include_str!("../ui/trial-comparison.js").to_owned(),
-            )),
-            "/ui/scanner.js" => Some((
-                "text/javascript; charset=utf-8",
-                include_str!("../ui/scanner.js").to_owned(),
-            )),
-            _ => None,
-        };
-        if let Some((content_type, body)) = resource {
-            return respond(stream, 200, content_type, body.as_bytes());
-        }
-    }
-    let Some(directory) = directory else {
-        return json(
-            stream,
-            404,
-            &serde_json::json!({"error": "テストの事例を開いていません"}),
-        );
-    };
     if request.method == "GET" && request.path == "/api/v1/architecture" {
         let result = workspace::load(directory).map(|w| {
-            let builtins = crate::architecture::builtins();
-            let layouts = crate::architecture::layout_bindings(&w.architecture_models, &builtins);
-            serde_json::json!({"revision":w.revision,"models":w.architecture_models,"links":crate::architecture::links(&w),"layouts":layouts,"builtin":crate::architecture::openemr(),"builtins":builtins})
+            serde_json::json!({"revision":w.revision,"models":w.architecture_models,"links":crate::architecture::links(&w)})
         });
         return result_response(stream, result);
     }
@@ -694,12 +530,6 @@ fn handle_connection_mode(
                 });
             result_response(stream, result)
         }
-        ("GET", "/review") => respond(
-            stream,
-            200,
-            "text/html; charset=utf-8",
-            html(token).as_bytes(),
-        ),
         ("GET", "/api/case") => match workspace::load(directory) {
             Ok(case) => json(stream, 200, &view(case)),
             Err(error) => json(
@@ -745,21 +575,6 @@ fn handle_connection_mode(
                 });
             result_response(stream, result)
         }
-        ("POST", "/api/demo") => {
-            let result = serde_json::from_slice::<DemoRequest>(&request.body)
-                .map_err(io::Error::other)
-                .and_then(|request| {
-                    workspace::run_demo(
-                        directory,
-                        request.expected_revision,
-                        request.actor,
-                        request.reason,
-                        request.check_id,
-                        request.fault,
-                    )
-                });
-            result_response(stream, result)
-        }
         _ => json(
             stream,
             404,
@@ -788,15 +603,6 @@ fn result_response<T: serde::Serialize>(
         }
     }
 }
-pub fn serve(directory: PathBuf, port: u16) -> io::Result<()> {
-    workspace::load(&directory)?;
-    serve_mode(Some(directory), port, None, None, None)
-}
-
-pub fn serve_explorer(port: u16) -> io::Result<()> {
-    serve_mode(None, port, None, None, None)
-}
-
 /// 理解と試験の画面を起動する。データの保存先に、事例・読取記録・取得したリポジトリ・試行を置く。
 pub fn serve_app(
     data: PathBuf,
@@ -814,22 +620,11 @@ pub fn serve_app(
         )?;
     }
     workspace::load(&case)?;
-    let demo_directory = data.join("demo-case");
-    if !demo_directory.exists() {
-        workspace::initialize(
-            &demo_directory,
-            workspace::demo_workspace(),
-            "基盤",
-            "ブラウザで選べる練習用の事例を作成した",
-        )?;
-    }
-    workspace::load(&demo_directory)?;
     let controller = Controller::managed(case.clone(), data.join("repositories"), mode)?;
     let app = App {
         store: crate::understanding::Store::new(data.join("snapshots"))?,
         ai: crate::ai::Config::for_app(&data)?,
         dify: crate::system_diagram::dialogue::DifyConfig::for_app(&data)?,
-        demo_directory,
     };
     println!(
         "データの保存先: {}\nAIによる説明: {}",
@@ -838,18 +633,9 @@ pub fn serve_app(
             .as_str()
             .unwrap_or_default()
     );
-    serve_mode(Some(case), port, Some(controller), None, Some(app))
+    serve_mode(case, port, Some(controller), None, Some(app))
 }
 
-pub fn serve_with_execution(
-    directory: PathBuf,
-    port: u16,
-    repository_root: PathBuf,
-    mode: crate::execution::ExecutionMode,
-) -> io::Result<()> {
-    let controller = Controller::new(directory.clone(), repository_root, mode)?;
-    serve_mode(Some(directory), port, Some(controller), None, None)
-}
 pub fn serve_api(
     directory: PathBuf,
     port: u16,
@@ -860,11 +646,11 @@ pub fn serve_api(
     let controller = execution
         .map(|(root, mode)| Controller::new(directory.clone(), root, mode))
         .transpose()?;
-    serve_mode(Some(directory), port, controller, Some(token_file), None)
+    serve_mode(directory, port, controller, Some(token_file), None)
 }
 
 fn serve_mode(
-    directory: Option<PathBuf>,
+    directory: PathBuf,
     port: u16,
     controller: Option<Controller>,
     token_file: Option<PathBuf>,
@@ -888,20 +674,10 @@ fn serve_mode(
         println!(
             "理解と試験の画面: http://{}\n期待・試行・判断の記録の保存先: {}\n終了: Ctrl+C。",
             listener.local_addr()?,
-            directory
-                .as_ref()
-                .map(|d| d.display().to_string())
-                .unwrap_or_default()
-        );
-    } else {
-        println!("理解: http://{}\n終了: Ctrl+C。", listener.local_addr()?);
-    }
-    if let (Some(directory), None) = (&directory, &app) {
-        println!(
-            "テストと判断の記録: http://{}/review\n事例は{}へ保存します。",
-            listener.local_addr()?,
             directory.display()
         );
+    } else {
+        println!("API: http://{}\n終了: Ctrl+C。", listener.local_addr()?);
     }
     struct Active(Arc<AtomicUsize>);
     impl Drop for Active {
@@ -938,7 +714,7 @@ fn serve_mode(
                 let _guard = guard;
                 if let Err(e) = handle_connection_mode(
                     &mut stream,
-                    directory.as_deref(),
+                    &directory,
                     &token,
                     controller.as_ref(),
                     app.as_ref(),
