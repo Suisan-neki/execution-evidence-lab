@@ -127,7 +127,7 @@ try {
 
   // AIは未設定。静的解析は続ける。
   assert.equal(await page.locator('#ask-ai').isHidden(), true);
-  assert.match(await page.locator('#ai-status').innerText(), /未設定/);
+  assert.match(await page.locator('#ai-status').innerText(), /運営者によるサーバー設定が必要/);
 
   // 2. 期待を書く。名前がないと記録しない。
   await page.getByRole('link', { name: /期待する動作を確認する/ }).click();
