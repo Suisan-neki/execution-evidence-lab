@@ -1,5 +1,5 @@
 mod support;
-use execution_evidence_lab::{
+use mugiurushi::{
     execution::ObservationOutcome, model::*, recording::*, reported::ReportedTrace, review,
     workspace::*,
 };

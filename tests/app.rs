@@ -1,5 +1,5 @@
 //! 理解と試験の画面が使う記録・照合・AI接続の振る舞いを、架空のデータで確かめる。
-use execution_evidence_lab::{
+use mugiurushi::{
     ai,
     execution::Criterion,
     recording::new_run_directory,
@@ -617,7 +617,7 @@ fn ai_candidates_use_the_real_transport_and_do_not_write_or_confirm_the_case() {
 
 #[test]
 fn native_system_diagram_generation_persists_auditable_models_and_reopens_without_ai() {
-    use execution_evidence_lab::system_diagram::{self, Request};
+    use mugiurushi::system_diagram::{self, Request};
     let sandbox = Sandbox::new();
     let base = sandbox.0.join("diagrams");
     fs::create_dir_all(base.join("example/record-system")).unwrap();
@@ -744,7 +744,7 @@ fn operator_cli_initializes_once_and_requires_complete_server_settings() {
     use std::process::Command;
     let sandbox = Sandbox::new();
     let cli = || {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_execution-evidence-lab"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_mugiurushi"));
         for name in ["EEL_AI_BASE_URL", "EEL_AI_MODEL", "EEL_AI_API_KEY_FILE"] {
             command.env_remove(name);
         }

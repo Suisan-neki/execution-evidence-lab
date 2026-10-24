@@ -4,7 +4,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { resolve, join, dirname } from 'node:path';
 const root = resolve(import.meta.dirname, '..');
-const binary = process.env.REVIEW_BINARY || join(root, 'target/debug/execution-evidence-lab');
+const binary = process.env.REVIEW_BINARY || join(root, 'target/debug/mugiurushi');
 const output = resolve(process.argv[2] || join(root, 'evaluations', 'queue-' + Date.now()));
 await mkdir(dirname(output), { recursive: true }); await mkdir(output);
 const repository = join(output, 'repo'), casePath = join(output, 'case');

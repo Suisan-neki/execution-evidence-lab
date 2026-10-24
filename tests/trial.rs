@@ -1,6 +1,6 @@
 //! 試験案（判定条件・故障・基盤による保存先の読み出し）を、架空の小さな記録アプリで確かめる。
 mod support;
-use execution_evidence_lab::{execution::*, model::*, recording::*, trial::*, workspace::*};
+use mugiurushi::{execution::*, model::*, recording::*, trial::*, workspace::*};
 use std::{
     fs,
     path::{Path, PathBuf},

@@ -1,4 +1,4 @@
-use execution_evidence_lab::{
+use mugiurushi::{
     backup,
     comparison::{self, CompareRequest},
     execution::{Criterion, ObservationOutcome},
@@ -15,10 +15,9 @@ impl Drop for Case {
     }
 }
 fn case() -> Case {
-    let (dir, _) = execution_evidence_lab::recording::new_run_directory(
-        &std::env::temp_dir().join("eel-backend-tests"),
-    )
-    .unwrap();
+    let (dir, _) =
+        mugiurushi::recording::new_run_directory(&std::env::temp_dir().join("eel-backend-tests"))
+            .unwrap();
     let dir = dir.join("case");
     initialize(
         &dir,
@@ -156,7 +155,7 @@ fn reported_import_rejects_foreign_ids_stale_conditions_and_duplicates_without_m
     let w = load(&c.0).unwrap();
     let mut t = trace("foreign", &[ObservationOutcome::Pass]);
     t.observations[0].correlation.attempt_id = "other".into();
-    assert!(execution_evidence_lab::reported::validate(&t).is_err());
+    assert!(mugiurushi::reported::validate(&t).is_err());
     let cond = Condition {
         id: w.checks[0].id.clone(),
         version: w.checks[0].version - 1,

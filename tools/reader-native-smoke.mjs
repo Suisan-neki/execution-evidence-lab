@@ -5,7 +5,7 @@ import {mkdtemp,mkdir,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 const root=resolve(import.meta.dirname,'..');
-const binary=process.env.REVIEW_BINARY||join(root,'target/debug/execution-evidence-lab');
+const binary=process.env.REVIEW_BINARY||join(root,'target/debug/mugiurushi');
 const temp=await mkdtemp(join(tmpdir(),'eel-native-reader-'));
 const emptyPath=join(temp,'empty-path');await mkdir(emptyPath);
 const caseDir=join(temp,'case'),tokenPath=join(temp,'api-token');

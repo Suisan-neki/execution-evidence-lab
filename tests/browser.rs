@@ -1,4 +1,4 @@
-use execution_evidence_lab::{
+use mugiurushi::{
     browser::{BrowserSpec, DatabaseRead, ResponseRecord, evaluate, query, validate},
     container::{ContainerPhase, ContainerSpec},
     trial::{CheckMethod, Expectation, Observed, TrialCheck},
@@ -182,9 +182,9 @@ fn display_does_not_establish_database_success_and_mixed_http_responses_are_unkn
 
 #[test]
 fn validates_the_pinned_openemr_recipe_without_running_it() {
-    let recipe: execution_evidence_lab::execution::Recipe =
+    let recipe: mugiurushi::execution::Recipe =
         serde_json::from_str(include_str!("../examples/openemr-browser/recipe.json")).unwrap();
-    execution_evidence_lab::execution::validate_recipe(&recipe).unwrap();
+    mugiurushi::execution::validate_recipe(&recipe).unwrap();
     assert_eq!(recipe.browser.as_ref().unwrap().database.len(), 2);
 }
 
@@ -213,10 +213,10 @@ fn unknown_response_body_never_passes_negative_body_check_and_expressions_are_va
         .0,
         Observed::NotObserved
     );
-    let mut recipe: execution_evidence_lab::execution::Recipe =
+    let mut recipe: mugiurushi::execution::Recipe =
         serde_json::from_str(include_str!("../examples/openemr-browser/recipe.json")).unwrap();
     recipe.trial.as_mut().unwrap().checks[1].text = Some("false".into());
-    assert!(execution_evidence_lab::execution::validate_recipe(&recipe).is_err());
+    assert!(mugiurushi::execution::validate_recipe(&recipe).is_err());
 }
 
 #[test]
@@ -290,7 +290,7 @@ fn missing_pixels_or_payload_hashes_do_not_satisfy_negative_expectations() {
 
 #[test]
 fn rejection_requires_the_declared_action_response_and_a_complete_record() {
-    use execution_evidence_lab::browser::{RejectionWatch, rejection_observed};
+    use mugiurushi::browser::{RejectionWatch, rejection_observed};
     let mut s = spec();
     s.rejection = Some(RejectionWatch {
         watch: "save".into(),

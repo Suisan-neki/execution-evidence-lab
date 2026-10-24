@@ -6,7 +6,7 @@ import {createHash} from 'node:crypto';
 import {fixture,studyUID,seriesUID,sopUID,patientID} from '../examples/ohif-browser/fixture.mjs';
 
 const root=path.resolve(import.meta.dirname,'..');
-const bin=process.env.REVIEW_BINARY||path.join(root,'target/debug/execution-evidence-lab');
+const bin=process.env.REVIEW_BINARY||path.join(root,'target/debug/mugiurushi');
 const buildSummary=JSON.parse(fs.readFileSync(path.join(root,'evaluations/ci-environments/ohif-build/summary.json')));
 const buildDir=buildSummary.normal,buildRecord=JSON.parse(fs.readFileSync(path.join(buildDir,'environment.json')));
 const builtManifest=fs.readFileSync(path.join(buildDir,'result/build-files.json'));

@@ -1,4 +1,4 @@
-use execution_evidence_lab::{architecture::*, backup, execution::Recipe, model::*, workspace::*};
+use mugiurushi::{architecture::*, backup, execution::Recipe, model::*, workspace::*};
 use serde_json::json;
 use std::collections::BTreeMap;
 
@@ -58,7 +58,7 @@ fn rejects_cycles_missing_endpoints_and_reused_model_versions() {
     assert!(m.validate().is_err());
     let mut w = workspace();
     w.architecture_models.push(original);
-    assert!(execution_evidence_lab::architecture::validate(&w).is_err());
+    assert!(mugiurushi::architecture::validate(&w).is_err());
 }
 
 #[test]
@@ -87,7 +87,7 @@ fn reported_workspace() -> Workspace {
     let mut w = empty_workspace("reported-architecture".into(), "合成の段階報告".into());
     w.architecture_models.push(m.clone());
     for id in ["train", "inference"] {
-        let criterion = execution_evidence_lab::execution::Criterion {
+        let criterion = mugiurushi::execution::Criterion {
             assertion: "monai.stage".into(),
             subject: id.into(),
         };
@@ -141,9 +141,9 @@ fn reported_workspace() -> Workspace {
 
 #[test]
 fn reported_completion_is_scoped_and_does_not_fill_an_unreported_later_stage() {
-    use execution_evidence_lab::trial::Observed;
+    use mugiurushi::trial::Observed;
     let mut w = reported_workspace();
-    execution_evidence_lab::architecture::validate(&w).unwrap();
+    mugiurushi::architecture::validate(&w).unwrap();
     let views = links(&w);
     assert_eq!(views[0].observed, Some(Observed::Pass));
     assert_eq!(views[1].observed, Some(Observed::NotObserved));
@@ -156,7 +156,7 @@ fn reported_completion_is_scoped_and_does_not_fill_an_unreported_later_stage() {
     assert_eq!(links(&w)[0].observed, Some(Observed::NotObserved));
     w.evidence[0].reported.as_mut().unwrap().completed = true;
     w.evidence[0].reported.as_mut().unwrap().observations[0].outcome =
-        execution_evidence_lab::execution::ObservationOutcome::Fail;
+        mugiurushi::execution::ObservationOutcome::Fail;
     assert_eq!(links(&w)[0].observed, Some(Observed::Fail));
     assert_eq!(links(&w)[1].observed, Some(Observed::NotObserved));
     w.context
@@ -172,7 +172,7 @@ fn rejects_report_links_to_other_stages_or_unmatched_environment_pins() {
     if let Target::ReportedEvidence { subject, .. } = &mut w.architecture_links[0].target {
         *subject = "inference".into();
     }
-    assert!(execution_evidence_lab::architecture::validate(&w).is_err());
+    assert!(mugiurushi::architecture::validate(&w).is_err());
     w = original.clone();
     w.evidence[0]
         .reported
@@ -180,7 +180,7 @@ fn rejects_report_links_to_other_stages_or_unmatched_environment_pins() {
         .unwrap()
         .context
         .remove("images");
-    assert!(execution_evidence_lab::architecture::validate(&w).is_err());
+    assert!(mugiurushi::architecture::validate(&w).is_err());
     w = original.clone();
     w.evidence[0]
         .reported
@@ -190,7 +190,7 @@ fn rejects_report_links_to_other_stages_or_unmatched_environment_pins() {
         .as_mut()
         .unwrap()
         .commit = "a".repeat(40);
-    assert!(execution_evidence_lab::architecture::validate(&w).is_err());
+    assert!(mugiurushi::architecture::validate(&w).is_err());
     w = original;
     w.evidence[0]
         .reported
@@ -198,7 +198,7 @@ fn rejects_report_links_to_other_stages_or_unmatched_environment_pins() {
         .unwrap()
         .context
         .insert("browser_version".into(), json!("unexpected-browser"));
-    assert!(execution_evidence_lab::architecture::validate(&w).is_err());
+    assert!(mugiurushi::architecture::validate(&w).is_err());
 }
 #[test]
 fn preserves_previous_model_links_and_marks_changed_conditions() {
@@ -207,7 +207,7 @@ fn preserves_previous_model_links_and_marks_changed_conditions() {
         check_id: "openemr".into(),
         check_version: 1,
     }));
-    execution_evidence_lab::architecture::validate(&w).unwrap();
+    mugiurushi::architecture::validate(&w).unwrap();
     let before = serde_json::to_value(&w.architecture_links).unwrap();
     assert!(links(&w)[0].applicable);
     assert!(links(&w)[0].current_model);
@@ -216,12 +216,12 @@ fn preserves_previous_model_links_and_marks_changed_conditions() {
     next.elements[0].title = "新版の説明".into();
     w.architecture_models.push(next);
     w.checks[0].version = 2;
-    execution_evidence_lab::architecture::validate(&w).unwrap();
+    mugiurushi::architecture::validate(&w).unwrap();
     assert!(!links(&w)[0].applicable);
     assert!(!links(&w)[0].current_model);
     assert_eq!(serde_json::to_value(&w.architecture_links).unwrap(), before);
     w.architecture_links[0].object_id = "unknown".into();
-    assert!(execution_evidence_lab::architecture::validate(&w).is_err());
+    assert!(mugiurushi::architecture::validate(&w).is_err());
 }
 /// 対応づけの単体試験用の合成記録。OpenEMRを実行した証拠には使わない。
 fn synthetic_evidence() -> Evidence {
@@ -232,7 +232,7 @@ fn synthetic_evidence() -> Evidence {
         record_id: "synthetic-record".into(),
         attempt_id: "synthetic-attempt".into(),
     };
-    let manifest = execution_evidence_lab::run_record::make_manifest(
+    let manifest = mugiurushi::run_record::make_manifest(
         correlation.clone(),
         Condition {
             id: "openemr".into(),
@@ -276,20 +276,20 @@ fn does_not_spread_http_failure_or_old_success_to_missing_database_observation()
     http.id = "http".into();
     http.object_id = "https".into();
     w.architecture_links.push(http);
-    execution_evidence_lab::architecture::validate(&w).unwrap();
+    mugiurushi::architecture::validate(&w).unwrap();
     assert_eq!(
         links(&w)[0].observed,
-        Some(execution_evidence_lab::trial::Observed::NotObserved)
+        Some(mugiurushi::trial::Observed::NotObserved)
     );
     assert_eq!(
         links(&w)[0].method,
         Some(LinkMethod::Execution(
-            execution_evidence_lab::trial::CheckMethod::DatabaseRows
+            mugiurushi::trial::CheckMethod::DatabaseRows
         ))
     );
     assert_eq!(
         links(&w)[1].observed,
-        Some(execution_evidence_lab::trial::Observed::Fail)
+        Some(mugiurushi::trial::Observed::Fail)
     );
     w.evidence[0]
         .execution
@@ -311,15 +311,14 @@ fn does_not_spread_http_failure_or_old_success_to_missing_database_observation()
         .unwrap()
         .services[0]
         .image = format!("mariadb@sha256:{}", "b".repeat(64));
-    assert!(execution_evidence_lab::architecture::validate(&w).is_err());
+    assert!(mugiurushi::architecture::validate(&w).is_err());
 }
 #[test]
 fn backup_rejects_rewriting_or_removing_previous_architecture() {
-    let dir = execution_evidence_lab::recording::new_run_directory(
-        &std::env::temp_dir().join("eel-architecture"),
-    )
-    .unwrap()
-    .0;
+    let dir =
+        mugiurushi::recording::new_run_directory(&std::env::temp_dir().join("eel-architecture"))
+            .unwrap()
+            .0;
     let case = dir.join("case");
     initialize(
         &case,

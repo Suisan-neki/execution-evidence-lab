@@ -1,9 +1,7 @@
 //! ダイジェスト付きの公式イメージで、試験専用コンテナの起動・HTTP操作・故障・掃除を確かめる。
 //! Dockerのエンジンがない環境では省略し、成功とは書かない。
 mod support;
-use execution_evidence_lab::{
-    container::*, execution::*, model::*, recording::*, trial::*, workspace::*,
-};
+use mugiurushi::{container::*, execution::*, model::*, recording::*, trial::*, workspace::*};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -670,7 +668,7 @@ fn openemr_browser_registers_patient_and_reads_back_visit() {
         let trace: ExecutionTrace = read_json(&result.directory.join("execution.json")).unwrap();
         // 実際の正常・DB停止の記録を、同じ固定版の構成へ対応づける。
         let case = Path::new("evaluations/ci-openemr").join(label).join("case");
-        let mut w = execution_evidence_lab::workspace::empty_workspace(
+        let mut w = mugiurushi::workspace::empty_workspace(
             "openemr".into(),
             "OpenEMRの構成と実試験".into(),
         );
@@ -680,26 +678,25 @@ fn openemr_browser_registers_patient_and_reads_back_visit() {
             ))
             .unwrap(),
         );
-        w.checks.push(execution_evidence_lab::workspace::Check {
+        w.checks.push(mugiurushi::workspace::Check {
             id: "openemr".into(),
             version: 1,
             text: result.manifest.condition.text.clone(),
             origin: result.manifest.condition.origin.clone(),
             source: Some(original.source.clone()),
             observation: Some(original.criterion.clone()),
-            rule: execution_evidence_lab::workspace::Rule::ObservedAssertion,
+            rule: mugiurushi::workspace::Rule::ObservedAssertion,
             dependencies: vec!["execution-openemr".into()],
             questions: vec![],
         });
-        execution_evidence_lab::workspace::initialize(&case, w, "CI", "実試験と構成の対応づけ")
-            .unwrap();
-        let mut w = execution_evidence_lab::workspace::change(
+        mugiurushi::workspace::initialize(&case, w, "CI", "実試験と構成の対応づけ").unwrap();
+        let mut w = mugiurushi::workspace::change(
             &case,
-            execution_evidence_lab::workspace::ChangeRequest {
+            mugiurushi::workspace::ChangeRequest {
                 expected_revision: 1,
                 actor: "CI".into(),
                 reason: "実際の試行を取り込む".into(),
-                action: execution_evidence_lab::workspace::Change::Import {
+                action: mugiurushi::workspace::Change::Import {
                     check_id: "openemr".into(),
                     run_directory: result.directory.to_string_lossy().into_owned(),
                     use_run_context: true,
@@ -715,19 +712,19 @@ fn openemr_browser_registers_patient_and_reads_back_visit() {
                 CheckMethod::DatabaseRows => "db",
                 _ => unreachable!(),
             };
-            w = execution_evidence_lab::workspace::change(
+            w = mugiurushi::workspace::change(
                 &case,
-                execution_evidence_lab::workspace::ChangeRequest {
+                mugiurushi::workspace::ChangeRequest {
                     expected_revision: w.revision,
                     actor: "CI".into(),
                     reason: "観測条件を構成要素へ対応づける".into(),
-                    action: execution_evidence_lab::workspace::Change::AddArchitectureLink {
-                        link: execution_evidence_lab::architecture::Link {
+                    action: mugiurushi::workspace::Change::AddArchitectureLink {
+                        link: mugiurushi::architecture::Link {
                             id: check.id.clone(),
                             model_id: "openemr-trial".into(),
                             model_version: 1,
                             object_id: object.into(),
-                            target: execution_evidence_lab::architecture::Target::Evidence {
+                            target: mugiurushi::architecture::Target::Evidence {
                                 evidence_id: w.evidence[0].id.clone(),
                                 observation_id: check.id.clone(),
                             },
@@ -738,7 +735,7 @@ fn openemr_browser_registers_patient_and_reads_back_visit() {
             .unwrap()
             .workspace;
         }
-        let links = execution_evidence_lab::architecture::links(&w);
+        let links = mugiurushi::architecture::links(&w);
         assert_eq!(
             links.len(),
             trace.recipe.trial.as_ref().unwrap().checks.len()
@@ -752,10 +749,7 @@ fn openemr_browser_registers_patient_and_reads_back_visit() {
                     .all(|l| l.observed == Some(Observed::NotObserved))
             );
         }
-        execution_evidence_lab::backup::validate(
-            &execution_evidence_lab::backup::snapshot(&case).unwrap(),
-        )
-        .unwrap();
+        mugiurushi::backup::validate(&mugiurushi::backup::snapshot(&case).unwrap()).unwrap();
         let phase = trace.containers.as_ref().unwrap();
         let browser = phase.browser.as_ref().expect("ブラウザ記録");
         println!("{}",serde_json::to_string(&serde_json::json!({"condition":label,"directory":result.directory,"browser":browser,"database_reads":phase.database_reads,"results":trace.trial.as_ref().unwrap().results,"containers":phase.services.iter().map(|s|(&s.name,s.ready,&s.detail)).collect::<Vec<_>>()})).unwrap());

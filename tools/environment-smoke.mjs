@@ -21,7 +21,7 @@ command('git',['init','-q',root]);
 command('git',['-C',root,'remote','add','origin',`https://github.com/${recipe.source.repository}.git`]);
 command('git',['-C',root,'fetch','--depth=1','--no-tags','origin',recipe.source.commit]);
 assert.equal(command('git',['-C',root,'rev-parse','FETCH_HEAD']),recipe.source.commit);
-const bin=path.resolve('target/debug/execution-evidence-lab');
+const bin=path.resolve('target/debug/mugiurushi');
 function run(label,spec,success) {
   const dir=path.join(output,label);fs.mkdirSync(dir);
   const config=path.join(dir,'recipe.json');

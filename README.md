@@ -1,10 +1,12 @@
-# kintsugi（金継ぎ）
+# 麦漆（mugiurushi）
 
 伝統的な手工芸品のように、手入れを重ねて使い続けられるソフトウェアへ。
 
-kintsugiは、ソフトウェアを使う人と作る人が理解・検証・改修に関わり続けられるエコシステムを提案する研究プロジェクトです。現在はそのための基盤を開発しています。
+麦漆は、ソフトウェアを使う人と作る人が理解・検証・改修に関わり続けられるエコシステムを提案する研究プロジェクトです。現在はそのための基盤を開発しています。
 
-## なぜ金継ぎなのか
+## なぜ麦漆なのか
+
+麦漆は金継ぎで接着に使う材料です。使う人と作る人、疑問と検証をつなぐ基盤でありたいという考えを名前に重ねています。
 
 生成AIによってソフトウェアを作りやすくなる一方で、仕組みや挙動を理解しながら利用・運用することには難しさがあります。使う人が感じた不便や不安を具体的に伝えられず、作る人も何を確かめればよいか分からないことがあります。
 
@@ -34,8 +36,8 @@ kintsugiは、ソフトウェアを使う人と作る人が理解・検証・改
 Rust 1.99.0を使います。開発者・運営者が最初にAI接続を設定します。
 
 ```bash
-git clone https://github.com/Suisan-neki/kintsugi.git
-cd kintsugi
+git clone https://github.com/Suisan-neki/mugiurushi.git
+cd mugiurushi
 cargo run -- ai init
 # 作成された data/app/ai.json をエディタで開き、api_key と model を記入する
 cargo run -- ai test
@@ -51,7 +53,7 @@ cargo run -- --help
 
 `local`はOSによる隔離を行いません。信頼できる対象を使い、実行内容を確認してから試験を開始します。Linuxの`bubblewrap`を指定した場合、隔離を起動できなくてもlocalへ切り替えません。
 
-旧名称はexecution-evidence-labです。現在のCargoパッケージ名とバイナリ名には旧名称を使っています。
+Cargoパッケージ名とバイナリ名は`mugiurushi`です。旧名称はexecution-evidence-lab、kintsugiです。
 
 ## 構成
 

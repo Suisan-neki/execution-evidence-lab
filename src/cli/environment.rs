@@ -2,7 +2,7 @@ use super::{HELP, invalid, options, output, print_json, required};
 use std::{io, path::PathBuf};
 
 pub(super) fn run(args: &[String]) -> io::Result<()> {
-    use execution_evidence_lab::environment;
+    use mugiurushi::environment;
     let value = match args.first().map(String::as_str) {
         Some("inspect") if args.len() == 2 => environment::inspect(&PathBuf::from(&args[1]))?,
         Some("show") if args.len() == 2 => {

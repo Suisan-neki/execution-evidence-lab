@@ -41,7 +41,7 @@ const dify=createServer(async(req,res)=>{
 await new Promise(ok=>dify.listen(0,'127.0.0.1',ok));
 await writeFile(join(data,'ai.json'),JSON.stringify({base_url:ai.url,model:'synthetic-architecture',api_key:'synthetic-native-private-key'}));
 if(!native)await writeFile(join(data,'dify.json'),JSON.stringify({base_url:`http://127.0.0.1:${dify.address().port}/v1`,api_key:'synthetic-dify-private-key'}));
-const binary=process.env.REVIEW_BINARY||join(root,'target/debug/execution-evidence-lab');
+const binary=process.env.REVIEW_BINARY||join(root,'target/debug/mugiurushi');
 const env={...process.env};for(const n of ['EEL_AI_BASE_URL','EEL_AI_MODEL','EEL_AI_API_KEY_FILE'])delete env[n];
 const child=spawn(binary,['app',data,'--port','0'],{env,stdio:['ignore','pipe','pipe']});
 let browser,page;

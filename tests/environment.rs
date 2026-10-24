@@ -1,4 +1,4 @@
-use execution_evidence_lab::{environment::*, recording::*};
+use mugiurushi::{environment::*, recording::*};
 use std::{fs, path::Path};
 
 fn recipe() -> Recipe {
