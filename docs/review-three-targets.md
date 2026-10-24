@@ -16,11 +16,11 @@ OpenEMR、OHIF Viewer、MONAIの代表操作と実際の故障を試し、個別
 
 | 順番 | PR | 主に確認する判断 |
 | --- | --- | --- |
-| 1 | [#151 固定した依存・ビルド](https://github.com/Suisan-neki/execution-evidence-lab/pull/151) | 準備と対象処理の成功を分ける。実行前に導入・実行する内容を示す。依存と生成物のハッシュの範囲を確認する |
-| 2 | [#152 OHIFの実ブラウザー試験](https://github.com/Suisan-neki/execution-evidence-lab/pull/152) | 検査した生成物だけを渡す。HTTP・画素・描画・直接読取を区別し、重なったHTMLをcanvasの成功としない |
-| 3 | [#153 MONAIの学習と部分観測](https://github.com/Suisan-neki/execution-evidence-lab/pull/153) | 対象内の報告と独立した読取を分ける。中断後に成功の報告を作らず、処理設定と数値の照合範囲を残す |
-| 4 | [#154 3対象の図と証拠](https://github.com/Suisan-neki/execution-evidence-lab/pull/154) | 観測を要素全体の正常性へ広げない。選んだ試行の欠落を過去の成功で補わない。構成と条件の版を残す |
-| 5 | [#155 SOAPの保存と再表示](https://github.com/Suisan-neki/execution-evidence-lab/pull/155) | 受診理由だけで終えず、SOAPの各項目を別々に照合する。DB停止時の読取不能と行の不存在を区別する |
+| 1 | [#151 固定した依存・ビルド](https://github.com/Suisan-neki/mugiurushi/pull/151) | 準備と対象処理の成功を分ける。実行前に導入・実行する内容を示す。依存と生成物のハッシュの範囲を確認する |
+| 2 | [#152 OHIFの実ブラウザー試験](https://github.com/Suisan-neki/mugiurushi/pull/152) | 検査した生成物だけを渡す。HTTP・画素・描画・直接読取を区別し、重なったHTMLをcanvasの成功としない |
+| 3 | [#153 MONAIの学習と部分観測](https://github.com/Suisan-neki/mugiurushi/pull/153) | 対象内の報告と独立した読取を分ける。中断後に成功の報告を作らず、処理設定と数値の照合範囲を残す |
+| 4 | [#154 3対象の図と証拠](https://github.com/Suisan-neki/mugiurushi/pull/154) | 観測を要素全体の正常性へ広げない。選んだ試行の欠落を過去の成功で補わない。構成と条件の版を残す |
+| 5 | [#155 SOAPの保存と再表示](https://github.com/Suisan-neki/mugiurushi/pull/155) | 受診理由だけで終えず、SOAPの各項目を別々に照合する。DB停止時の読取不能と行の不存在を区別する |
 
 Rustの処理は`environment.rs`のレシピ検査・実行・比較、`prepared_web.rs`の生成物検査と一時コピー、`browser.rs`と`http_probe.rs`の観測、`trial.rs`の部分判定、`architecture.rs`の固定版と観測条件の照合の順で読む。各PRに、その変更の型・関数と試験の読む順番も記載した。
 

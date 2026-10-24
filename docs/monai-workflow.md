@@ -20,7 +20,7 @@ DockerとNode 24.19.0を用意した新しい作業コピーで実行する。�
 ```bash
 cargo build --locked
 node tools/environment-smoke.mjs monai-cpu
-./target/debug/execution-evidence-lab environment inspect examples/monai-workflow/recipe.json
+./target/debug/mugiurushi environment inspect examples/monai-workflow/recipe.json
 node tools/monai-workflow-smoke.mjs
 cargo run -- review evaluations/ci-monai-workflow/case
 ```

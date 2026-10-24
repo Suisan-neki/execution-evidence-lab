@@ -14,7 +14,7 @@ PR #110、理解機能 #122、二機能の接続 #123。実装の対象は`5858c
 | 既存のテスト画面 | 保存の4条件、根拠の行、質問・回答・判断、更新競合、依存先の変更と再試験、下書きと選択の保持を再確認 |
 | 比較方法 | 13事例の回帰確認が成功。利用者の理解・時間・安心感は測定していない |
 
-ブラウザ試験は[GitHub Actions run 37627020916](https://github.com/Suisan-neki/execution-evidence-lab/actions/runs/37627020916)で成功。Chrome Headless Shell 151.0.7922.34を使用した。作業環境ではChromiumの取得が失敗したため、ローカルのブラウザ試験成功とは記録しない。
+ブラウザ試験は[GitHub Actions run 37627020916](https://github.com/Suisan-neki/mugiurushi/actions/runs/37627020916)で成功。Chrome Headless Shell 151.0.7922.34を使用した。作業環境ではChromiumの取得が失敗したため、ローカルのブラウザ試験成功とは記録しない。
 
 ## 実GitHubへの接続
 

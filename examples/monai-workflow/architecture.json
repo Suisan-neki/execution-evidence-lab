@@ -26,7 +26,7 @@
         "kind": "human",
         "note": "合成データの試験設定を作る役割を補足した。本人の理解や合意を確認したという記録ではない。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
           "path": "examples/monai-workflow/workflow.py",
           "line": 1,
@@ -44,7 +44,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
           "path": "examples/monai-workflow/workflow.py",
           "line": 1,
@@ -62,7 +62,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
           "path": "examples/monai-workflow/workflow.py",
           "line": 1,
@@ -80,7 +80,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
           "path": "examples/monai-workflow/workflow.py",
           "line": 1,
@@ -98,7 +98,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
           "path": "examples/monai-workflow/workflow.py",
           "line": 1,
@@ -116,7 +116,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
           "path": "examples/monai-workflow/workflow.py",
           "line": 1,
@@ -134,7 +134,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
           "path": "examples/monai-workflow/workflow.py",
           "line": 1,
@@ -152,7 +152,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
           "path": "examples/monai-workflow/workflow.py",
           "line": 1,
@@ -170,7 +170,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
           "path": "examples/monai-workflow/workflow.py",
           "line": 1,
@@ -190,7 +190,7 @@
         "kind": "human",
         "note": "合成データの試験設定を作る役割を補足した。本人の理解や合意を確認したという記録ではない。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
           "path": "examples/monai-workflow/workflow.py",
           "line": 1,
@@ -208,7 +208,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
           "path": "examples/monai-workflow/workflow.py",
           "line": 1,
@@ -226,7 +226,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
           "path": "examples/monai-workflow/workflow.py",
           "line": 1,
@@ -244,7 +244,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
           "path": "examples/monai-workflow/workflow.py",
           "line": 1,
@@ -262,7 +262,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
           "path": "examples/monai-workflow/workflow.py",
           "line": 1,
@@ -280,7 +280,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
           "path": "examples/monai-workflow/workflow.py",
           "line": 1,
@@ -298,7 +298,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "34923c6f79ce9da2cde9a37b12ef2d7fbe63f59d",
           "path": "examples/monai-workflow/workflow.py",
           "line": 1,

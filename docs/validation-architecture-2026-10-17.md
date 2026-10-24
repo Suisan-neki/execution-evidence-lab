@@ -4,7 +4,7 @@
 
 ## 保存と実OSSの試行
 
-PR #149の[CI](https://github.com/Suisan-neki/execution-evidence-lab/actions/runs/39008436818)でRust103件、fmt・check・clippy、既存の画面・読取・DICOM試験が成功した。実OpenEMRで架空の患者を登録し、受診理由を保存・再表示する正常時と、保存前にDBを停止する試行を実行した。
+PR #149の[CI](https://github.com/Suisan-neki/mugiurushi/actions/runs/39008436818)でRust103件、fmt・check・clippy、既存の画面・読取・DICOM試験が成功した。実OpenEMRで架空の患者を登録し、受診理由を保存・再表示する正常時と、保存前にDBを停止する試行を実行した。
 
 表示・HTTP・DBの個別の観測条件を、版1の構成のブラウザ・HTTP接続・DBへ対応づけた。リンクの固定版・現在の条件への適用可否と、全版バックアップを確認した。DB停止時のDB観測は未観測として残り、HTTPの失敗から補っていない。SQL接続やDBファイルの書込へは観測を対応づけていない。
 

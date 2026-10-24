@@ -8,8 +8,8 @@
 
 ```bash
 cargo build --locked
-./target/debug/execution-evidence-lab environment inspect examples/ohif-build/recipe.json
-./target/debug/execution-evidence-lab environment inspect examples/monai-cpu/recipe.json
+./target/debug/mugiurushi environment inspect examples/ohif-build/recipe.json
+./target/debug/mugiurushi environment inspect examples/monai-cpu/recipe.json
 ```
 
 設定にはソースのコミット、イメージのダイジェスト、固定ファイルのSHA-256、資源と待機時間の上限、実行コマンド、限界を記載する。`inspect`は補助スクリプトと基盤の実行用スクリプトも表示する。`run`でも同じ内容を表示してから実行する。依存のインストール用スクリプトがコンテナ内で動くことを実行前に確認できる。
@@ -21,7 +21,7 @@ cargo build --locked
 ```bash
 git clone https://github.com/OHIF/Viewers.git /tmp/ohif-source
 git -C /tmp/ohif-source fetch origin 5a78dac37797efa74c10e63ec2028bca0b33e13b
-./target/debug/execution-evidence-lab environment run examples/ohif-build/recipe.json --repository-root /tmp/ohif-source --output evaluations/ohif-build
+./target/debug/mugiurushi environment run examples/ohif-build/recipe.json --repository-root /tmp/ohif-source --output evaluations/ohif-build
 ```
 
 Node 24.19.0のLinux amd64イメージとpnpm 12.8.1を固定する。pnpm本体とLinux実行バイナリの配布ファイルをSHA-512で確認した後、上流のロックファイルを使って`pnpm install --frozen-lockfile --verify-store-integrity`を実行する。ロックファイル、workspace設定、package.json、.npmrcのSHA-256を導入前後とビルド後に確認する。
@@ -34,7 +34,7 @@ Node 24.19.0のLinux amd64イメージとpnpm 12.8.1を固定する。pnpm本体
 
 ```bash
 git clone --branch 1.6.1 https://github.com/Project-MONAI/MONAI.git /tmp/monai-source
-./target/debug/execution-evidence-lab environment run examples/monai-cpu/recipe.json --repository-root /tmp/monai-source --output evaluations/monai-cpu
+./target/debug/mugiurushi environment run examples/monai-cpu/recipe.json --repository-root /tmp/monai-source --output evaluations/monai-cpu
 ```
 
 MONAIは1.6.1のコミット`f2ec87ae9b536baaeca1d6bcc2b6349369e2af8f`、Pythonは3.12.12のLinux amd64イメージを使う。torch 2.8.0+cpu、numpy 2.3.3と必要な依存先を、配布URL・版・wheelのSHA-256で固定する。コンテナ内のvenvへ`--no-index --no-deps --require-hashes`で入れ、`pip check`と導入後の版の照合を行う。MONAIは固定ソースをPYTHONPATHから読み込む。任意の追加依存、C++/CUDA拡張、GPUは使わない。
@@ -59,8 +59,8 @@ MONAIの`create_test_image_2d`で64×64の合成画像を作り、seedを144に�
 Nodeの導入一覧は、導入先のpackage.jsonのSHA-256と、ロックファイルに記載された配布ファイルのintegrityを区別する。package.jsonのハッシュは、導入した全ファイルのハッシュではない。Pythonの一覧には、導入に使って照合したwheelのSHA-256を記録する。pipなどイメージに同梱された基盤ツールはイメージのダイジェストと`pip-list.json`で確認する。
 
 ```bash
-./target/debug/execution-evidence-lab environment show RUN_DIR
-./target/debug/execution-evidence-lab environment compare BEFORE_DIR AFTER_DIR
+./target/debug/mugiurushi environment show RUN_DIR
+./target/debug/mugiurushi environment compare BEFORE_DIR AFTER_DIR
 ```
 
 比較ではソース、イメージ、設定、基盤スクリプト、依存の版・ハッシュと結果の変化を示す。準備に失敗した試行の空の一覧を「同じ依存だった」と扱わない。業務条件やモデルの性能は判定しない。
