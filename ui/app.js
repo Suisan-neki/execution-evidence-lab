@@ -225,7 +225,7 @@ function renderConcerns() {
     if (check) {
       const cv = state.view.checks.find(c => c.check_id === check.id);
       card.append(el('p', {}, `確かめたい動作：${check.text}`));
-      card.append(el('p', { className: 'note' }, cv?.evidence.length ? `検証結果：${({ satisfied: '条件を満たす', not_satisfied: '条件を満たさない', unknown: '判定できない' })[cv.verdict]}。${cv.reason}` : '検証内容を記録しました。まだ実行していません。'));
+      card.append(el('p', { className: 'note' }, cv?.evidence.length ? `検証結果：${({ satisfied: '条件を満たす', not_satisfied: '条件を満たさない', unknown: '検証未通過（証拠不足・判定不能）' })[cv.verdict]}。${cv.reason}` : '検証未通過。検証内容を記録しましたが、まだ実行していません。'));
       card.append(workbenchLink('検証の設定へ進む', check, m, 'trial'));
       if (cv?.evidence.length) card.append(workbenchLink('結果を見て改善を検討する', check, m, 'result'));
     } else {

@@ -19,7 +19,7 @@ const STATEMENT_KIND = { statement: '期待（本人の言葉）', code_fact: '�
 const VERDICT = {
   satisfied: { mark: '○', label: '条件を満たす' },
   not_satisfied: { mark: '×', label: '条件を満たさない' },
-  unknown: { mark: '？', label: '判定できない' },
+  unknown: { mark: '？', label: '検証未通過（証拠不足・判定不能）' },
 };
 const OBSERVED = { pass: '○ 期待どおり', fail: '× 期待と異なる', not_observed: '？ 観測できていない' };
 const METHODS = [
@@ -891,7 +891,7 @@ function showTrialConfirmation(check, form, exec) {
     run.disabled = false;
   }, 'solid-fill', 'lg');
   run.disabled = !check.source;
-  body.replaceChildren(h('h3', {}, 'この内容で実行します'), h('p', {}, '次のボタンを押すと、固定版を取得して対象を起動します。'), previewBox(check, form, exec), h('div', { class: 'journey-actions' }, button('設定に戻る', () => { history.back(); }), run));
+  body.replaceChildren(h('h3', {}, 'この内容で実行します'), h('p', {}, '実行には端末での一回限りの承認とbubblewrapが必要です。未承認の場合は実行要求を保存するリンクを表示します。'), previewBox(check, form, exec), h('div', { class: 'journey-actions' }, button('設定に戻る', () => { history.back(); }), run));
   history.pushState(null, '', location.href.replace(/#.*$/, '') + '#trial-confirm');
   $('trial').focus(); $('main').scrollIntoView({ block: 'start' });
 }
@@ -941,7 +941,20 @@ async function runTrial(check, f) {
     await api('POST', '/api/v1/prepare', { repository: current.source.repository, commit: current.source.commit });
     const p = person();
     setStatus(python?.dependencies.length ? '依存先の固定コミットを取得してから（git fetch のみ）、対象を起動しています。' : '対象を起動しています。');
-    const job = await api('POST', '/api/v1/execute', { expected_revision: state.view.workspace.revision, actor: `${p.name}（${ROLE[p.role]}）`, reason: `${FAULT_LABEL[f.fault]}で試験した`, recipe });
+    const request = { expected_revision: state.view.workspace.revision, actor: `${p.name}（${ROLE[p.role]}）`, reason: `${FAULT_LABEL[f.fault]}で試験した`, recipe };
+    let job;
+    try { job = await api('POST', '/api/v1/execute', request); }
+    catch (error) {
+      if (error.status === 403) {
+        const url = URL.createObjectURL(new Blob([JSON.stringify(request, null, 2)], { type: 'application/json' }));
+        const link = h('a', { href: url, download: 'execution-request.json' }, '実行要求を保存する');
+        $('trial-body').append(banner('warning', '端末側の承認が必要です',
+          h('p', {}, '保存したJSONを端末で確認し、次のコマンドで一回だけ承認してください。その後、同じ設定で実行を再試行します。'),
+          link, codeText('cargo run -- case approve DATA_DIR/case execution-request.json')));
+        setTimeout(() => URL.revokeObjectURL(url), 300000);
+      }
+      throw error;
+    }
     state.lastRun = `${job.id}（実行中）`; renderCurrent();
     let status;
     for (let i = 0; i < 900; i++) {
@@ -975,6 +988,9 @@ function renderResult() {
   const evidence = [...cv.evidence].reverse();
   const raw = id => state.view.workspace.evidence.find(e => e.id === id);
   fill(body,
+    h('p', { class: 'note', role: 'status' }, state.view.verification_passed
+      ? '記録した全条件の検証を通過。実運用の許可を示すものではありません。'
+      : '検証未通過。未確認または未達の条件があり、利用開始の判断は記録できません。'),
     retestNotice(check),
     field({ label: '結果を見る期待', control: pick }),
     h('p', {}, h('strong', {}, '期待: '), check.text, `（条件の版 ${check.version}）`),

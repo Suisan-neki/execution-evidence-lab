@@ -1,7 +1,7 @@
 // 理解と試験の画面を、公開リポジトリ sjl/t の固定コミットで実際に操作する。
 // GitHubへの接続が必要。対象の実行は試行用の作業ディレクトリで行い、既存のデータは使わない。
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile, readdir, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
@@ -23,7 +23,7 @@ async function openDetails(summary) {
 const servers = [];
 
 function start(data, env = {}) {
-  const server = spawn(binary, ['app', data, '--port', '0', '--execution-mode', 'local'], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...env } });
+  const server = spawn(binary, ['app', data, '--port', '0', '--execution-mode', 'bubblewrap'], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...env } });
   servers.push(server);
   return new Promise((accept, reject) => {
     let stdout = '';
@@ -231,6 +231,14 @@ try {
     if (await page.getByRole('button', { name: '次へ：試す状況を選ぶ', exact: true }).isVisible()) await page.getByRole('button', { name: '次へ：試す状況を選ぶ', exact: true }).click();
     await page.getByRole('button', { name: '次へ：判定の条件を確認する', exact: true }).click();
     await page.getByRole('button', { name: '実行前に確認する' }).click();
+    const denied = page.waitForResponse(r => r.url().endsWith('/api/v1/execute'));
+    await page.getByRole('button', { name: '試験を始める', exact: true }).click();
+    assert.equal((await denied).status(), 403, '画面のトークンだけで実行できない');
+    const downloaded = page.waitForEvent('download');
+    await page.getByRole('link', { name: '実行要求を保存する', exact: true }).click();
+    const requestPath = join(temp, 'execution-request.json');
+    await (await downloaded).saveAs(requestPath);
+    execFileSync(binary, ['case', 'approve', join(temp, 'data', 'case'), requestPath]);
     await page.getByRole('button', { name: '試験を始める', exact: true }).click();
     await page.locator('#result:not([hidden])').waitFor({ timeout: 120000 });
   };
@@ -248,7 +256,7 @@ try {
   await page.getByLabel(/基盤による保存先の読み出しを止める/).check();
   await runTrial();
   result = await page.locator('#result-body').innerText();
-  assert.match(result, /現在の判定[\s\S]*判定できない/);
+  assert.match(result, /現在の判定[\s\S]*検証未通過/);
   await page.getByText('過去の試行を見る', { exact: true }).click();
   assert.match(await page.locator('#result-body').innerText(), /この試行は現在の期待には当てはまりません/);
   log('観測の欠落: 前の成功を使わず「判定できない」');
@@ -425,8 +433,8 @@ try {
   log(`未読のファイル ${unreadCount} 件を表示し、そのうち1件を画面から読んだ`);
 
   // 取得の失敗（400）と古い版での更新（409）は、意図して起こした応答。
-  assert.deepEqual(errors.filter(e => !/status of (400|409) /.test(e)), []);
-  assert.equal(errors.length, 2);
+  assert.deepEqual(errors.filter(e => !/status of (400|403|409) /.test(e)), []);
+  assert.equal(errors.filter(e => !/status of 403 /.test(e)).length, 2);
 
   // AIの接続先が応答しないとき。静的解析の結果は表示し続ける。
   const keyFile = join(temp, 'ai-key');
