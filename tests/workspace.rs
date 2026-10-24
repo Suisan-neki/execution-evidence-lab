@@ -175,6 +175,24 @@ fn http(
 }
 
 #[test]
+fn malformed_api_bodies_are_rejected_after_authentication_without_changing_the_case() {
+    let sandbox = Sandbox::new();
+    let case = sandbox.case();
+    let before = serde_json::to_value(load(&case).unwrap()).unwrap();
+    for route in ["change", "compare", "report-html", "repository"] {
+        let route = format!("/api/v1/{route}");
+        for (token, status) in [(None, 403), (Some("test-token"), 400)] {
+            let response = http(&case, "POST", &route, "{", Some("same"), token, None);
+            assert!(
+                response.starts_with(&format!("HTTP/1.1 {status}")),
+                "{route}: {response}"
+            );
+        }
+    }
+    assert_eq!(serde_json::to_value(load(&case).unwrap()).unwrap(), before);
+}
+
+#[test]
 fn review_reports_require_v1_auth_and_reject_a_stale_preview() {
     let s = Sandbox::new();
     let case = s.case();
