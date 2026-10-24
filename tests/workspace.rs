@@ -193,6 +193,86 @@ fn malformed_api_bodies_are_rejected_after_authentication_without_changing_the_c
 }
 
 #[test]
+fn unknown_and_failed_checks_block_release_without_relabelling_the_observation() {
+    let sandbox = Sandbox::new();
+    let case = sandbox.case();
+    let release = || {
+        change(
+            &case,
+            ChangeRequest {
+                expected_revision: load(&case).unwrap().revision,
+                actor: "合成の確認者".into(),
+                reason: "利用開始の確認".into(),
+                action: Change::Decide {
+                    role: Role::Operator,
+                    action: DecisionKind::Release,
+                    check_ids: vec!["save".into()],
+                    change_reference: None,
+                    confidence: None,
+                    elapsed_ms: None,
+                },
+            },
+        )
+    };
+    let empty = view(empty_workspace("empty".into(), "空の事例".into()));
+    assert!(!empty.verification_passed);
+    let unknown = view(load(&case).unwrap());
+    assert_eq!(unknown.checks[0].verdict, Verdict::Unknown);
+    assert!(!unknown.verification_passed);
+    assert_eq!(
+        release().unwrap_err().kind(),
+        std::io::ErrorKind::PermissionDenied
+    );
+    let failed = import(&case, &support::trace(&[ObservationOutcome::Fail]), "save");
+    assert_eq!(failed.checks[0].verdict, Verdict::NotSatisfied);
+    assert!(!failed.checks[0].verification_passed);
+    assert!(release().is_err());
+    let passed = import(&case, &support::trace(&[ObservationOutcome::Pass]), "save");
+    assert!(passed.checks[0].verification_passed);
+    assert!(
+        !passed.verification_passed,
+        "他の未確認条件を選択から外しても利用開始できない"
+    );
+    assert!(release().is_err());
+    let report = mugiurushi::review_report::build(load(&case).unwrap()).unwrap();
+    assert!(!report.verification_passed);
+    assert!(
+        mugiurushi::review_report::html(&report)
+            .unwrap()
+            .contains("検証未通過")
+    );
+    let passed_case = sandbox.0.join("passed");
+    let mut workspace = support::workspace();
+    workspace.checks.truncate(1);
+    initialize(&passed_case, workspace, "合成の作成者", "一条件の確認").unwrap();
+    let passed = import(
+        &passed_case,
+        &support::trace(&[ObservationOutcome::Pass]),
+        "save",
+    );
+    assert!(passed.verification_passed);
+    assert!(
+        change(
+            &passed_case,
+            ChangeRequest {
+                expected_revision: passed.workspace.revision,
+                actor: "合成の確認者".into(),
+                reason: "記録した全条件が検証を通過した".into(),
+                action: Change::Decide {
+                    role: Role::Operator,
+                    action: DecisionKind::Release,
+                    check_ids: vec!["save".into()],
+                    change_reference: None,
+                    confidence: None,
+                    elapsed_ms: None
+                },
+            }
+        )
+        .is_ok()
+    );
+}
+
+#[test]
 fn review_reports_require_v1_auth_and_reject_a_stale_preview() {
     let s = Sandbox::new();
     let case = s.case();

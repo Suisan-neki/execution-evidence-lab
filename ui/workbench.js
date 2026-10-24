@@ -19,7 +19,7 @@ const STATEMENT_KIND = { statement: '期待（本人の言葉）', code_fact: '�
 const VERDICT = {
   satisfied: { mark: '○', label: '条件を満たす' },
   not_satisfied: { mark: '×', label: '条件を満たさない' },
-  unknown: { mark: '？', label: '判定できない' },
+  unknown: { mark: '？', label: '検証未通過（証拠不足・判定不能）' },
 };
 const OBSERVED = { pass: '○ 期待どおり', fail: '× 期待と異なる', not_observed: '？ 観測できていない' };
 const METHODS = [
@@ -975,6 +975,9 @@ function renderResult() {
   const evidence = [...cv.evidence].reverse();
   const raw = id => state.view.workspace.evidence.find(e => e.id === id);
   fill(body,
+    h('p', { class: 'note', role: 'status' }, state.view.verification_passed
+      ? '記録した全条件の検証を通過。実運用の許可を示すものではありません。'
+      : '検証未通過。未確認または未達の条件があり、「採用する」という判断は記録できません。'),
     retestNotice(check),
     field({ label: '結果を見る期待', control: pick }),
     h('p', {}, h('strong', {}, '期待: '), check.text, `（条件の版 ${check.version}）`),

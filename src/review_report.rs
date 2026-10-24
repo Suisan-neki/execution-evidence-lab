@@ -37,6 +37,7 @@ pub struct Report {
     pub case_id: String,
     pub title: String,
     pub revision: u64,
+    pub verification_passed: bool,
     pub domain: profile::Domain,
     pub selection_version: u32,
     pub catalog_version: &'static str,
@@ -119,6 +120,7 @@ pub fn build(workspace: Workspace) -> io::Result<Report> {
         }
     }
     Ok(Report {
+        verification_passed: view.verification_passed,
         schema_version: 1,
         case_id: view.workspace.id,
         title: view.workspace.title,
@@ -151,7 +153,7 @@ fn verdict(v: crate::model::Verdict) -> &'static str {
     match v {
         crate::model::Verdict::Satisfied => "条件を満たす",
         crate::model::Verdict::NotSatisfied => "条件を満たさない",
-        crate::model::Verdict::Unknown => "判定できない",
+        crate::model::Verdict::Unknown => "検証未通過（証拠不足・判定不能）",
     }
 }
 pub fn html(report: &Report) -> io::Result<String> {
@@ -169,7 +171,11 @@ pub fn html(report: &Report) -> io::Result<String> {
     for limit in &report.limits {
         out.push_str(&format!("<li>{}</li>", escape(limit)));
     }
-    out.push_str("</ul><h2>確認事項と結果</h2>");
+    out.push_str(if report.verification_passed {
+        "</ul><p>記録した全条件の検証を通過。実運用の許可やシステム全体の安全性を示すものではありません。</p><h2>確認事項と結果</h2>"
+    } else {
+        "</ul><p>検証未通過。未確認または未達の条件があり、「採用する」という判断は記録できません。</p><h2>確認事項と結果</h2>"
+    });
     if report.checks.is_empty() {
         out.push_str("<p>確認事項はまだありません。</p>");
     }

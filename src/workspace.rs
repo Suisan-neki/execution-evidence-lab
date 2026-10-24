@@ -311,6 +311,8 @@ pub struct CheckView {
     pub check_id: String,
     pub check_version: u32,
     pub verdict: Verdict,
+    #[serde(default)]
+    pub verification_passed: bool,
     pub reason: String,
     pub selected_evidence: Option<String>,
     pub evidence: Vec<EvidenceView>,
@@ -322,6 +324,8 @@ pub struct CheckView {
 pub struct WorkspaceView {
     pub workspace: Workspace,
     pub checks: Vec<CheckView>,
+    #[serde(default)]
+    pub verification_passed: bool,
     #[serde(default)]
     pub statements: Vec<StatementView>,
 }
@@ -962,7 +966,7 @@ pub fn evidence_invalidated_by(workspace: &Workspace, check: &Check, e: &Evidenc
 }
 
 pub fn view(workspace: Workspace) -> WorkspaceView {
-    let checks = workspace
+    let checks: Vec<CheckView> = workspace
         .checks
         .iter()
         .map(|check| {
@@ -1073,6 +1077,7 @@ pub fn view(workspace: Workspace) -> WorkspaceView {
             CheckView {
                 check_id: check.id.clone(),
                 check_version: check.version,
+                verification_passed: verdict == Verdict::Satisfied,
                 verdict,
                 reason,
                 selected_evidence: last.map(|e| e.id.clone()),
@@ -1088,6 +1093,7 @@ pub fn view(workspace: Workspace) -> WorkspaceView {
         .map(|s| statement_view(&workspace, s))
         .collect();
     WorkspaceView {
+        verification_passed: !checks.is_empty() && checks.iter().all(|c| c.verification_passed),
         workspace,
         checks,
         statements,
@@ -1514,6 +1520,14 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
             confidence,
             elapsed_ms,
         } => {
+            if matches!(action, DecisionKind::Release)
+                && !view(workspace.clone()).verification_passed
+            {
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "検証未通過です。全条件の現在の判定が条件を満たすまで、「採用する」という判断は記録できません",
+                ));
+            }
             if check_ids.is_empty()
                 || confidence.is_some_and(|c| c > 5)
                 || elapsed_ms.is_some_and(|t| t > 86_400_000)
