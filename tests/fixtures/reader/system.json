@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "fullName": "example/record-system",
+  "reference": "main",
+  "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "inventory": [
+    {"path":"README.md","mode":"100644"},
+    {"path":"compose.yaml","mode":"100644"},
+    {"path":"ui/package.json","mode":"100644"},
+    {"path":"ui/main.tsx","mode":"100644"},
+    {"path":"server/requirements.txt","mode":"100644"},
+    {"path":"server/main.py","mode":"100644"},
+    {"path":"server/storage.py","mode":"100644"},
+    {"path":"server/auth.py","mode":"100644"},
+    {"path":"server/files.py","mode":"100644"}
+  ],
+  "files": {
+    "README.md": "# 記録を保存する架空のシステム\nブラウザから記録やファイルを保存し、後から取り出します。\n",
+    "compose.yaml": "services:\n  api:\n    build: ./server\n    command: uvicorn main:app\n    environment:\n      DATABASE_URL: postgresql://example:synthetic-password@db:5432/records\n    depends_on: [db, cache]\n  db:\n    image: postgres:16\n  cache:\n    image: redis:7\n",
+    "ui/package.json": "{\"name\":\"records-ui\",\"scripts\":{\"dev\":\"vite\"},\"dependencies\":{\"react\":\"19\"}}\n",
+    "ui/main.tsx": "import { createRoot } from 'react-dom/client';\ncreateRoot(document.getElementById('root')).render(<App />);\nasync function load() { return fetch('/api/records'); }\n",
+    "server/requirements.txt": "fastapi\nsqlalchemy\nboto3\n",
+    "server/main.py": "from fastapi import FastAPI\nfrom . import storage, auth, files\napp = FastAPI()\n@app.get('/api/records')\ndef records():\n    return storage.read_records()\n",
+    "server/storage.py": "from sqlalchemy import create_engine\nimport os\nengine = create_engine(os.getenv('DATABASE_URL', 'sqlite:///records.db'))\ndef read_records():\n    return []\n",
+    "server/auth.py": "import boto3\nidentity = boto3.client('cognito-idp')\n",
+    "server/files.py": "import boto3\nfiles = boto3.client('s3')\n"
+  },
+  "omitted": []
+}

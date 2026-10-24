@@ -1,7 +1,6 @@
 //! 一件の確認事項と、その版に対する根拠・人の判断を保存する。
 //! 試行は取り込み時に複製し、答え合わせ用の保存物は読み込まない。
 use crate::{
-    assessment::assess,
     execution::{Criterion, ExecutionTrace},
     model::*,
     recording::*,
@@ -14,8 +13,6 @@ use std::{
 };
 
 const MAX_DOCUMENT: u64 = 4 * 1024 * 1024;
-pub const LOCAL_INDEX_CONDITION: &str =
-    "このローカル試行で、合成S3通知による模擬索引のuploadedへの更新を観測した";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -93,7 +90,9 @@ pub struct Statement {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Rule {
+    /// 既存記録の読取用。実行・新規取り込みには使わない。
     DemoSave,
+    /// 既存記録の読取用。実行・新規取り込みには使わない。
     LocalIndexUploaded,
     ManualOnly,
     ObservedAssertion,
@@ -175,20 +174,6 @@ pub fn validate_source(source: &CodeReference) -> io::Result<()> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AdapterEvent {
-    pub sequence: u64,
-    pub correlation: Correlation,
-    pub kind: String,
-    pub detail: serde_json::Value,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AdapterTrace {
-    pub target: serde_json::Value,
-    pub events: Vec<AdapterEvent>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Evidence {
     /// 取り込み時の確認モード。実行経路や安全性の証明ではない。
     #[serde(default)]
@@ -209,7 +194,8 @@ pub struct Evidence {
     pub dependency_origins: BTreeMap<String, String>,
     pub manifest: Manifest,
     pub events: Vec<Event>,
-    pub adapter: Option<AdapterTrace>,
+    /// 廃止したアダプターの保存済み情報。新規の実行や判定には使用しない。
+    pub adapter: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -472,6 +458,14 @@ fn unique<'a>(values: impl Iterator<Item = &'a str>) -> io::Result<()> {
     }
     Ok(())
 }
+fn active_rule(rule: &Rule) -> io::Result<()> {
+    if matches!(rule, Rule::DemoSave | Rule::LocalIndexUploaded) {
+        return Err(invalid(
+            "旧デモ専用の判定規則は廃止されています。現在の観測規則を設定してください",
+        ));
+    }
+    Ok(())
+}
 fn validate_check(check: &Check) -> io::Result<()> {
     identifier(&check.id)?;
     nonempty(&check.text, "条件")?;
@@ -481,13 +475,6 @@ fn validate_check(check: &Check) -> io::Result<()> {
     }
     if check.version == 0 {
         return Err(invalid("条件の版は1以上です"));
-    }
-    if (check.rule == Rule::DemoSave && check.text != Condition::demo().text)
-        || (check.rule == Rule::LocalIndexUploaded && check.text != LOCAL_INDEX_CONDITION)
-    {
-        return Err(invalid(
-            "この判定規則に対応する条件文と一致しません。別の業務条件にはmanual_onlyを使ってください",
-        ));
     }
     if matches!(
         check.rule,
@@ -528,26 +515,6 @@ fn validate_check(check: &Check) -> io::Result<()> {
             (None, None) => (),
             _ => return Err(invalid("回答と出所は一緒に記録してください")),
         }
-    }
-    let required: &[&str] = match check.rule {
-        Rule::DemoSave => &["engine", "input", "environment", "fault"],
-        Rule::LocalIndexUploaded => &[
-            "engine",
-            "environment",
-            "target",
-            "adapter",
-            "fault",
-            "command",
-        ],
-        Rule::ManualOnly | Rule::ObservedAssertion | Rule::ReportedAssertion => &[],
-    };
-    if required
-        .iter()
-        .any(|key| !check.dependencies.iter().any(|v| v == key))
-    {
-        return Err(invalid(
-            "判定規則に必要なコード・入力・環境等の依存先が不足しています",
-        ));
     }
     Ok(())
 }
@@ -615,9 +582,6 @@ pub fn validate(workspace: &Workspace) -> io::Result<()> {
         if let Some(trace) = &e.execution {
             crate::execution::validate_trace(trace, &e.manifest)?;
         }
-        if let Some(adapter) = &e.adapter {
-            crate::adapters::vitalsensing::validate(&e.manifest, adapter)?;
-        }
         if let Some(trace) = &e.reported {
             crate::reported::validate(trace)?;
             if e.rule != Rule::ReportedAssertion
@@ -650,87 +614,6 @@ pub fn empty_workspace(id: String, title: String) -> Workspace {
         statements: vec![],
         context: BTreeMap::new(),
         checks: vec![],
-        evidence: vec![],
-        decisions: vec![],
-        history: vec![],
-        architecture_models: vec![],
-        architecture_links: vec![],
-    }
-}
-
-/// 合成データだけを使う練習用。実際の担当者の発言や採用要件は含めない。
-pub fn demo_workspace() -> Workspace {
-    Workspace {
-        profile_history: vec![],
-        schema_version: 1,
-        revision: 1,
-        id: "synthetic-save-review".into(),
-        title: "保存の確認範囲と、後の閲覧で必要な条件を分ける練習用事例".into(),
-        statements: vec![Statement {
-            id: "scope".into(),
-            kind: StatementKind::Proposal,
-            role: None,
-            text: "保存処理の記録と、誰が後で閲覧できるかを別の確認事項にする".into(),
-            origin: "Codexが作った練習用の案。CASE-001の本人・運用担当の発言ではない".into(),
-            check_ids: vec!["save".into(), "later-view".into()],
-            source: None,
-            evidence_id: None,
-            recorded_by: String::new(),
-            recorded_revision: 0,
-            check_versions: BTreeMap::new(),
-            confirmations: vec![],
-            resolution: None,
-        }],
-        context: BTreeMap::new(),
-        checks: vec![
-            Check {
-                id: "save".into(),
-                source: None,
-                observation: None,
-                version: 1,
-                text: Condition::demo().text,
-                origin: Condition::demo().origin,
-                rule: Rule::DemoSave,
-                dependencies: ["engine", "input", "environment", "fault"]
-                    .map(String::from)
-                    .to_vec(),
-                questions: vec![],
-            },
-            Check {
-                id: "later-view".into(),
-                source: None,
-                observation: None,
-                version: 1,
-                text: "必要な担当者が、必要な記録を必要な時点で閲覧できる".into(),
-                origin: "Codexによる未採用の条件候補。具体的な利用条件は未回答".into(),
-                rule: Rule::ManualOnly,
-                dependencies: vec![
-                    "target".into(),
-                    "environment".into(),
-                    "authorization".into(),
-                ],
-                questions: vec![
-                    Question {
-                        id: "viewer".into(),
-                        text: "誰が記録を閲覧する必要がありますか".into(),
-                        answer: None,
-                        origin: None,
-                    },
-                    Question {
-                        id: "record".into(),
-                        text: "どの記録を閲覧する必要がありますか".into(),
-                        answer: None,
-                        origin: None,
-                    },
-                    Question {
-                        id: "timing".into(),
-                        text: "どの時点までに閲覧する必要がありますか".into(),
-                        answer: None,
-                        origin: None,
-                    },
-                ],
-            },
-        ],
         evidence: vec![],
         decisions: vec![],
         history: vec![],
@@ -802,6 +685,9 @@ pub fn initialize(
     }
     workspace.revision = 1;
     validate(&workspace)?;
+    for check in &workspace.checks {
+        active_rule(&check.rule)?;
+    }
     if let Some(parent) = directory.parent().filter(|p| !p.as_os_str().is_empty()) {
         fs::create_dir_all(parent)?;
     }
@@ -871,29 +757,8 @@ fn document<T: serde::de::DeserializeOwned>(path: &Path) -> io::Result<T> {
     }
     read_json(path)
 }
-fn read_trace(directory: &Path, manifest: &Manifest) -> io::Result<Option<AdapterTrace>> {
-    if !directory.join("target.json").exists() && !directory.join("adapter-events.jsonl").exists() {
-        return Ok(None);
-    }
-    let target = document(&directory.join("target.json"))?;
-    let path = directory.join("adapter-events.jsonl");
-    if fs::metadata(&path)?.len() > MAX_DOCUMENT {
-        return Err(invalid("アダプターの記録が大きすぎます"));
-    }
-    let events = fs::read_to_string(path)?
-        .lines()
-        .map(serde_json::from_str)
-        .collect::<Result<Vec<AdapterEvent>, _>>()
-        .map_err(io::Error::other)?;
-    let trace = AdapterTrace { target, events };
-    crate::adapters::vitalsensing::validate(manifest, &trace)?;
-    Ok(Some(trace))
-}
-fn dependency_values(
-    manifest: &Manifest,
-    adapter: Option<&AdapterTrace>,
-) -> io::Result<BTreeMap<String, String>> {
-    let mut values = BTreeMap::from([
+fn dependency_values(manifest: &Manifest) -> io::Result<BTreeMap<String, String>> {
+    let values = BTreeMap::from([
         ("engine".into(), manifest.source_fingerprint.clone()),
         (
             "environment".into(),
@@ -915,35 +780,6 @@ fn dependency_values(
             serde_json::to_string(&manifest.command).map_err(io::Error::other)?,
         ),
     ]);
-    if let Some(trace) = adapter {
-        values.insert(
-            "target".into(),
-            format!(
-                "{}@{}",
-                trace.target["repository"].as_str().unwrap_or("unknown"),
-                trace.target["revision"].as_str().unwrap_or("unknown")
-            ),
-        );
-        values.insert(
-            "adapter".into(),
-            trace.target["adapterSha256"]
-                .as_str()
-                .unwrap_or("unknown")
-                .into(),
-        );
-        values.insert(
-            "fault".into(),
-            trace.target["fault"].as_str().unwrap_or("unknown").into(),
-        );
-        values.insert(
-            "environment".into(),
-            format!(
-                "{}; node={}",
-                values["environment"],
-                trace.target["node"].as_str().unwrap_or("unknown")
-            ),
-        );
-    }
     Ok(values)
 }
 
@@ -964,10 +800,9 @@ fn observed(evidence: &Evidence) -> Assessment {
             }
             result.reason = "報告観測と判定する観測名・対象がありません".into();
         }
-        Rule::DemoSave => {
-            result = assess(&evidence.manifest, &evidence.events);
-            result.condition_id = evidence.check_id.clone();
-            result.condition_version = evidence.check_version;
+        Rule::DemoSave | Rule::LocalIndexUploaded => {
+            result.reason =
+                "旧デモ専用の判定規則は廃止されています。現在の観測規則で再検証してください".into();
         }
         Rule::ObservedAssertion => {
             if let (Some(trace), Some(criterion)) = (&evidence.execution, &evidence.observation)
@@ -982,7 +817,6 @@ fn observed(evidence: &Evidence) -> Assessment {
                 "この条件に対応する判定規則は未定義。プロセス終了や別条件の成立から判断しない"
                     .into();
         }
-        Rule::LocalIndexUploaded => return crate::adapters::vitalsensing::assess(evidence, result),
     }
     result
 }
@@ -1366,7 +1200,7 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
                 })
                 .collect();
             let mut manifest =
-                crate::experiment::make_manifest(trace.correlation.clone(), condition)?;
+                crate::run_record::make_manifest(trace.correlation.clone(), condition)?;
             manifest.mode = "reported_observation".into();
             manifest.initial_storage =
                 "外部からの報告。基盤での初期化・隔離は実施していない".into();
@@ -1465,6 +1299,7 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
             "resolve_statement"
         }
         Change::AddCheck { check } => {
+            active_rule(&check.rule)?;
             if check.version != 1 {
                 return Err(invalid("新しい条件の版は1です"));
             }
@@ -1526,6 +1361,7 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
             rule,
             dependencies,
         } => {
+            active_rule(&rule)?;
             let i = find_check(&workspace.checks, &check_id)?;
             let check = &mut workspace.checks[i];
             if check.text != text || check.rule != rule {
@@ -1612,20 +1448,12 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
             } else {
                 None
             };
-            if check.rule == Rule::DemoSave
-                && (manifest.mode != "demo" || manifest.condition != Condition::demo())
-            {
-                return Err(invalid("この規則は元のデモの保存条件だけに適用できます"));
-            }
-            let adapter = read_trace(directory, &manifest)?;
-            if check.rule == Rule::LocalIndexUploaded
-                && (adapter.is_none() || manifest.mode != "capture")
-            {
+            if matches!(check.rule, Rule::DemoSave | Rule::LocalIndexUploaded) {
                 return Err(invalid(
-                    "この規則にはcaptureで取得した固定版ローカルアダプターの記録が必要です",
+                    "旧デモ専用の規則には新しい試行を取り込めません。現在の観測規則を設定してください",
                 ));
             }
-            let mut values = dependency_values(&manifest, adapter.as_ref())?;
+            let mut values = dependency_values(&manifest)?;
             if let Some(trace) = &execution {
                 values = BTreeMap::from([(format!("execution-{}", check.id), serde_json::to_string(&serde_json::json!({
                     "recipe": trace.recipe, "engine": manifest.source_fingerprint,
@@ -1674,7 +1502,7 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
                 dependency_origins,
                 manifest,
                 events,
-                adapter,
+                adapter: None,
             });
             "import"
         }
@@ -1735,62 +1563,6 @@ pub fn change(directory: &Path, request: ChangeRequest) -> io::Result<WorkspaceV
     });
     save_revision(directory, &workspace)?;
     Ok(view(workspace))
-}
-
-/// デモの再試行。既存の試行を上書きせず、前の試行への参照を残す。
-pub fn run_demo(
-    directory: &Path,
-    expected_revision: u64,
-    actor: String,
-    reason: String,
-    check_id: String,
-    fault: Fault,
-) -> io::Result<WorkspaceView> {
-    nonempty(&actor, "記入者")?;
-    nonempty(&reason, "理由")?;
-    let case = load(directory)?;
-    if case.revision != expected_revision {
-        return Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            "別の更新があります。最新版を読み直してください",
-        ));
-    }
-    let check = case
-        .checks
-        .iter()
-        .find(|c| c.id == check_id)
-        .ok_or_else(|| invalid("確認事項がありません"))?;
-    if check.rule != Rule::DemoSave {
-        return Err(invalid("この試行はデモの保存条件だけを確認します"));
-    }
-    let previous_run = case
-        .evidence
-        .iter()
-        .rev()
-        .find(|e| e.check_id == check_id)
-        .map(|e| e.manifest.correlation.run_id.clone());
-    let run = crate::experiment::run_trial(TrialConfig {
-        output: directory.join("runs"),
-        data: Data {
-            name: "架空の利用者".into(),
-            age: 30,
-        },
-        fault,
-        previous_run,
-    })?;
-    change(
-        directory,
-        ChangeRequest {
-            expected_revision,
-            actor,
-            reason,
-            action: Change::Import {
-                check_id,
-                run_directory: run.directory.to_string_lossy().into_owned(),
-                use_run_context: true,
-            },
-        },
-    )
 }
 
 /// 明示的に指定したリポジトリを実行する。
@@ -1911,21 +1683,4 @@ pub fn run_external_with_dependencies(
             format!("{error}。試行記録: {}", result.directory.display()),
         )
     })
-}
-
-pub fn run_external(
-    directory: &Path,
-    repository_root: &Path,
-    recipe: crate::execution::Recipe,
-    actor: String,
-    reason: String,
-) -> io::Result<WorkspaceView> {
-    run_external_mode(
-        directory,
-        repository_root,
-        recipe,
-        crate::execution::ExecutionMode::Local,
-        actor,
-        reason,
-    )
 }

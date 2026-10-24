@@ -614,3 +614,184 @@ fn ai_candidates_use_the_real_transport_and_do_not_write_or_confirm_the_case() {
     assert!(failed.get("test_candidates").is_none());
     assert_eq!(serde_json::to_value(load(&case).unwrap()).unwrap(), before);
 }
+
+#[test]
+fn native_system_diagram_generation_persists_auditable_models_and_reopens_without_ai() {
+    use execution_evidence_lab::system_diagram::{self, Request};
+    let sandbox = Sandbox::new();
+    let base = sandbox.0.join("diagrams");
+    fs::create_dir_all(base.join("example/record-system")).unwrap();
+    let snapshot: Value =
+        serde_json::from_str(include_str!("fixtures/reader/system.json")).unwrap();
+    let commit = snapshot["commit"].as_str().unwrap();
+    fs::write(
+        base.join(format!("example/record-system/{commit}.json")),
+        serde_json::to_vec(&snapshot).unwrap(),
+    )
+    .unwrap();
+    let store = Store::new(base.clone()).unwrap();
+    let case = sandbox.case();
+    let before = serde_json::to_value(load(&case).unwrap()).unwrap();
+    let response: Value =
+        serde_json::from_str(include_str!("fixtures/reader/system-ai.json")).unwrap();
+    let (url, server) = synthetic_ai(response);
+    let settings_path = sandbox.0.join("ai.json");
+    ai::initialize_connection(&settings_path).unwrap();
+    fs::write(
+        &settings_path,
+        serde_json::to_vec(&json!({
+            "base_url":url, "model":"synthetic-architecture", "api_key":"synthetic-private-key"
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let config = ai::Config::load_connection(&settings_path)
+        .unwrap()
+        .unwrap();
+    assert!(
+        !ai::status(Some(&config))
+            .to_string()
+            .contains("synthetic-private-key")
+    );
+    use std::os::unix::fs::PermissionsExt;
+    assert_eq!(
+        fs::metadata(&settings_path).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+    let request = || Request {
+        repository: "example/record-system".into(),
+        commit: commit.into(),
+        refresh: false,
+        revision: None,
+    };
+    let generated = system_diagram::generate(Some(&config), &store, request()).unwrap();
+    let sent = server.join().unwrap();
+    assert!(
+        sent["messages"][1]["content"]
+            .as_str()
+            .unwrap()
+            .contains("SOURCE EXCERPTS")
+    );
+    assert!(!sent.to_string().contains("synthetic-private-key"));
+    assert_eq!(generated["result"]["generator"], "gitdiagram-inspired-ai");
+    assert_eq!(generated["references"]["unverified"], json!([]));
+    assert_eq!(generated["cached"], false);
+    let reopened = system_diagram::generate(None, &Store::new(base).unwrap(), request()).unwrap();
+    assert_eq!(reopened["cached"], true);
+    assert_eq!(reopened["result"], generated["result"]);
+    assert_eq!(
+        serde_json::to_value(load(&case).unwrap()).unwrap(),
+        before,
+        "生成は期待や実行結果を保存しない"
+    );
+    let failed = system_diagram::generate(
+        None,
+        &store,
+        Request {
+            refresh: true,
+            ..request()
+        },
+    );
+    assert!(failed.is_err());
+    assert_eq!(
+        system_diagram::generate(None, &store, request()).unwrap()["result"],
+        generated["result"]
+    );
+}
+
+#[test]
+fn operator_connection_rejects_unsafe_hosts_and_does_not_echo_secrets() {
+    let sandbox = Sandbox::new();
+    let path = sandbox.0.join("ai.json");
+    ai::initialize_connection(&path).unwrap();
+    let settings = |url: &str| {
+        json!({
+            "base_url":url, "model":"synthetic", "api_key":"synthetic-private-key"
+        })
+    };
+    for url in [
+        "http://remote.example.invalid/v1",
+        "https://key:secret@api.example.invalid/v1",
+        "https://api.example.invalid/v1?key=secret",
+    ] {
+        fs::write(&path, serde_json::to_vec(&settings(url)).unwrap()).unwrap();
+        let error = ai::Config::load_connection(&path)
+            .err()
+            .unwrap()
+            .to_string();
+        assert!(!error.contains("secret"));
+        assert!(!error.contains("synthetic-private-key"));
+    }
+    fs::write(&path, r#"{"synthetic-private-key":"misplaced"}"#).unwrap();
+    let error = ai::Config::load_connection(&path)
+        .err()
+        .unwrap()
+        .to_string();
+    assert!(!error.contains("synthetic-private-key"));
+    let valid = serde_json::to_vec(&settings("https://api.example.invalid/v1/")).unwrap();
+    fs::write(&path, &valid).unwrap();
+    assert!(
+        ai::initialize_connection(&path).is_err(),
+        "既存の運営者設定を初期化で上書きしない"
+    );
+    assert_eq!(fs::read(&path).unwrap(), valid);
+    let config = ai::Config::load_connection(&path).unwrap().unwrap();
+    assert_eq!(ai::status(Some(&config))["host"], "api.example.invalid");
+}
+
+#[test]
+fn operator_cli_initializes_once_and_requires_complete_server_settings() {
+    use std::process::Command;
+    let sandbox = Sandbox::new();
+    let cli = || {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_execution-evidence-lab"));
+        for name in ["EEL_AI_BASE_URL", "EEL_AI_MODEL", "EEL_AI_API_KEY_FILE"] {
+            command.env_remove(name);
+        }
+        command
+    };
+    let init = cli()
+        .args(["ai", "init", "--data-dir"])
+        .arg(&sandbox.0)
+        .output()
+        .unwrap();
+    assert!(init.status.success());
+    let path = sandbox.0.join("ai.json");
+    let original = fs::read(&path).unwrap();
+    let again = cli()
+        .args(["ai", "init", "--data-dir"])
+        .arg(&sandbox.0)
+        .output()
+        .unwrap();
+    assert!(!again.status.success());
+    assert_eq!(fs::read(&path).unwrap(), original);
+    let incomplete = cli()
+        .args(["ai", "test", "--data-dir"])
+        .arg(&sandbox.0)
+        .env("EEL_AI_MODEL", "synthetic-model")
+        .output()
+        .unwrap();
+    assert!(!incomplete.status.success());
+    assert!(String::from_utf8_lossy(&incomplete.stderr).contains("すべて指定"));
+    // 完全な起動時設定はファイルより優先する。壊れたファイルの秘密を表示しない。
+    fs::write(&path, "malformed-synthetic-private-key").unwrap();
+    let key = sandbox.0.join("key");
+    fs::write(&key, "synthetic-private-key").unwrap();
+    let (url, server) = synthetic_ai(json!({"connected":true}));
+    let tested = cli()
+        .args(["ai", "test", "--data-dir"])
+        .arg(&sandbox.0)
+        .env("EEL_AI_BASE_URL", url)
+        .env("EEL_AI_MODEL", "synthetic-model")
+        .env("EEL_AI_API_KEY_FILE", &key)
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&tested.stdout);
+    let stderr = String::from_utf8_lossy(&tested.stderr);
+    assert!(tested.status.success(), "{stderr}");
+    assert!(stdout.contains("指定したモデルから応答"));
+    assert!(!stdout.contains("private-key") && !stderr.contains("private-key"));
+    let sent = server.join().unwrap();
+    assert_eq!(sent["model"], "synthetic-model");
+    assert!(!sent.to_string().contains("private-key"));
+}

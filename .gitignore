@@ -14,5 +14,8 @@
 /cases/
 /evaluations/
 /data/
-/node_modules/
+/node_modules
 /test-results/
+/.yomiyasu/
+__pycache__/
+*.pyc

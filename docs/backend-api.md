@@ -158,7 +158,7 @@ npm run test:backend
 
 `tools/backend-demo.mjs`は合成のPython接続例を別プロセスで動かし、報告の取り込み、判断、再試験、比較、バックアップ、復元をAPIとCLIで確認する。`examples/general-observations/producer.py`を他言語の接続例へ置き換える場合も、同じJSON形式で報告する。
 
-読む順番は`src/reported.rs` → `src/workspace.rs`の報告取り込み → `src/comparison.rs` → `src/backup.rs` → `src/review.rs` → `tools/backend-demo.mjs`。医療固有の固定対象と判定は`src/adapters/vitalsensing.rs`へ分離した。現在の実行状態はサーバー単位の一件で、サーバー停止・再起動後のジョブ再開やキャンセルは未対応。複数人の公開サービス、任意アプリの自動ビルド・自動計測、実参加者の理解評価、実CASE-001・AWS・iOSは別の残件。
+読む順番は`src/reported.rs` → `src/workspace.rs`の報告取り込み → `src/comparison.rs` → `src/backup.rs` → `src/review.rs` → `tools/backend-demo.mjs`。旧VitalSensing専用アダプターは廃止し、現在の固定版実行・報告観測を使う。現在の実行状態はサーバー単位の一件で、サーバー停止・再起動後のジョブ再開やキャンセルは未対応。複数人の公開サービス、任意アプリの自動ビルド・自動計測、実参加者の理解評価、実CASE-001・AWS・iOSは別の残件。
 
 
 ## Rustによる読取・解析（#144）
@@ -169,7 +169,7 @@ npm run test:backend
 
 候補の優先順位と24ファイルの上限を保つ。候補内の同順位はロケール依存の並びからパスのバイト順へ変更し、並列取得した本文も候補順で記録する。同じ優先順位に大小文字・記号が混在する場合、初回に選ぶファイルが従来と異なることがある。必要な本文は追加で読める。
 
-旧`cargo run -- explore`はブラウザ内のJS版を維持する。Rustの解析本体へ新機能を追加するときに旧画面へ同じ機能を追加する方針は取らず、APIへ移す作業を別に扱う。今回の移植で旧画面の操作コードや、対象のNode.js実行、Playwrightの画面試験は変更していない。
+旧`explore`画面とJavaScript側の解析は2026年10月24日に廃止した。現在の画面はRustの読取・解析APIを使う。
 
 
 ブラウザ試行の画面写真は、認証付きの `GET /api/v1/browser-screenshot/{evidence_id}/{step_id}` で取得する。成功時は`image/png`、対応するファイルがない場合は404。任意のファイルパスは指定できない。事例内の実行フォルダーにある宣言済みの写真だけを扱い、バックアップのJSONには写真を含めない。

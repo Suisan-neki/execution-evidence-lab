@@ -43,7 +43,7 @@ try {
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto(url);
+  await page.goto(url + '/workbench');
   const token = await page.locator('meta[name="review-token"]').getAttribute('content');
   const caseView = async () => (await context.request.get(url + '/api/v1/case', { headers: { 'X-Review-Token': token } })).json();
   const alert = page.locator('#alert');
@@ -57,7 +57,6 @@ try {
   await shot('initial');
 
   // URLの形が違うときは、送信せずに入力欄の下へ理由を出す。
-  await page.getByRole('link', { name: 'GitHubのURLを入力する', exact: true }).click();
   await page.locator('#repo-url').fill('github.com/sjl');
   await page.getByRole('button', { name: '読み込む', exact: true }).click();
   assert.match(await page.locator('#repo-url-error').innerText(), /https:\/\/github\.com\/所有者\/リポジトリ/);
@@ -127,7 +126,7 @@ try {
 
   // AIは未設定。静的解析は続ける。
   assert.equal(await page.locator('#ask-ai').isHidden(), true);
-  assert.match(await page.locator('#ai-status').innerText(), /未設定/);
+  assert.match(await page.locator('#ai-status').innerText(), /運営者によるサーバー設定が必要/);
 
   // 2. 期待を書く。名前がないと記録しない。
   await page.getByRole('link', { name: /期待する動作を確認する/ }).click();
@@ -399,7 +398,6 @@ try {
   await page.route('**/api/v1/case', holdCase);
   // 実行が未対応の言語。
   await page.getByRole('link', { name: '対象を選び直す', exact: true }).click();
-  await page.getByRole('link', { name: 'GitHubのURLを入力する', exact: true }).click();
   await page.locator('#repo-url').fill('https://github.com/spf13/cobra');
   await page.locator('#repo-ref').fill('');
   await page.getByRole('button', { name: '読み込む', exact: true }).click();
@@ -435,8 +433,7 @@ try {
   await writeFile(keyFile, 'synthetic-key-for-test\n', { mode: 0o600 });
   const aiUrl = await start(join(temp, 'ai-data'), { EEL_AI_BASE_URL: 'http://127.0.0.1:9/v1', EEL_AI_MODEL: 'synthetic-model', EEL_AI_API_KEY_FILE: keyFile });
   const aiPage = await context.newPage();
-  await aiPage.goto(aiUrl);
-  await aiPage.getByRole('link', { name: 'GitHubのURLを入力する', exact: true }).click();
+  await aiPage.goto(aiUrl + '/workbench');
   await aiPage.locator('#repo-url').fill(REPO);
   await aiPage.locator('#repo-ref').fill(AFTER);
   await aiPage.getByRole('button', { name: '読み込む', exact: true }).click();
@@ -465,8 +462,7 @@ try {
   await symlink(process.execPath, join(nodeOnly, 'node'));
   const bareUrl = await start(join(temp, 'data'), { PATH: nodeOnly });
   const barePage = await context.newPage();
-  await barePage.goto(bareUrl);
-  await barePage.getByRole('link', { name: 'GitHubのURLを入力する', exact: true }).click();
+  await barePage.goto(bareUrl + '/workbench');
   await barePage.locator('#repo-url').fill(REPO);
   await barePage.locator('#repo-ref').fill(fullCommit);
   await barePage.getByRole('button', { name: '読み込む', exact: true }).click();

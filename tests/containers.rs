@@ -1,5 +1,6 @@
 //! ダイジェスト付きの公式イメージで、試験専用コンテナの起動・HTTP操作・故障・掃除を確かめる。
 //! Dockerのエンジンがない環境では省略し、成功とは書かない。
+mod support;
 use execution_evidence_lab::{
     container::*, execution::*, model::*, recording::*, trial::*, workspace::*,
 };
@@ -8,6 +9,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
+use support::execute;
 
 const NGINX: &str =
     "nginx:1.27.4-alpine@sha256:4ff102c5d78d254a6f0da062b3cf39eaf07f01eec0927fd21e219d0af8bc0591";
@@ -672,8 +674,12 @@ fn openemr_browser_registers_patient_and_reads_back_visit() {
             "openemr".into(),
             "OpenEMRの構成と実試験".into(),
         );
-        w.architecture_models
-            .push(execution_evidence_lab::architecture::openemr());
+        w.architecture_models.push(
+            serde_json::from_str(include_str!(
+                "../examples/openemr-browser/architecture.json"
+            ))
+            .unwrap(),
+        );
         w.checks.push(execution_evidence_lab::workspace::Check {
             id: "openemr".into(),
             version: 1,

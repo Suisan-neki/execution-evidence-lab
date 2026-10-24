@@ -21,6 +21,10 @@ pub enum UnderstandRequest {
         repository: String,
         commit: String,
     },
+    Architecture {
+        repository: String,
+        commit: String,
+    },
     Inquire {
         repository: String,
         commit: String,
@@ -49,6 +53,7 @@ pub enum UnderstandRequest {
 pub struct Store {
     base: PathBuf,
     lock: Arc<Mutex<()>>,
+    diagram_lock: Arc<Mutex<()>>,
 }
 
 fn invalid(text: impl Into<String>) -> io::Error {
@@ -66,11 +71,32 @@ fn validate(repository: &str, commit: &str) -> io::Result<()> {
 }
 
 impl Store {
+    pub(crate) fn diagram_guard(&self) -> io::Result<std::sync::MutexGuard<'_, ()>> {
+        self.diagram_lock
+            .lock()
+            .map_err(|_| io::Error::other("図の生成状態を読み取れません"))
+    }
+    pub fn architecture_source(&self, repository: &str, commit: &str) -> io::Result<Value> {
+        let output = reader::read(ReaderRequest::ArchitectureSource {
+            snapshot: self.load(repository, commit)?,
+        })?;
+        self.save(&output["snapshot"])?;
+        self.load(repository, commit)
+    }
+    pub(crate) fn diagram_directory(&self, repository: &str, commit: &str) -> io::Result<PathBuf> {
+        validate(repository, commit)?;
+        Ok(self
+            .base
+            .join(".system-diagrams")
+            .join(repository)
+            .join(commit))
+    }
     pub fn new(base: PathBuf) -> io::Result<Self> {
         fs::create_dir_all(&base)?;
         Ok(Self {
             base: fs::canonicalize(base)?,
             lock: Arc::new(Mutex::new(())),
+            diagram_lock: Arc::new(Mutex::new(())),
         })
     }
     fn path(&self, repository: &str, commit: &str) -> io::Result<PathBuf> {
@@ -154,6 +180,11 @@ impl Store {
             UnderstandRequest::Overview { repository, commit } => {
                 let snapshot = self.load(&repository, &commit)?;
                 let output = reader::read(ReaderRequest::Overview { snapshot })?;
+                (output["snapshot"].clone(), output)
+            }
+            UnderstandRequest::Architecture { repository, commit } => {
+                let snapshot = self.load(&repository, &commit)?;
+                let output = reader::read(ReaderRequest::Architecture { snapshot })?;
                 (output["snapshot"].clone(), output)
             }
             UnderstandRequest::Inquire {

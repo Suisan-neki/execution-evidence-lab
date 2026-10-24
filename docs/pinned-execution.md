@@ -130,6 +130,6 @@ localの終了時の照合は、実行中にコードを書き換えて戻す操
 
 現在の合成例は、実AWS・App Store提出版・iOS・管理画面を照合した結果ではない。本人の理解・仕様採用・参加者評価・研究手法の優位性は別に確認する。
 
-読む順番：観測部品、`src/execution.rs`、`src/workspace.rs`、`ui/review.js`、`tests/execution.rs`、`tools/pinned-demo.mjs`。関連：#123・#57・#59・#71・#72・#78・#79・#81。
+読む順番：観測部品、`src/execution.rs`、`src/workspace.rs`、`ui/workbench.js`、`tests/execution.rs`、`tools/pinned-demo.mjs`。関連：#123・#57・#59・#71・#72・#78・#79・#81。
 
 二つの取り込んだ試行を画面で比べる手順は[試行比較](trial-comparison.md)。結果の変化、コード・入力・条件の差、現在の条件への適用範囲を確認する。

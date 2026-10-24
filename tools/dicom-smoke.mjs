@@ -42,14 +42,13 @@ try {
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto(url);
+  await page.goto(url + '/workbench');
   const token = await page.locator('meta[name="review-token"]').getAttribute('content');
   const caseView = async () => (await context.request.get(url + '/api/v1/case', { headers: { 'X-Review-Token': token } })).json();
   const shot = name => page.screenshot({ path: join(output, `dicom-${name}.png`), fullPage: true });
   const as = async (name, role) => { await page.locator('#person').getByLabel('名前').fill(name); await page.locator('#person').getByLabel('役割').selectOption(role); };
 
   // 1. 固定コミットを読む。
-  await page.getByRole('link', { name: 'GitHubのURLを入力する', exact: true }).click();
   await page.locator('#repo-url').fill('https://github.com/pydicom/pynetdicom');
   await page.locator('#repo-ref').fill(PYNETDICOM);
   await page.getByRole('button', { name: '読み込む', exact: true }).click();

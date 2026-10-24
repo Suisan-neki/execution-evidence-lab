@@ -1,0 +1,11 @@
+{
+  "repository": "https://github.com/nanaism/yomiyasu",
+  "commit": "488dd37c0baa67ec65bf155aced9fa1a01d261e2",
+  "version": "2.2.2",
+  "license": "MIT",
+  "source_files": {
+    "README.md": "986bf9c4d0e2ca42a0b276223306609dd1934914c93699f20bcc19200c47d152",
+    "skill/SKILL.md": "bd6bce17afea71353b66b75ad0c957227cb7ef46e44ff80dd65796a5d008a234",
+    "skill/references/audience.md": "7b274bab509246de0800c571747459071ffe1a56cc502cc4edbdc42188db60b2"
+  }
+}
