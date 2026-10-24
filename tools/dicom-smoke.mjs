@@ -9,7 +9,7 @@ import { resolve, join } from 'node:path';
 import { chromium } from 'playwright';
 
 const root = resolve(import.meta.dirname, '..');
-const binary = process.env.REVIEW_BINARY || join(root, 'target/debug/execution-evidence-lab');
+const binary = process.env.REVIEW_BINARY || join(root, 'target/debug/mugiurushi');
 const output = join(root, 'test-results');
 const PYNETDICOM = '2692cb93222c82c872ec8ecc8a426f1c9d86bc46'; // v3.0.4
 const PYDICOM = '20aa4b73aef76bffb6fbc46a8827588dfa9bb89d'; // v3.0.2

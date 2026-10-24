@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {spawnSync,execFileSync} from 'node:child_process';
-const root=path.resolve(import.meta.dirname,'..'),bin=process.env.REVIEW_BINARY||path.join(root,'target/debug/execution-evidence-lab');
+const root=path.resolve(import.meta.dirname,'..'),bin=process.env.REVIEW_BINARY||path.join(root,'target/debug/mugiurushi');
 const recipe=JSON.parse(fs.readFileSync(path.join(root,'examples/openemr-browser/soap-recipe.json')));
 const output=path.join(root,'evaluations/ci-openemr-soap');fs.mkdirSync(output,{recursive:true});
 const repository=path.join(output,'repository');fs.mkdirSync(repository);

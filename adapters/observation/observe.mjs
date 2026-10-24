@@ -4,7 +4,7 @@ import { relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 export function createObserver() {
   const variables = ['EEL_RUN_ID','EEL_RECORD_ID','EEL_ATTEMPT_ID','EEL_OBSERVATIONS','EEL_SOURCE_ROOT'];
-  if (variables.some(name => !process.env[name])) throw Error('execution-evidence-labから試行を起動してください。');
+  if (variables.some(name => !process.env[name])) throw Error('mugiurushiから試行を起動してください。');
   const correlation = { run_id:process.env.EEL_RUN_ID, record_id:process.env.EEL_RECORD_ID, attempt_id:process.env.EEL_ATTEMPT_ID };
   let sequence = 0;
   return function observe(assertion, subject, outcome, detail) {

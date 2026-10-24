@@ -1,9 +1,9 @@
 mod case;
 mod environment;
-use execution_evidence_lab::review;
+use mugiurushi::review;
 use std::{collections::BTreeMap, io, path::PathBuf};
 
-const HELP: &str = "execution-evidence-lab
+const HELP: &str = "mugiurushi
   app DATA_DIR [--port 8765] [--execution-mode local|bubblewrap]
   ai init|test [--data-dir data/app]
   api CASE_DIR --token-file NEW_FILE [--port 8765] [--repository-root DIR --execution-mode local|bubblewrap]
@@ -68,7 +68,7 @@ pub fn run(args: &[String]) -> io::Result<()> {
         return review::serve_app(
             PathBuf::from("data/app"),
             8765,
-            execution_evidence_lab::execution::ExecutionMode::Local,
+            mugiurushi::execution::ExecutionMode::Local,
         );
     };
     match command.as_str() {
@@ -80,16 +80,15 @@ pub fn run(args: &[String]) -> io::Result<()> {
                 .map_or_else(|| PathBuf::from("data/app"), PathBuf::from);
             let path = data.join("ai.json");
             if args[1] == "init" {
-                execution_evidence_lab::ai::initialize_connection(&path)?;
+                mugiurushi::ai::initialize_connection(&path)?;
                 println!(
                     "運営者用の設定ファイルを作成しました: {}\nモデル名とAPIキーをこのファイルへ記入し、ai testで接続を確認してください。",
                     path.display()
                 );
             } else {
-                let config =
-                    execution_evidence_lab::ai::Config::for_app(&data)?.ok_or_else(|| {
-                        invalid("AI未設定です。ai initで運営者用の設定ファイルを作成してください")
-                    })?;
+                let config = mugiurushi::ai::Config::for_app(&data)?.ok_or_else(|| {
+                    invalid("AI未設定です。ai initで運営者用の設定ファイルを作成してください")
+                })?;
                 let result = config.test_connection()?;
                 println!("{}", result["message"].as_str().unwrap_or_default());
             }
@@ -123,11 +122,8 @@ pub fn run(args: &[String]) -> io::Result<()> {
             )?;
         }
         "repo" if args.len() == 4 && args[1] == "prepare" => {
-            let recipe = execution_evidence_lab::recording::read_json(&PathBuf::from(&args[3]))?;
-            execution_evidence_lab::execution::prepare_repository(
-                &PathBuf::from(&args[2]),
-                &recipe,
-            )?;
+            let recipe = mugiurushi::recording::read_json(&PathBuf::from(&args[3]))?;
+            mugiurushi::execution::prepare_repository(&PathBuf::from(&args[2]), &recipe)?;
             println!(
                 "固定コミットを取得しました: {}。checkoutと対象コードの実行は行っていません。",
                 args[2]
@@ -136,10 +132,11 @@ pub fn run(args: &[String]) -> io::Result<()> {
         "app" if args.len() >= 2 => {
             let opts = options(&args[2..], &["--port", "--execution-mode"])?;
             let port = port(&opts)?;
-            let mode = opts.get("--execution-mode").map_or(
-                Ok(execution_evidence_lab::execution::ExecutionMode::Local),
-                |m| m.parse(),
-            )?;
+            let mode = opts
+                .get("--execution-mode")
+                .map_or(Ok(mugiurushi::execution::ExecutionMode::Local), |m| {
+                    m.parse()
+                })?;
             review::serve_app(PathBuf::from(&args[1]), port, mode)?;
         }
         _ => return Err(invalid(format!("引数を確認してください\n{HELP}"))),

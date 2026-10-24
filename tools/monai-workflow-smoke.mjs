@@ -4,7 +4,7 @@ import path from 'node:path';
 import {spawnSync,execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 
-const root=path.resolve(import.meta.dirname,'..'),bin=process.env.REVIEW_BINARY||path.join(root,'target/debug/execution-evidence-lab');
+const root=path.resolve(import.meta.dirname,'..'),bin=process.env.REVIEW_BINARY||path.join(root,'target/debug/mugiurushi');
 const original=path.join(root,'examples/monai-workflow/recipe.json'),recipe=JSON.parse(fs.readFileSync(original));
 const repository=path.join(root,'evaluations/ci-environments/monai-cpu/repository');
 const output=path.join(root,'evaluations/ci-monai-workflow');fs.mkdirSync(output);
@@ -24,7 +24,7 @@ function change(action,reason){
 for(const id of stages)change({op:'configure_reported_observation',check_id:id,criterion:{assertion:'monai.stage',subject:id}},'段階ごとの報告を条件へ対応づける');
 let frameworkCommit=execFileSync('git',['-C',root,'rev-parse','HEAD'],{encoding:'utf8'}).trim();
 if(process.env.GITHUB_EVENT_PATH){const event=JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH));frameworkCommit=event.pull_request?.head?.sha||process.env.GITHUB_SHA||frameworkCommit;}
-const workflowSource={repository:'Suisan-neki/execution-evidence-lab',commit:frameworkCommit,path:'examples/monai-workflow/workflow.py',line:1,end_line:fs.readFileSync(path.join(root,'examples/monai-workflow/workflow.py'),'utf8').trimEnd().split('\n').length};
+const workflowSource={repository:'Suisan-neki/mugiurushi',commit:frameworkCommit,path:'examples/monai-workflow/workflow.py',line:1,end_line:fs.readFileSync(path.join(root,'examples/monai-workflow/workflow.py'),'utf8').trimEnd().split('\n').length};
 const results=[];
 function run(label,fault){
  const folder=path.join(output,label);fs.mkdirSync(folder);

@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 //! 汎用ケースの試験用データ。対象アプリの実行結果とは扱わない。
-use execution_evidence_lab::{
+use mugiurushi::{
     execution::{Criterion, ObservationOutcome},
     model::*,
     recording::new_run_directory,
@@ -98,32 +98,32 @@ pub fn import_pass(path: &Path) -> WorkspaceView {
 pub fn execute(
     repository_root: &Path,
     output: &Path,
-    recipe: execution_evidence_lab::execution::Recipe,
+    recipe: mugiurushi::execution::Recipe,
     condition: Condition,
     previous_run: Option<String>,
 ) -> std::io::Result<RunResult> {
-    execution_evidence_lab::execution::execute_with_mode(
+    mugiurushi::execution::execute_with_mode(
         repository_root,
         output,
         recipe,
         condition,
         previous_run,
-        execution_evidence_lab::execution::ExecutionMode::Local,
+        mugiurushi::execution::ExecutionMode::Local,
     )
 }
 
 pub fn run_external(
     directory: &Path,
     repository_root: &Path,
-    recipe: execution_evidence_lab::execution::Recipe,
+    recipe: mugiurushi::execution::Recipe,
     actor: String,
     reason: String,
 ) -> std::io::Result<WorkspaceView> {
-    execution_evidence_lab::workspace::run_external_mode(
+    mugiurushi::workspace::run_external_mode(
         directory,
         repository_root,
         recipe,
-        execution_evidence_lab::execution::ExecutionMode::Local,
+        mugiurushi::execution::ExecutionMode::Local,
         actor,
         reason,
     )

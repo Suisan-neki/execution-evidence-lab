@@ -1,5 +1,5 @@
 mod support;
-use execution_evidence_lab::{execution::*, model::*, recording::*, workspace::*};
+use mugiurushi::{execution::*, model::*, recording::*, workspace::*};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -478,8 +478,8 @@ fn execute_request(
     fixture: &Fixture,
     revision: u64,
     scenario: &str,
-) -> execution_evidence_lab::review_execution::ExecuteRequest {
-    execution_evidence_lab::review_execution::ExecuteRequest {
+) -> mugiurushi::review_execution::ExecuteRequest {
+    mugiurushi::review_execution::ExecuteRequest {
         expected_revision: revision,
         actor: "Synthetic".into(),
         reason: "画面経由の合成試験".into(),
@@ -487,8 +487,8 @@ fn execute_request(
     }
 }
 fn wait_job(
-    controller: &execution_evidence_lab::review_execution::Controller,
-) -> execution_evidence_lab::review_execution::Job {
+    controller: &mugiurushi::review_execution::Controller,
+) -> mugiurushi::review_execution::Job {
     let start = std::time::Instant::now();
     loop {
         let job = controller.status().unwrap().job.unwrap();
@@ -501,7 +501,7 @@ fn wait_job(
 }
 fn review_http(
     case: &Path,
-    controller: Option<&execution_evidence_lab::review_execution::Controller>,
+    controller: Option<&mugiurushi::review_execution::Controller>,
     method: &str,
     path: &str,
     body: &str,
@@ -519,7 +519,7 @@ fn review_http(
     let server = thread::spawn(move || {
         let (stream, _) = listener.accept().unwrap();
         if let Some(controller) = controller {
-            execution_evidence_lab::review::handle_connection_with_execution(
+            mugiurushi::review::handle_connection_with_execution(
                 stream,
                 &case,
                 "test-token",
@@ -527,7 +527,7 @@ fn review_http(
             )
             .unwrap();
         } else {
-            execution_evidence_lab::review::handle_connection(stream, &case, "test-token").unwrap();
+            mugiurushi::review::handle_connection(stream, &case, "test-token").unwrap();
         }
     });
     let mut stream = TcpStream::connect(address).unwrap();
@@ -552,7 +552,7 @@ fn review_http(
 
 #[test]
 fn review_execution_is_opt_in_authenticated_and_cannot_replace_root_or_mode() {
-    use execution_evidence_lab::review_execution::Controller;
+    use mugiurushi::review_execution::Controller;
     let fixture = Fixture::new();
     let case = review_case(&fixture);
     let controller =
@@ -649,7 +649,7 @@ fn review_execution_is_opt_in_authenticated_and_cannot_replace_root_or_mode() {
 
 #[test]
 fn background_review_keeps_reads_available_rejects_duplicates_and_preserves_conflicting_run() {
-    use execution_evidence_lab::review_execution::Controller;
+    use mugiurushi::review_execution::Controller;
     let fixture = Fixture::new();
     let case = review_case(&fixture);
     let controller =
@@ -709,7 +709,7 @@ fn background_review_keeps_reads_available_rejects_duplicates_and_preserves_conf
 
 #[test]
 fn pinned_review_reports_target_failure_and_timeout_as_unknown_without_running_other_origin() {
-    use execution_evidence_lab::review_execution::Controller;
+    use mugiurushi::review_execution::Controller;
     let fixture = Fixture::new();
     let case = review_case(&fixture);
     let controller =

@@ -7,7 +7,7 @@ class Observer:
     def __init__(self):
         for key in ('EEL_RUN_ID','EEL_RECORD_ID','EEL_ATTEMPT_ID','EEL_OBSERVATIONS','EEL_SOURCE_ROOT'):
             if not os.environ.get(key):
-                raise ValueError('execution-evidence-labから試行を起動してください。')
+                raise ValueError('mugiurushiから試行を起動してください。')
         self.sequence = 0
         self.correlation = {'run_id':os.environ['EEL_RUN_ID'],'record_id':os.environ['EEL_RECORD_ID'],'attempt_id':os.environ['EEL_ATTEMPT_ID']}
     def emit(self, assertion, subject, outcome, detail):

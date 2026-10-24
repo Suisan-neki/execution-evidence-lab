@@ -1,6 +1,6 @@
 //! 依存先と複数のプロセスを含む試行を、架空の受信サーバー・送信側・依存パッケージで確かめる。
 //! 送信側は pynetdicom の storescu と同じく、受信側が失敗を返しても終了コード0で終わる。
-use execution_evidence_lab::{
+use mugiurushi::{
     execution::*, model::*, python_env::*, recording::*, server::*, trial::*, workspace::*,
 };
 use std::{

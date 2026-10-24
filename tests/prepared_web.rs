@@ -1,4 +1,4 @@
-use execution_evidence_lab::{environment::*, prepared_web::*, recording::*};
+use mugiurushi::{environment::*, prepared_web::*, recording::*};
 use std::{
     fs,
     path::{Path, PathBuf},

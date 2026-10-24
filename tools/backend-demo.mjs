@@ -4,7 +4,7 @@ import {execFileSync,spawn} from 'node:child_process';
 import {mkdir,readFile,writeFile,stat,rm} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 import net from 'node:net';
-const root=resolve(import.meta.dirname,'..'), binary=process.env.REVIEW_BINARY||join(root,'target/debug/execution-evidence-lab');
+const root=resolve(import.meta.dirname,'..'), binary=process.env.REVIEW_BINARY||join(root,'target/debug/mugiurushi');
 const output=resolve(process.argv[2]||join(root,'evaluations','backend-'+Date.now()));
 await mkdir(output,{recursive:false});
 const casePath=join(output,'case'), tokenPath=join(output,'api-token');
@@ -54,7 +54,7 @@ try {
  const cliBackup=join(output,'cli-backup.json');execFileSync(binary,['case','backup',casePath,'--output',cliBackup]);assert.deepEqual(JSON.parse(await readFile(cliBackup,'utf8')),saved);
  let liveReader=null;
  if(process.argv.includes('--live')) {
-  const response=await fetch(url+'/api/v1/repository',{method:'POST',headers,body:JSON.stringify({operation:'read',url:'https://github.com/Suisan-neki/execution-evidence-lab',reference:'63c8dac0789ed712f267a9956f5f012c645aea88'})});
+  const response=await fetch(url+'/api/v1/repository',{method:'POST',headers,body:JSON.stringify({operation:'read',url:'https://github.com/Suisan-neki/mugiurushi',reference:'63c8dac0789ed712f267a9956f5f012c645aea88'})});
   const body=await response.json();assert.equal(response.status,200,body.error);
   assert.equal(body.snapshot.commit,'63c8dac0789ed712f267a9956f5f012c645aea88');
   liveReader={commit:body.snapshot.commit,inventory:body.snapshot.inventory.length,read_files:Object.keys(body.snapshot.files).length};

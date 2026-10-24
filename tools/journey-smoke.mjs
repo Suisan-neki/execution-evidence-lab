@@ -19,7 +19,7 @@ for (const s of [snapshot, other]) {
 }
 await mkdir(output, { recursive: true });
 const ai = await startSyntheticArchitectureAI();
-const binary = process.env.REVIEW_BINARY || join(root, 'target/debug/execution-evidence-lab');
+const binary = process.env.REVIEW_BINARY || join(root, 'target/debug/mugiurushi');
 const operatorEnv = { ...process.env, PATH: '/no-node-for-server' };
 for (const name of ['EEL_AI_BASE_URL', 'EEL_AI_MODEL', 'EEL_AI_API_KEY_FILE']) delete operatorEnv[name];
 async function startApp() {

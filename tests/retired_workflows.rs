@@ -1,5 +1,5 @@
 mod support;
-use execution_evidence_lab::{
+use mugiurushi::{
     backup, model::*, recording::new_run_directory, run_record::make_manifest, workspace::*,
 };
 use serde_json::json;
@@ -95,7 +95,7 @@ fn retired_cli_commands_fail_instead_of_starting_the_app_or_creating_outputs() {
     for command in [
         "demo", "suite", "capture", "verify", "retest", "review", "explore",
     ] {
-        let result = Command::new(env!("CARGO_BIN_EXE_execution-evidence-lab"))
+        let result = Command::new(env!("CARGO_BIN_EXE_mugiurushi"))
             .arg(command)
             .current_dir(&root)
             .output()

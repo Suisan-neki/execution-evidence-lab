@@ -97,10 +97,7 @@ impl Fetch for Github {
                     "コード読取が30秒の待機上限に達しました",
                 )
             })?;
-        let mut req = self
-            .agent
-            .get(url)
-            .header("User-Agent", "execution-evidence-lab");
+        let mut req = self.agent.get(url).header("User-Agent", "mugiurushi");
         if u.host_str() == Some("api.github.com") {
             req = req.header("Accept", "application/vnd.github+json");
             if let Some(t) = &self.token {

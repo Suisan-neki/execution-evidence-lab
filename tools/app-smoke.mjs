@@ -8,7 +8,7 @@ import { resolve, join } from 'node:path';
 import { chromium } from 'playwright';
 
 const root = resolve(import.meta.dirname, '..');
-const binary = process.env.REVIEW_BINARY || join(root, 'target/debug/execution-evidence-lab');
+const binary = process.env.REVIEW_BINARY || join(root, 'target/debug/mugiurushi');
 const output = join(root, 'test-results');
 const REPO = 'https://github.com/sjl/t';
 const BEFORE = '70817fd';

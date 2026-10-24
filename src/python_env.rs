@@ -336,7 +336,7 @@ pub fn write_metadata(meta: &Path, project: &Project) -> io::Result<String> {
     }
     let mut files = vec![
         ("METADATA", metadata),
-        ("INSTALLER", "execution-evidence-lab\n".to_owned()),
+        ("INSTALLER", "mugiurushi\n".to_owned()),
     ];
     let mut groups = vec![];
     if !project.scripts.is_empty() {
