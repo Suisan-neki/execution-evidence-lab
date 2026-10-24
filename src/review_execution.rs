@@ -304,6 +304,8 @@ impl Controller {
         }
         // 削除に成功した一つの要求だけが実行へ進む。再送・並行要求は承認を再利用できない。
         std::fs::remove_file(path).map_err(|_| denied("承認は使用済みか、取り消されています"))?;
+        // 実行開始より前に削除を永続化し、再起動後の承認の復活を防ぐ。
+        std::fs::File::open(&self.directory)?.sync_all()?;
         self.start(request)
     }
     /// 信頼された端末側の呼出し。HTTPハンドラーは必ずstart_webを使う。

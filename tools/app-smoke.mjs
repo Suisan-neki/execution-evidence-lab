@@ -243,6 +243,10 @@ try {
     await page.locator('#result:not([hidden])').waitFor({ timeout: 120000 });
   };
   await runTrial();
+  const normalTrace = (await caseView()).workspace.evidence.at(-1).execution;
+  assert.equal(normalTrace.exit_code, 0, JSON.stringify({
+    mode: normalTrace.mode, stderr: normalTrace.stderr_excerpt, diagnostics: normalTrace.diagnostics,
+  }));
   let result = await page.locator('#result-body').innerText();
   assert.match(result, /現在の判定[\s\S]*条件を満たす/);
   assert.match(result, /基盤が保存先を直接読み出した結果/);
