@@ -248,7 +248,7 @@ try {
   await page.getByLabel(/基盤による保存先の読み出しを止める/).check();
   await runTrial();
   result = await page.locator('#result-body').innerText();
-  assert.match(result, /現在の判定[\s\S]*判定できない/);
+  assert.match(result, /現在の判定[\s\S]*検証未通過/);
   await page.getByText('過去の試行を見る', { exact: true }).click();
   assert.match(await page.locator('#result-body').innerText(), /この試行は現在の期待には当てはまりません/);
   log('観測の欠落: 前の成功を使わず「判定できない」');
