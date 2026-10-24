@@ -1,4 +1,4 @@
-use super::{HELP, invalid, options, output};
+use super::{HELP, invalid, options, output, print_json, required};
 use std::{io, path::PathBuf};
 
 pub(super) fn run(args: &[String]) -> io::Result<()> {
@@ -15,15 +15,9 @@ pub(super) fn run(args: &[String]) -> io::Result<()> {
         ),
         Some("run") if args.len() >= 4 => {
             let opts = options(&args[2..], &["--repository-root", "--output"])?;
-            let root = opts
-                .get("--repository-root")
-                .ok_or_else(|| invalid("--repository-rootが必要です"))?;
+            let root = required(&opts, "--repository-root")?;
             let path = PathBuf::from(&args[1]);
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&environment::inspect(&path)?)
-                    .map_err(io::Error::other)?
-            );
+            print_json(&environment::inspect(&path)?)?;
             let directory = environment::run(&path, &PathBuf::from(root), &output(&opts))?;
             let record = environment::load(&directory)?;
             println!(
@@ -47,9 +41,5 @@ pub(super) fn run(args: &[String]) -> io::Result<()> {
         }
         _ => return Err(invalid(HELP)),
     };
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&value).map_err(io::Error::other)?
-    );
-    Ok(())
+    print_json(&value)
 }

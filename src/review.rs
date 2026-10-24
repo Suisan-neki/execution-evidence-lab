@@ -3,7 +3,7 @@ use crate::{
     review_execution::{Controller, ExecuteRequest, ExecutionStatus, Job},
     workspace::{self, *},
 };
-use serde::Deserialize;
+use serde::{Deserialize, de::DeserializeOwned};
 use std::{
     collections::BTreeMap,
     fs::File,
@@ -195,6 +195,23 @@ fn json(stream: &mut TcpStream, status: u16, value: &impl serde::Serialize) -> i
     )
 }
 
+fn parse_body<T: DeserializeOwned>(body: &[u8]) -> io::Result<T> {
+    serde_json::from_slice(body).map_err(io::Error::other)
+}
+
+fn html_response(stream: &mut TcpStream, html: &str) -> io::Result<()> {
+    respond(stream, 200, "text/html; charset=utf-8", html.as_bytes())
+}
+
+fn script_response(stream: &mut TcpStream, script: &str) -> io::Result<()> {
+    respond(
+        stream,
+        200,
+        "text/javascript; charset=utf-8",
+        script.as_bytes(),
+    )
+}
+
 /// 任意ファイルへのアクセスや任意コマンド実行は公開しない。変更JSONのimportはCLI専用。
 pub fn handle_connection(mut stream: TcpStream, directory: &Path, token: &str) -> io::Result<()> {
     handle_connection_mode(&mut stream, directory, token, None, None)
@@ -290,110 +307,98 @@ fn handle_connection_mode(
         );
     }
     if request.method == "GET" && request.path == "/api/v1/capabilities" {
+        let mut routes = vec![
+            "case",
+            "change",
+            "compare",
+            "backup",
+            "profiles",
+            "report",
+            "report-html",
+            "execution",
+            "execute",
+            "browser-screenshot",
+            "architecture",
+            "repository",
+        ];
+        if app.is_some() {
+            routes.extend(["understand", "prepare", "ai", "system-diagram"]);
+        }
         return json(
             stream,
             200,
-            &serde_json::json!({"schema_version":1,"api_version":"v1","scope":"localhost","routes":if app.is_some() {serde_json::json!(["case","change","compare","backup","profiles","report","report-html","execution","execute","browser-screenshot","architecture","repository","understand","prepare","ai","system-diagram"])} else {serde_json::json!(["case","change","compare","backup","profiles","report","report-html","execution","execute","browser-screenshot","architecture","repository"])},"reported_observations":true,"limits":{"request_bytes":MAX_BODY,"backup_bytes":crate::backup::MAX_BACKUP,"reader_request_bytes":8*1024*1024,"reader_seconds":30,"reader_output_bytes":8*1024*1024},"understanding":"作者の説明と静的解析。実行経路・業務上の意味は未確認"}),
+            &serde_json::json!({
+                "schema_version": 1,
+                "api_version": "v1",
+                "scope": "localhost",
+                "routes": routes,
+                "reported_observations": true,
+                "limits": {
+                    "request_bytes": MAX_BODY,
+                    "backup_bytes": crate::backup::MAX_BACKUP,
+                    "reader_request_bytes": 8 * 1024 * 1024,
+                    "reader_seconds": 30,
+                    "reader_output_bytes": 8 * 1024 * 1024,
+                },
+                "understanding": "作者の説明と静的解析。実行経路・業務上の意味は未確認",
+            }),
         );
     }
     if let Some(app) = app {
         match (request.method.as_str(), request.path.as_str()) {
             ("GET", "/" | "/architecture") => {
-                return respond(
-                    stream,
-                    200,
-                    "text/html; charset=utf-8",
-                    app_html(token).as_bytes(),
-                );
+                return html_response(stream, &app_html(token));
             }
             ("GET", "/workbench") => {
-                return respond(
-                    stream,
-                    200,
-                    "text/html; charset=utf-8",
-                    workbench_html(token).as_bytes(),
-                );
+                return html_response(stream, &workbench_html(token));
             }
             ("GET", "/ui/workbench.js") => {
-                return respond(
-                    stream,
-                    200,
-                    "text/javascript; charset=utf-8",
-                    include_str!("../ui/workbench.js").as_bytes(),
-                );
+                return script_response(stream, include_str!("../ui/workbench.js"));
             }
             ("GET", "/ui/repository-diagram.js") => {
-                return respond(
-                    stream,
-                    200,
-                    "text/javascript; charset=utf-8",
-                    include_str!("../ui/repository-diagram.js").as_bytes(),
-                );
+                return script_response(stream, include_str!("../ui/repository-diagram.js"));
             }
             ("GET", "/ui/app.js") => {
-                return respond(
-                    stream,
-                    200,
-                    "text/javascript; charset=utf-8",
-                    include_str!("../ui/app.js").as_bytes(),
-                );
+                return script_response(stream, include_str!("../ui/app.js"));
             }
             ("POST", "/api/v1/understand") => {
-                let result = serde_json::from_slice::<crate::understanding::UnderstandRequest>(
-                    &request.body,
-                )
-                .map_err(io::Error::other)
-                .and_then(|r| app.store.handle(r));
+                let result = parse_body::<crate::understanding::UnderstandRequest>(&request.body)
+                    .and_then(|r| app.store.handle(r));
                 return result_response(stream, result);
             }
             ("GET", "/api/v1/ai") => {
                 return result_response(stream, Ok(crate::ai::status(app.ai.as_ref())));
             }
             ("POST", "/api/v1/system-diagram") => {
-                let result =
-                    serde_json::from_slice::<crate::system_diagram::Request>(&request.body)
-                        .map_err(io::Error::other)
-                        .and_then(|r| {
-                            crate::system_diagram::generate(app.ai.as_ref(), &app.store, r)
-                        });
+                let result = parse_body::<crate::system_diagram::Request>(&request.body)
+                    .and_then(|r| crate::system_diagram::generate(app.ai.as_ref(), &app.store, r));
                 return result_response(stream, result);
             }
             ("POST", "/api/v1/system-diagram/question") => {
-                let result =
-                    serde_json::from_slice::<crate::system_diagram::Question>(&request.body)
-                        .map_err(io::Error::other)
-                        .and_then(|r| {
-                            crate::system_diagram::answer(app.ai.as_ref(), &app.store, r)
-                        });
+                let result = parse_body::<crate::system_diagram::Question>(&request.body)
+                    .and_then(|r| crate::system_diagram::answer(app.ai.as_ref(), &app.store, r));
                 return result_response(stream, result);
             }
             ("POST", "/api/v1/system-diagram/dialogue/read") => {
-                let result = serde_json::from_slice::<crate::system_diagram::dialogue::Binding>(
-                    &request.body,
-                )
-                .map_err(io::Error::other)
-                .and_then(|binding| crate::system_diagram::dialogue::read(&app.store, binding));
+                let result = parse_body::<crate::system_diagram::dialogue::Binding>(&request.body)
+                    .and_then(|binding| crate::system_diagram::dialogue::read(&app.store, binding));
                 return result_response(stream, result);
             }
             ("POST", "/api/v1/system-diagram/dialogue") => {
-                let result = serde_json::from_slice::<crate::system_diagram::dialogue::Message>(
-                    &request.body,
-                )
-                .map_err(io::Error::other)
-                .and_then(|message| {
-                    crate::system_diagram::dialogue::send(
-                        app.ai.as_ref(),
-                        app.dify.as_ref(),
-                        &app.store,
-                        directory,
-                        message,
-                    )
-                });
+                let result = parse_body::<crate::system_diagram::dialogue::Message>(&request.body)
+                    .and_then(|message| {
+                        crate::system_diagram::dialogue::send(
+                            app.ai.as_ref(),
+                            app.dify.as_ref(),
+                            &app.store,
+                            directory,
+                            message,
+                        )
+                    });
                 return result_response(stream, result);
             }
             ("POST", "/api/v1/ai") => {
-                let result = serde_json::from_slice::<crate::ai::AiRequest>(&request.body)
-                    .map_err(io::Error::other)
+                let result = parse_body::<crate::ai::AiRequest>(&request.body)
                     .and_then(|r| crate::ai::explain(app.ai.as_ref(), &app.store, r));
                 return result_response(stream, result);
             }
@@ -401,11 +406,8 @@ fn handle_connection_mode(
                 let result = controller
                     .ok_or_else(|| io::Error::other("実行の設定がありません"))
                     .and_then(|c| {
-                        serde_json::from_slice::<crate::review_execution::PrepareRequest>(
-                            &request.body,
-                        )
-                        .map_err(io::Error::other)
-                        .and_then(|r| c.prepare(r))
+                        parse_body::<crate::review_execution::PrepareRequest>(&request.body)
+                            .and_then(|r| c.prepare(r))
                     });
                 return result_response(stream, result);
             }
@@ -413,9 +415,8 @@ fn handle_connection_mode(
         }
     }
     if request.method == "POST" && request.path == "/api/v1/repository" {
-        let result = serde_json::from_slice::<crate::reader::ReaderRequest>(&request.body)
-            .map_err(io::Error::other)
-            .and_then(crate::reader::read);
+        let result =
+            parse_body::<crate::reader::ReaderRequest>(&request.body).and_then(crate::reader::read);
         return result_response(stream, result);
     }
     if request.method == "GET" && request.path == "/ui/repository-elk.js" {
@@ -505,8 +506,7 @@ fn handle_connection_mode(
                     struct ReportRequest {
                         expected_revision: u64,
                     }
-                    let expected: ReportRequest =
-                        serde_json::from_slice(&request.body).map_err(io::Error::other)?;
+                    let expected: ReportRequest = parse_body(&request.body)?;
                     if expected.expected_revision != workspace.revision {
                         return Err(io::Error::new(
                             io::ErrorKind::AlreadyExists,
@@ -517,17 +517,15 @@ fn handle_connection_mode(
                 crate::review_report::html(&crate::review_report::build(workspace)?)
             })();
             match result {
-                Ok(html) => respond(stream, 200, "text/html; charset=utf-8", html.as_bytes()),
+                Ok(html) => html_response(stream, &html),
                 Err(error) => result_response(stream, Err::<(), _>(error)),
             }
         }
         ("GET", "/api/backup") => result_response(stream, crate::backup::snapshot(directory)),
         ("POST", "/api/compare") => {
-            let result = serde_json::from_slice::<crate::comparison::CompareRequest>(&request.body)
-                .map_err(io::Error::other)
-                .and_then(|request| {
-                    crate::comparison::compare(workspace::load(directory)?, request)
-                });
+            let result = parse_body::<crate::comparison::CompareRequest>(&request.body).and_then(
+                |request| crate::comparison::compare(workspace::load(directory)?, request),
+            );
             result_response(stream, result)
         }
         ("GET", "/api/case") => match workspace::load(directory) {
@@ -552,8 +550,7 @@ fn handle_connection_mode(
                     )
                 })
                 .and_then(|controller| {
-                    serde_json::from_slice::<ExecuteRequest>(&request.body)
-                        .map_err(io::Error::other)
+                    parse_body::<ExecuteRequest>(&request.body)
                         .and_then(|request| controller.start(request))
                 });
             match result {
@@ -562,17 +559,15 @@ fn handle_connection_mode(
             }
         }
         ("POST", "/api/change") => {
-            let result = serde_json::from_slice::<ChangeRequest>(&request.body)
-                .map_err(io::Error::other)
-                .and_then(|change| {
-                    if matches!(change.action, Change::Import { .. }) {
-                        return Err(io::Error::new(
-                            io::ErrorKind::PermissionDenied,
-                            "試行の取り込みはCLIから行ってください",
-                        ));
-                    }
-                    workspace::change(directory, change)
-                });
+            let result = parse_body::<ChangeRequest>(&request.body).and_then(|change| {
+                if matches!(change.action, Change::Import { .. }) {
+                    return Err(io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        "試行の取り込みはCLIから行ってください",
+                    ));
+                }
+                workspace::change(directory, change)
+            });
             result_response(stream, result)
         }
         _ => json(

@@ -24,6 +24,24 @@ const HELP: &str = "execution-evidence-lab
 fn invalid(message: impl Into<String>) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, message.into())
 }
+fn print_json(value: &impl serde::Serialize) -> io::Result<()> {
+    println!(
+        "{}",
+        serde_json::to_string_pretty(value).map_err(io::Error::other)?
+    );
+    Ok(())
+}
+fn required(options: &BTreeMap<String, String>, name: &str) -> io::Result<String> {
+    options
+        .get(name)
+        .cloned()
+        .ok_or_else(|| invalid(format!("{name}が必要です")))
+}
+fn port(options: &BTreeMap<String, String>) -> io::Result<u16> {
+    options.get("--port").map_or(Ok(8765), |value| {
+        value.parse().map_err(|_| invalid("ポートは0〜65535です"))
+    })
+}
 fn options(args: &[String], allowed: &[&str]) -> io::Result<BTreeMap<String, String>> {
     let mut parsed = BTreeMap::new();
     let (pairs, remainder) = args.as_chunks::<2>();
@@ -88,10 +106,7 @@ pub fn run(args: &[String]) -> io::Result<()> {
                     "--execution-mode",
                 ],
             )?;
-            let port = opts.get("--port").map_or(Ok(8765), |v| {
-                v.parse::<u16>()
-                    .map_err(|_| invalid("ポートは0〜65535です"))
-            })?;
+            let port = port(&opts)?;
             let token_file = opts
                 .get("--token-file")
                 .ok_or_else(|| invalid("新規の--token-fileが必要です"))?;
@@ -120,11 +135,7 @@ pub fn run(args: &[String]) -> io::Result<()> {
         }
         "app" if args.len() >= 2 => {
             let opts = options(&args[2..], &["--port", "--execution-mode"])?;
-            let port = opts.get("--port").map_or(Ok(8765), |value| {
-                value
-                    .parse::<u16>()
-                    .map_err(|_| invalid("ポートは0〜65535です"))
-            })?;
+            let port = port(&opts)?;
             let mode = opts.get("--execution-mode").map_or(
                 Ok(execution_evidence_lab::execution::ExecutionMode::Local),
                 |m| m.parse(),
