@@ -27,7 +27,7 @@
         "kind": "human",
         "note": "宣言された試験操作の作成者を補足した。実参加者の役割ではない。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
           "path": "tools/ohif-smoke.mjs",
           "line": 1,
@@ -45,7 +45,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
           "path": "tools/ohif-smoke.mjs",
           "line": 1,
@@ -63,7 +63,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
           "path": "tools/ohif-smoke.mjs",
           "line": 1,
@@ -81,7 +81,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
           "path": "tools/ohif-smoke.mjs",
           "line": 1,
@@ -99,7 +99,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
           "path": "tools/ohif-smoke.mjs",
           "line": 1,
@@ -117,7 +117,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
           "path": "tools/ohif-smoke.mjs",
           "line": 1,
@@ -137,7 +137,7 @@
         "kind": "human",
         "note": "宣言された試験操作の作成者を補足した。実参加者の役割ではない。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
           "path": "tools/ohif-smoke.mjs",
           "line": 1,
@@ -155,7 +155,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
           "path": "tools/ohif-smoke.mjs",
           "line": 1,
@@ -173,7 +173,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
           "path": "tools/ohif-smoke.mjs",
           "line": 1,
@@ -191,7 +191,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
           "path": "tools/ohif-smoke.mjs",
           "line": 1,
@@ -209,7 +209,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
           "path": "tools/ohif-smoke.mjs",
           "line": 1,
@@ -227,7 +227,7 @@
         "kind": "configuration",
         "note": "試験用の固定設定・処理の宣言から確認した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "5ba757c6f051415a7676689a6e156a0f68eb13f7",
           "path": "tools/ohif-smoke.mjs",
           "line": 1,

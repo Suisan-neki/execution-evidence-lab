@@ -2,7 +2,7 @@
 
 ## 変更の理由
 
-main `c37e0a5` の [OpenEMR SOAP CI](https://github.com/Suisan-neki/execution-evidence-lab/actions/runs/39211505145) は、通常時の15項目とDB停止時の反例確認後、新しい試験環境の患者表示待ちで停止した。確認ボタン直後の写真では、15秒の待機後の表示を説明できない。これは調査用の観測を補う変更で、患者作成が停止する根本原因の修正ではない。
+main `c37e0a5` の [OpenEMR SOAP CI](https://github.com/Suisan-neki/mugiurushi/actions/runs/39211505145) は、通常時の15項目とDB停止時の反例確認後、新しい試験環境の患者表示待ちで停止した。確認ボタン直後の写真では、15秒の待機後の表示を説明できない。これは調査用の観測を補う変更で、患者作成が停止する根本原因の修正ではない。
 
 ## ローカルで確認したこと
 

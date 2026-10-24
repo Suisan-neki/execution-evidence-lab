@@ -17,10 +17,10 @@ npm ci --ignore-scripts
 
 ```bash
 cargo build
-./target/debug/execution-evidence-lab capture \
+./target/debug/mugiurushi capture \
   --condition "管理者が保存データを閲覧できる" \
   -- /absolute/path/to/node \
-  /absolute/path/to/execution-evidence-lab/adapters/vitalsensing-local.mjs \
+  /absolute/path/to/mugiurushi/adapters/vitalsensing-local.mjs \
   /absolute/path/to/vitalsensing/backend normal
 ```
 

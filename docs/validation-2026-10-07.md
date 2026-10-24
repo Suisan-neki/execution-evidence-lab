@@ -33,7 +33,7 @@ VitalSensingの対象は旧版`218329b7a1409539c6c581990bbbb4ed9dd4175c`と、�
 
 二つの立場は自動試験で入力した役割。実際の開発者と運用担当による評価、本人の理解や安心感を確認した結果ではない。
 
-ローカルのブラウザ起動は実行環境のsocket制約で失敗した。最初のCIは再描画で閉じた入力欄が表示されるまで待つ試験の書き方で失敗した。保存済みの版を待つ形へ修正して再実行し、成功した。失敗したCIは[run 37566753876](https://github.com/Suisan-neki/execution-evidence-lab/actions/runs/37566753876)、成功した066173deのCIは[run 37567083704](https://github.com/Suisan-neki/execution-evidence-lab/actions/runs/37567083704)。スクリーンショットは同CIの合成事例の成果物で7日間保存する。
+ローカルのブラウザ起動は実行環境のsocket制約で失敗した。最初のCIは再描画で閉じた入力欄が表示されるまで待つ試験の書き方で失敗した。保存済みの版を待つ形へ修正して再実行し、成功した。失敗したCIは[run 37566753876](https://github.com/Suisan-neki/mugiurushi/actions/runs/37566753876)、成功した066173deのCIは[run 37567083704](https://github.com/Suisan-neki/mugiurushi/actions/runs/37567083704)。スクリーンショットは同CIの合成事例の成果物で7日間保存する。
 
 ## 元ハンドラーの実行結果
 
@@ -61,7 +61,7 @@ VitalSensingの対象は旧版`218329b7a1409539c6c581990bbbb4ed9dd4175c`と、�
 | tools/reproduce-methods.mjs | 13事例成功。通常のチェックリストの参照実装と今回の判定が一致 |
 | 二つの固定版の実ハンドラー | 218329b、2bc818bで各3条件成功。模擬索引のみで、業務条件はUnknown |
 | 汎用の事例作成 | CLIで空の条件・発言・依存先を確認。条件追加後はUnknownの契約試験も成功 |
-| ブラウザ | ローカルのChromium取得は失敗。実装f5b15ceの[CI](https://github.com/Suisan-neki/execution-evidence-lab/actions/runs/37578576163)でChromeの追加操作も成功 |
+| ブラウザ | ローカルのChromium取得は失敗。実装f5b15ceの[CI](https://github.com/Suisan-neki/mugiurushi/actions/runs/37578576163)でChromeの追加操作も成功 |
 
 追加した契約試験は、対象発行前の成功、キー不明の失敗、比較の共通入力へのdecisions.basis混入、空の汎用事例を対象にする。既存の実TCP試行と区別して合成の反例を扱う。比較結果の要約は[確認手順の再現](method-reproduction.md)。
 

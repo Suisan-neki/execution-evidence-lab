@@ -1,6 +1,6 @@
 # 確認モードと、呼び出し番号表示の参照アプリ
 
-構想は[#157](https://github.com/Suisan-neki/execution-evidence-lab/issues/157)、今回の実装範囲は[#159](https://github.com/Suisan-neki/execution-evidence-lab/issues/159)。AIなどを使って作った人が、仕組み・実際の結果・未確認事項を同じ根拠から確認するための試作。
+構想は[#157](https://github.com/Suisan-neki/mugiurushi/issues/157)、今回の実装範囲は[#159](https://github.com/Suisan-neki/mugiurushi/issues/159)。AIなどを使って作った人が、仕組み・実際の結果・未確認事項を同じ根拠から確認するための試作。
 
 ## 確認モードを使う
 

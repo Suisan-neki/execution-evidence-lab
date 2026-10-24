@@ -27,7 +27,7 @@
         "kind": "human",
         "note": "宣言されたブラウザ操作から、人の役割を補足した。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
           "path": "examples/openemr-browser/recipe.json",
           "line": 1,
@@ -45,7 +45,7 @@
         "kind": "configuration",
         "note": "browserの版・操作・応答の宣言。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
           "path": "examples/openemr-browser/recipe.json",
           "line": 1,
@@ -63,7 +63,7 @@
         "kind": "configuration",
         "note": "containersで2サービスを宣言する。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
           "path": "examples/openemr-browser/recipe.json",
           "line": 1,
@@ -81,7 +81,7 @@
         "kind": "configuration",
         "note": "openemrサービスとブラウザの接続先。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
           "path": "examples/openemr-browser/recipe.json",
           "line": 1,
@@ -99,7 +99,7 @@
         "kind": "configuration",
         "note": "mysqlサービス。アプリにはMYSQL_HOST=mysqlを渡す。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
           "path": "examples/openemr-browser/recipe.json",
           "line": 1,
@@ -117,7 +117,7 @@
         "kind": "configuration",
         "note": "mysql.volumesにdbを宣言。試行後に削除する。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
           "path": "examples/openemr-browser/recipe.json",
           "line": 1,
@@ -137,7 +137,7 @@
         "kind": "configuration",
         "note": "レシピの準備と試験操作を基盤がブラウザへ送る。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
           "path": "examples/openemr-browser/recipe.json",
           "line": 1,
@@ -155,7 +155,7 @@
         "kind": "configuration",
         "note": "アプリの443番ポートを試験用に公開し、TLSでアクセスする。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
           "path": "examples/openemr-browser/recipe.json",
           "line": 1,
@@ -173,7 +173,7 @@
         "kind": "configuration",
         "note": "MYSQL_HOST=mysqlで接続先を指定する。通信そのものの観測はしていない。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
           "path": "examples/openemr-browser/recipe.json",
           "line": 1,
@@ -191,7 +191,7 @@
         "kind": "configuration",
         "note": "dbボリュームを/var/lib/mysqlに接続する。ファイル書込やディスク同期の観測はしていない。",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "7ba666f97dd11287c8600d02b36e12d67cacdb29",
           "path": "examples/openemr-browser/recipe.json",
           "line": 1,

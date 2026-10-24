@@ -4,7 +4,7 @@
   "version": 1,
   "title": "呼び出し番号表示の試験用構成",
   "source": {
-    "repository": "Suisan-neki/execution-evidence-lab",
+    "repository": "Suisan-neki/mugiurushi",
     "commit": "5b98ad92eb5810d6d0cd5e8b81fe3944b17a6f87",
     "path": "examples/queue-display/app.py",
     "line": 1,
@@ -24,7 +24,7 @@
         "kind": "configuration",
         "note": "固定した参照アプリの試験用構成。実運用の構成ではない",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "5b98ad92eb5810d6d0cd5e8b81fe3944b17a6f87",
           "path": "examples/queue-display/trial.py",
           "line": 12,
@@ -54,7 +54,7 @@
         "kind": "configuration",
         "note": "固定した参照アプリの試験用構成。実運用の構成ではない",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "5b98ad92eb5810d6d0cd5e8b81fe3944b17a6f87",
           "path": "examples/queue-display/app.py",
           "line": 12,
@@ -72,7 +72,7 @@
         "kind": "configuration",
         "note": "固定した参照アプリの試験用構成。実運用の構成ではない",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "5b98ad92eb5810d6d0cd5e8b81fe3944b17a6f87",
           "path": "examples/queue-display/app.py",
           "line": 21,
@@ -92,7 +92,7 @@
         "kind": "configuration",
         "note": "固定した参照アプリの試験用構成。実運用の構成ではない",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "5b98ad92eb5810d6d0cd5e8b81fe3944b17a6f87",
           "path": "examples/queue-display/trial.py",
           "line": 27,
@@ -110,7 +110,7 @@
         "kind": "configuration",
         "note": "固定した参照アプリの試験用構成。実運用の構成ではない",
         "source": {
-          "repository": "Suisan-neki/execution-evidence-lab",
+          "repository": "Suisan-neki/mugiurushi",
           "commit": "5b98ad92eb5810d6d0cd5e8b81fe3944b17a6f87",
           "path": "examples/queue-display/app.py",
           "line": 12,

@@ -36,7 +36,7 @@ macOS 26.3.1、Rust 1.99.0、Node.js 24.10.0、Python 3.14.5、git 2.50.1、Play
 
 試行は4回で、すべて試験用の保存先の `case/runs` に残った。
 
-同じ試験は、GitHub Actions（Ubuntu、Node.js 22）でもコミット `4c769d1` で最後まで成功した（[実行記録](https://github.com/Suisan-neki/execution-evidence-lab/actions/runs/38667474510)）。CIではActionsのトークンを `EEL_GITHUB_TOKEN_FILE` で渡す。
+同じ試験は、GitHub Actions（Ubuntu、Node.js 22）でもコミット `4c769d1` で最後まで成功した（[実行記録](https://github.com/Suisan-neki/mugiurushi/actions/runs/38667474510)）。CIではActionsのトークンを `EEL_GITHUB_TOKEN_FILE` で渡す。
 
 ## そのほかの確認
 

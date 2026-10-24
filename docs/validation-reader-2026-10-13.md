@@ -4,7 +4,7 @@
 
 ## 確認した結果
 
-[GitHub Actions run 38336512712](https://github.com/Suisan-neki/execution-evidence-lab/actions/runs/38336512712)で全工程が成功した。対象は`47a9671`。
+[GitHub Actions run 38336512712](https://github.com/Suisan-neki/mugiurushi/actions/runs/38336512712)で全工程が成功した。対象は`47a9671`。
 
 | 検証 | 結果と範囲 |
 | --- | --- |

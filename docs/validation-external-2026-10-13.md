@@ -4,7 +4,7 @@
 
 ## 確認した版
 
-実装対象`d415ca5e922e203fe7eb21ed3528bb61158f5e0e`。[GitHub Actions run 38342458815](https://github.com/Suisan-neki/execution-evidence-lab/actions/runs/38342458815)で全工程が成功した。過去の初回接続は`acf5e930d1883edb53bca51cfa30dbde2b356d7e`、次の確認・公開Git取得を追加した版は`5eff0640fe88d21d933c06808be927e62bed8953`。今回の実装の採用・本人の理解は未確認。PR #126は未マージ。
+実装対象`d415ca5e922e203fe7eb21ed3528bb61158f5e0e`。[GitHub Actions run 38342458815](https://github.com/Suisan-neki/mugiurushi/actions/runs/38342458815)で全工程が成功した。過去の初回接続は`acf5e930d1883edb53bca51cfa30dbde2b356d7e`、次の確認・公開Git取得を追加した版は`5eff0640fe88d21d933c06808be927e62bed8953`。今回の実装の採用・本人の理解は未確認。PR #126は未マージ。
 
 | 検証 | 結果・範囲 |
 | --- | --- |
